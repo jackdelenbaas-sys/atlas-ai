@@ -17,10 +17,26 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!impor
 .bubble.typing{min-width:72px;letter-spacing:.28em;color:#8fcaf6;animation:answerGlow .4s ease-out both}
 @media(max-width:760px){#dividerHandle{left:0;right:0;top:40%;bottom:auto;height:16px;width:100%;transform:translateY(-50%);cursor:row-resize}#dividerHandle:before{height:2px;width:100%}#dividerHandle:after{content:"•••";padding:3px 14px}#app{grid-template-rows:40% 60%!important;grid-template-columns:1fr!important}}
 @media(prefers-reduced-motion:reduce){.bubble{animation:none!important}}
+
+/* Atlas 4.6: fixed-layout cinematic motion */
+.feed{overflow-anchor:none;contain:layout style}
+.bubble{animation:none!important;transition:box-shadow .2s ease}
+.bubble.just-in{animation:atlasSettle .3s ease-out both!important}
+.bubble.just-replied{animation:atlasAnswer .46s cubic-bezier(.18,.87,.32,1) both!important}
+@keyframes atlasSettle{from{opacity:.4;transform:translateY(5px)}to{opacity:1;transform:none}}
+@keyframes atlasAnswer{0%{opacity:0;transform:translateX(-42px) scale(.93);filter:blur(6px);box-shadow:0 0 35px #78bdff55}70%{opacity:1;filter:blur(0);box-shadow:0 0 25px #78bdff22}100%{transform:none;box-shadow:none}}
+.atlas-flight{position:fixed;z-index:80;pointer-events:none;transform-origin:center right;will-change:transform,opacity,filter;border:1px solid #9fcaff8a;background:linear-gradient(120deg,#244f8ded,#466d9ce8);padding:12px 16px;border-radius:19px;color:white;box-shadow:0 0 34px #65baff8c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px;max-width:50vw}
+.atlas-flight::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 20%,#d9f3ff48 50%,transparent 80%);animation:flightShine .28s ease both}
+@keyframes flightShine{from{transform:translateX(-100%)}to{transform:translateX(110%)}}
+.typing{min-height:43px;min-width:95px;display:flex;align-items:center;gap:7px}
+.typing i{width:6px;height:6px;background:#a5d9ff;border-radius:50%;animation:typingPulse .65s ease-in-out infinite alternate}
+.typing i:nth-child(2){animation-delay:.13s}.typing i:nth-child(3){animation-delay:.26s}
+@keyframes typingPulse{to{transform:translateY(-5px);opacity:.3}}
+@media(prefers-reduced-motion:reduce){.atlas-flight{display:none!important}.bubble.just-replied,.bubble.just-in{animation:none!important}.typing i{animation:none}}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.5 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.6 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small>PREVIEW MODE · AI / VOICE NOT CONNECTED</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
@@ -40,7 +56,50 @@ div.addEventListener('pointermove',e=>{if(resizing)setSplit(e.clientX)});
 div.addEventListener('pointerup',()=>{resizing=false;document.body.classList.remove('resizing')});
 div.addEventListener('pointercancel',()=>{resizing=false;document.body.classList.remove('resizing')});
 div.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();split=Math.max(20,Math.min(80,split+(e.key==='ArrowRight'?3:-3)));app.style.setProperty('--split',split+'%');localStorage.setItem('atlas-split',split);window.dispatchEvent(new Event('resize'))}});
-const active=()=>data.threads.find(x=>x.id===data.active)||data.threads[0];function render(){const feed=$('feed');feed.replaceChildren();for(const m of active().msgs){const el=document.createElement('div');el.className='bubble '+(m.role==='user'?'user':'atlas');el.textContent=m.text;feed.append(el)}feed.scrollTop=feed.scrollHeight;$('threads').replaceChildren();for(const t of data.threads){const b=document.createElement('button');b.className='btn entry '+(t.id===data.active?'active':'');b.textContent=t.title;b.onclick=()=>{data.active=t.id;save();render();close()};$('threads').append(b)}}function send(){const s=$('input').value.trim();if(!s)return;$('input').value='';const t=active();t.msgs.push({role:'user',text:s});if(t.title==='New conversation')t.title=s.slice(0,45);save();render();const feed=$('feed');const typing=document.createElement('div');typing.className='bubble atlas typing';typing.textContent='● ● ●';feed.append(typing);feed.scrollTop=feed.scrollHeight;setTimeout(()=>{typing.remove();t.msgs.push({role:'atlas',text:'I received your message. This is the Atlas interface preview; a live AI backend has not been connected yet.'});save();if(data.active===t.id)render()},650)}$('send').onclick=send;$('input').onkeydown=e=>{if(e.key==='Enter')send()};$('newChat').onclick=()=>{const id=Date.now();data.active=id;data.threads.unshift({id,title:'New conversation',msgs:[]});save();render();close()};const open=id=>{$(id).classList.add('show');$('veil').classList.add('show')};const close=()=>{document.querySelectorAll('.sheet').forEach(x=>x.classList.remove('show'));$('veil').classList.remove('show')};$('historyBtn').onclick=()=>open('history');$('settingsBtn').onclick=()=>open('settings');$('veil').onclick=close;document.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);$('mic').onclick=()=>{$('mic').classList.toggle('on')};$('speaker').onclick=()=>{$('speaker').classList.toggle('on')};render()})();
+const active=()=>data.threads.find(x=>x.id===data.active)||data.threads[0];let pendingByThread=new Map();let newMessageAnimation=null;
+function render(){
+const feed=$('feed');feed.replaceChildren();
+for(const m of active().msgs){
+ const el=document.createElement('div');el.className='bubble '+(m.role==='user'?'user':'atlas');
+ if(newMessageAnimation&&newMessageAnimation.text===m.text&&newMessageAnimation.role===m.role)el.classList.add(m.role==='atlas'?'just-replied':'just-in');
+ el.textContent=m.text;feed.append(el);
+}
+if(pendingByThread.has(data.active)){
+ const typing=document.createElement('div');typing.className='bubble atlas typing';typing.setAttribute('aria-label','Atlas is preparing a preview reply');
+ typing.innerHTML='<i></i><i></i><i></i>';feed.append(typing);
+}
+feed.scrollTop=feed.scrollHeight;newMessageAnimation=null;
+$('threads').replaceChildren();
+for(const t of data.threads){const b=document.createElement('button');b.className='btn entry '+(t.id===data.active?'active':'');b.textContent=t.title;b.onclick=()=>{data.active=t.id;save();render();close()};$('threads').append(b)}
+}
+function flyMessage(text,onDone){
+ const input=$('input'),feed=$('feed'),source=input.closest('.inputglass');
+ if(matchMedia('(prefers-reduced-motion:reduce)').matches){onDone();return}
+ const rect=source.getBoundingClientRect(),dst=feed.getBoundingClientRect();
+ const fly=document.createElement('div');fly.className='atlas-flight';fly.textContent=text;document.body.append(fly);
+ fly.style.width=Math.min(rect.width*.79,320)+'px';
+ const fromX=rect.left+18,fromY=rect.top+rect.height/2-19;
+ const toX=Math.max(dst.left+20,dst.right-Math.min(dst.width*.85,340)),toY=Math.min(dst.bottom-60,Math.max(dst.top+25,dst.bottom-100));
+ fly.style.left=fromX+'px';fly.style.top=fromY+'px';
+ const anim=fly.animate([{transform:'translate(0,0) scale(.98)',opacity:0,filter:'blur(2px)'},{offset:.15,opacity:1,filter:'blur(0)'},{offset:.73,opacity:1,filter:'blur(0)'},{transform:'translate('+(toX-fromX)+'px,'+(toY-fromY)+'px) scale(.87)',opacity:0,filter:'blur(6px)'}],{duration:410,easing:'cubic-bezier(.2,.7,.15,1)'});
+ anim.onfinish=()=>{fly.remove();onDone()};anim.oncancel=()=>{fly.remove();onDone()};
+}
+function send(){
+ const text=$('input').value.trim();if(!text)return;$('input').value='';
+ const t=active();const threadId=t.id;
+ flyMessage(text,()=>{
+  t.msgs.push({role:'user',text});if(t.title==='New conversation')t.title=text.slice(0,45);
+  pendingByThread.set(threadId,true);save();
+  if(data.active===threadId){newMessageAnimation={role:'user',text};render()}
+  setTimeout(()=>{
+    pendingByThread.delete(threadId);
+    const reply='I received your message. This is the Atlas interface preview; a live AI backend has not been connected yet.';
+    t.msgs.push({role:'atlas',text:reply});save();
+    if(data.active===threadId){newMessageAnimation={role:'atlas',text:reply};render()}
+  },440);
+ });
+}
+$('send').onclick=send;$('input').onkeydown=e=>{if(e.key==='Enter')send()};$('newChat').onclick=()=>{const id=Date.now();data.active=id;data.threads.unshift({id,title:'New conversation',msgs:[]});save();render();close()};const open=id=>{$(id).classList.add('show');$('veil').classList.add('show')};const close=()=>{document.querySelectorAll('.sheet').forEach(x=>x.classList.remove('show'));$('veil').classList.remove('show')};$('historyBtn').onclick=()=>open('history');$('settingsBtn').onclick=()=>open('settings');$('veil').onclick=close;document.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);$('mic').onclick=()=>{$('mic').classList.toggle('on')};$('speaker').onclick=()=>{$('speaker').classList.toggle('on')};render()})();
 </script>
 <script type="module">
 import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
