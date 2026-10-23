@@ -33,10 +33,25 @@ body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!impor
 .typing i:nth-child(2){animation-delay:.13s}.typing i:nth-child(3){animation-delay:.26s}
 @keyframes typingPulse{to{transform:translateY(-5px);opacity:.3}}
 @media(prefers-reduced-motion:reduce){.atlas-flight{display:none!important}.bubble.just-replied,.bubble.just-in{animation:none!important}.typing i{animation:none}}
+
+/* Fixed viewport: only conversation feed scrolls */
+html,body{height:100%;overflow:hidden}
+#app{height:100dvh;max-height:100dvh;min-height:0}
+.left,.right{min-height:0;overflow:hidden}
+.left{height:100%;display:flex;flex-direction:column}
+.feed{min-height:0;max-height:100%;overflow-y:auto;overscroll-behavior:contain;overflow-x:hidden;scrollbar-gutter:stable;flex:1 1 0}
+.right .controls{position:absolute;bottom:max(16px,env(safe-area-inset-bottom));transform:none}
+.right .stage{bottom:105px}
+.bubble{flex-shrink:0;animation:none!important}
+.bubble.just-replied{animation:atlasAnswer .56s cubic-bezier(.18,.87,.32,1) both!important}
+.bubble.just-in{animation:atlasSettle .35s ease-out both!important}
+.bubble.arriving{visibility:hidden}
+.atlas-flight{transition:none;white-space:normal;overflow:hidden;max-height:120px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+@media(max-width:760px){.left{height:auto;min-height:0}.right{min-height:0}.feed{min-height:0}.right .controls{bottom:10px}}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.6 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.7 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small>PREVIEW MODE · AI / VOICE NOT CONNECTED</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
@@ -56,48 +71,71 @@ div.addEventListener('pointermove',e=>{if(resizing)setSplit(e.clientX)});
 div.addEventListener('pointerup',()=>{resizing=false;document.body.classList.remove('resizing')});
 div.addEventListener('pointercancel',()=>{resizing=false;document.body.classList.remove('resizing')});
 div.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();split=Math.max(20,Math.min(80,split+(e.key==='ArrowRight'?3:-3)));app.style.setProperty('--split',split+'%');localStorage.setItem('atlas-split',split);window.dispatchEvent(new Event('resize'))}});
-const active=()=>data.threads.find(x=>x.id===data.active)||data.threads[0];let pendingByThread=new Map();let newMessageAnimation=null;
+const active=()=>data.threads.find(x=>x.id===data.active)||data.threads[0];let pendingByThread=new Map(),lastThread=null,renderCount=0;
 function render(){
-const feed=$('feed');feed.replaceChildren();
-for(const m of active().msgs){
- const el=document.createElement('div');el.className='bubble '+(m.role==='user'?'user':'atlas');
- if(newMessageAnimation&&newMessageAnimation.text===m.text&&newMessageAnimation.role===m.role)el.classList.add(m.role==='atlas'?'just-replied':'just-in');
- el.textContent=m.text;feed.append(el);
+ const feed=$('feed'),t=active(),same=lastThread===t.id,nearBottom=feed.scrollHeight-feed.scrollTop-feed.clientHeight<100;
+ if(!same){feed.replaceChildren();renderCount=0;lastThread=t.id}
+ // Existing message DOM nodes must never be recreated. Only append new messages.
+ while(renderCount<t.msgs.length){
+   const m=t.msgs[renderCount++],el=document.createElement('div');
+   el.className='bubble '+(m.role==='user'?'user':'atlas');
+   el.textContent=m.text;feed.append(el);
+ }
+ let typing=feed.querySelector('[data-typing]');
+ if(pendingByThread.has(t.id)&&!typing){
+   typing=document.createElement('div');typing.className='bubble atlas typing';typing.dataset.typing='true';typing.innerHTML='<i></i><i></i><i></i>';feed.append(typing);
+ }else if(!pendingByThread.has(t.id)&&typing){typing.remove()}
+ if(!same||nearBottom)feed.scrollTop=feed.scrollHeight;
+ $('threads').replaceChildren();
+ for(const thread of data.threads){const bt=document.createElement('button');bt.className='btn entry '+(thread.id===data.active?'active':'');bt.textContent=thread.title;bt.onclick=()=>{data.active=thread.id;save();render();close()};$('threads').append(bt)}
 }
-if(pendingByThread.has(data.active)){
- const typing=document.createElement('div');typing.className='bubble atlas typing';typing.setAttribute('aria-label','Atlas is preparing a preview reply');
- typing.innerHTML='<i></i><i></i><i></i>';feed.append(typing);
-}
-feed.scrollTop=feed.scrollHeight;newMessageAnimation=null;
-$('threads').replaceChildren();
-for(const t of data.threads){const b=document.createElement('button');b.className='btn entry '+(t.id===data.active?'active':'');b.textContent=t.title;b.onclick=()=>{data.active=t.id;save();render();close()};$('threads').append(b)}
-}
-function flyMessage(text,onDone){
- const input=$('input'),feed=$('feed'),source=input.closest('.inputglass');
- if(matchMedia('(prefers-reduced-motion:reduce)').matches){onDone();return}
- const rect=source.getBoundingClientRect(),dst=feed.getBoundingClientRect();
- const fly=document.createElement('div');fly.className='atlas-flight';fly.textContent=text;document.body.append(fly);
- fly.style.width=Math.min(rect.width*.79,320)+'px';
- const fromX=rect.left+18,fromY=rect.top+rect.height/2-19;
- const toX=Math.max(dst.left+20,dst.right-Math.min(dst.width*.85,340)),toY=Math.min(dst.bottom-60,Math.max(dst.top+25,dst.bottom-100));
- fly.style.left=fromX+'px';fly.style.top=fromY+'px';
- const anim=fly.animate([{transform:'translate(0,0) scale(.98)',opacity:0,filter:'blur(2px)'},{offset:.15,opacity:1,filter:'blur(0)'},{offset:.73,opacity:1,filter:'blur(0)'},{transform:'translate('+(toX-fromX)+'px,'+(toY-fromY)+'px) scale(.87)',opacity:0,filter:'blur(6px)'}],{duration:410,easing:'cubic-bezier(.2,.7,.15,1)'});
- anim.onfinish=()=>{fly.remove();onDone()};anim.oncancel=()=>{fly.remove();onDone()};
+function appendMsg(t,role,text,animate=true){
+ const feed=$('feed'),current=data.active===t.id;
+ const nearBottom=feed.scrollHeight-feed.scrollTop-feed.clientHeight<120;
+ t.msgs.push({role,text});save();
+ if(!current)return null;
+ const oldTyping=feed.querySelector('[data-typing]');if(oldTyping)oldTyping.remove();
+ const el=document.createElement('div');el.className='bubble '+(role==='user'?'user':'atlas');
+ el.textContent=text;feed.append(el);renderCount=t.msgs.length;
+ if(animate)el.classList.add(role==='atlas'?'just-replied':'just-in');
+ if(nearBottom)feed.scrollTop=feed.scrollHeight;
+ return el;
 }
 function send(){
- const text=$('input').value.trim();if(!text)return;$('input').value='';
- const t=active();const threadId=t.id;
- flyMessage(text,()=>{
-  t.msgs.push({role:'user',text});if(t.title==='New conversation')t.title=text.slice(0,45);
-  pendingByThread.set(threadId,true);save();
-  if(data.active===threadId){newMessageAnimation={role:'user',text};render()}
-  setTimeout(()=>{
-    pendingByThread.delete(threadId);
-    const reply='I received your message. This is the Atlas interface preview; a live AI backend has not been connected yet.';
-    t.msgs.push({role:'atlas',text:reply});save();
-    if(data.active===threadId){newMessageAnimation={role:'atlas',text:reply};render()}
-  },440);
- });
+ const input=$('input'),text=input.value.trim();if(!text)return;
+ input.value='';const t=active(),threadId=t.id;
+ if(t.title==='New conversation')t.title=text.slice(0,45);
+ const el=appendMsg(t,'user',text,false);
+ if(!el)return;
+ // Reserve the final message space immediately, ensuring a stationary layout.
+ el.classList.add('arriving');
+ const source=input.closest('.inputglass').getBoundingClientRect(),target=el.getBoundingClientRect();
+ const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
+ const complete=()=>{
+   el.classList.remove('arriving');
+   pendingByThread.set(threadId,true);
+   if(data.active===threadId)render();
+   setTimeout(()=>{
+     pendingByThread.delete(threadId);
+     const reply='I received your message. This is the Atlas interface preview; a live AI backend has not been connected yet.';
+     appendMsg(t,'atlas',reply,true);
+     if(data.active===threadId)render();
+   },540);
+ };
+ if(reduced){complete();return}
+ const ghost=document.createElement('div');ghost.className='atlas-flight';ghost.textContent=text;
+ ghost.style.position='fixed';ghost.style.left=source.left+17+'px';ghost.style.top=source.top+10+'px';
+ ghost.style.width=Math.min(source.width*.81,Math.max(100,target.width))+'px';
+ document.body.append(ghost);
+ const dx=target.left-(source.left+17),dy=target.top-(source.top+10);
+ const scale=Math.max(.65,Math.min(1.5,target.width/Math.min(source.width*.81,Math.max(100,target.width))));
+ const anim=ghost.animate([
+  {transform:'translate(0,0) scale(.92)',opacity:1,filter:'blur(0px)',offset:0},
+  {transform:'translate('+dx*.53+'px,'+dy*.53+'px) scale(.94)',opacity:1,filter:'blur(0px)',offset:.55},
+  {transform:'translate('+dx+'px,'+dy+'px) scale('+scale+')',opacity:1,filter:'blur(0px)',offset:1}
+ ],{duration:560,easing:'cubic-bezier(.24,.77,.21,1)',fill:'forwards'});
+ let done=false;const finish=()=>{if(done)return;done=true;ghost.remove();complete()};
+ anim.onfinish=finish;anim.oncancel=finish;
 }
 $('send').onclick=send;$('input').onkeydown=e=>{if(e.key==='Enter')send()};$('newChat').onclick=()=>{const id=Date.now();data.active=id;data.threads.unshift({id,title:'New conversation',msgs:[]});save();render();close()};const open=id=>{$(id).classList.add('show');$('veil').classList.add('show')};const close=()=>{document.querySelectorAll('.sheet').forEach(x=>x.classList.remove('show'));$('veil').classList.remove('show')};$('historyBtn').onclick=()=>open('history');$('settingsBtn').onclick=()=>open('settings');$('veil').onclick=close;document.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);$('mic').onclick=()=>{$('mic').classList.toggle('on')};$('speaker').onclick=()=>{$('speaker').classList.toggle('on')};render()})();
 </script>
