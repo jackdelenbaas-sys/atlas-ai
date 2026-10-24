@@ -58,10 +58,10 @@ html,body{height:100%;overflow:hidden}
 .bubble.user{border-radius:19px!important}
 #modelUpload{position:absolute;inset:0;opacity:0;cursor:pointer}
 #uploadModelBtn{position:relative;overflow:hidden;display:block}
-</style>
+#dividerHandle{will-change:left}#canvas{contain:layout paint}#app{min-width:0}.left,.right{min-width:0}body.resizing #dividerHandle:before{transition:none}@media(prefers-reduced-motion:reduce){#dividerHandle:before{transition:none}}</style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.9 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.9.1 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small>PREVIEW MODE · AI / VOICE NOT CONNECTED</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
@@ -75,10 +75,21 @@ html,body{height:100%;overflow:hidden}
 const div=document.getElementById('dividerHandle'),app=document.getElementById('app');
 let split=Number(localStorage.getItem('atlas-split')||46);split=Math.max(20,Math.min(80,split));
 app.style.setProperty('--split',split+'%');
-let resizing=false;function setSplit(clientX){const rect=app.getBoundingClientRect();const p=(clientX-rect.left)/rect.width*100;split=Math.max(20,Math.min(80,p));app.style.setProperty('--split',split+'%');localStorage.setItem('atlas-split',split.toFixed(2));window.dispatchEvent(new Event('resize'))}
+let resizing=false,splitFrame=0,pendingSplit=null;
+function applySplit(){
+ splitFrame=0;if(pendingSplit===null)return;
+ split=pendingSplit;pendingSplit=null;
+ app.style.setProperty('--split',split.toFixed(2)+'%');
+}
+function setSplit(clientX){
+ const rect=app.getBoundingClientRect(),p=(clientX-rect.left)/rect.width*100;
+ pendingSplit=Math.max(20,Math.min(80,p));
+ if(!splitFrame)splitFrame=requestAnimationFrame(applySplit);
+}
+function saveSplit(){if(splitFrame){cancelAnimationFrame(splitFrame);applySplit()}localStorage.setItem('atlas-split',split.toFixed(2))}
 div.addEventListener('pointerdown',e=>{if(matchMedia('(max-width:760px)').matches)return;resizing=true;div.setPointerCapture(e.pointerId);document.body.classList.add('resizing')});
 div.addEventListener('pointermove',e=>{if(resizing)setSplit(e.clientX)});
-div.addEventListener('pointerup',()=>{resizing=false;document.body.classList.remove('resizing')});
+div.addEventListener('pointerup',()=>{resizing=false;document.body.classList.remove('resizing');saveSplit()});
 div.addEventListener('pointercancel',()=>{resizing=false;document.body.classList.remove('resizing')});
 div.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();split=Math.max(20,Math.min(80,split+(e.key==='ArrowRight'?3:-3)));app.style.setProperty('--split',split+'%');localStorage.setItem('atlas-split',split);window.dispatchEvent(new Event('resize'))}});
 const active=()=>data.threads.find(x=>x.id===data.active)||data.threads[0];let pendingByThread=new Map(),lastThread=null,renderCount=0;
@@ -153,7 +164,19 @@ $('send').onclick=send;$('input').onkeydown=e=>{if(e.key==='Enter')send()};$('ne
 import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 const $=id=>document.getElementById(id),canvas=$('canvas'),scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(35,1,.05,200),renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.35;scene.add(new THREE.HemisphereLight(0xeaf5ff,0x384b72,2.3));const a=new THREE.DirectionalLight(0xffffff,2.5);a.position.set(3,5,5);scene.add(a);const b=new THREE.DirectionalLight(0x7598ff,1.7);b.position.set(-3,3,-4);scene.add(b);
 let model,rig={},base={},mouth=[],blink=[],t0=performance.now(),gesture='',gestureStart=0,drag=false,px=0,py=0,yaw=0,pitch=0,distance=3.5,center=new THREE.Vector3(0,1,0),yOffset=0,auto=false,idle=true,eyes=true;
-function fit(){const w=canvas.clientWidth,h=canvas.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}new ResizeObserver(fit).observe(canvas);fit();
+let resizeFrame=0,renderW=0,renderH=0;
+function fit(){
+ if(resizeFrame)return;
+ resizeFrame=requestAnimationFrame(()=>{
+  resizeFrame=0;
+  const w=Math.round(canvas.clientWidth),h=Math.round(canvas.clientHeight);
+  if(w<2||h<2||w===renderW&&h===renderH)return;
+  renderW=w;renderH=h;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h;camera.updateProjectionMatrix();
+ });
+}
+new ResizeObserver(fit).observe(canvas);fit();
 function updateCam(){
  // A continuous orbit with a rotating camera-up vector prevents pole flipping.
  const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch*Math.PI/180,yaw*Math.PI/180,0,'YXZ'));
