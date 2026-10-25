@@ -61,11 +61,11 @@ html,body{height:100%;overflow:hidden}
 #dividerHandle{will-change:left}#canvas{contain:layout paint}#app{min-width:0}.left,.right{min-width:0}body.resizing #dividerHandle:before{transition:none}@media(prefers-reduced-motion:reduce){#dividerHandle:before{transition:none}}</style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.9.1 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.9.2 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small>PREVIEW MODE · AI / VOICE NOT CONNECTED</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
-<div class="section">Animations</div><div class="grid"><button class="btn" data-gesture="wave">👋 Wave</button><button class="btn" data-gesture="nod">✓ Nod</button><button class="btn" data-gesture="point">↗ Point</button><button class="btn" data-gesture="think">◇ Think</button></div>
+<div class="section">Animations</div><div class="grid"><button class="btn" data-gesture="wave">👋 Wave</button><button class="btn" data-gesture="nod">✓ Nod</button><button class="btn" data-gesture="point">↗ Point</button><button class="btn" data-gesture="think">◇ Think</button><button class="btn" data-gesture="walk">🚶 Walk</button><button class="btn" data-gesture="dance">♫ Dance</button></div>
 <label>Auto rotation <input id="auto" type="checkbox"></label><label>Idle breathing <input id="idle" type="checkbox" checked></label><label>Eye tracking <input id="eyes" type="checkbox" checked></label>
 <div class="section">Camera</div><label>Horizontal rotation <input class="range" type="range" id="yaw" min="-720" max="720" value="0"></label><label>Vertical viewing angle <input class="range" type="range" id="pitch" min="-720" max="720" value="0"></label><label>Zoom <input class="range" type="range" id="zoom" min="1.4" max="8" step=".1" value="3.5"></label>
 <div class="section">Pose</div><label>Head tilt <input class="range" type="range" id="head" min="-35" max="35" value="0"></label><label>Left arm <input class="range" type="range" id="larm" min="-80" max="100" value="0"></label><label>Right arm <input class="range" type="range" id="rarm" min="-80" max="100" value="0"></label><label>Avatar height <input class="range" type="range" id="height" min="-1" max="1" step=".05" value="0"></label>
@@ -123,6 +123,7 @@ function appendMsg(t,role,text,animate=true){
  return el;
 }
 function send(){
+ window.dispatchEvent(new CustomEvent('atlas-action',{detail:{type:'listen'}}));
  const input=$('input'),text=input.value.trim();if(!text)return;
  input.value='';const t=active(),threadId=t.id;
  if(t.title==='New conversation')t.title=text.slice(0,45);
@@ -133,6 +134,7 @@ function send(){
  const source=input.closest('.inputglass').getBoundingClientRect(),target=el.getBoundingClientRect();
  const reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
  const complete=()=>{
+   window.dispatchEvent(new CustomEvent('atlas-action',{detail:{type:'think'}}));
    el.classList.remove('arriving');
    pendingByThread.set(threadId,true);
    if(data.active===threadId)render();
@@ -140,6 +142,7 @@ function send(){
      pendingByThread.delete(threadId);
      const reply='I received your message. This is the Atlas interface preview; a live AI backend has not been connected yet.';
      appendMsg(t,'atlas',reply,true);
+     window.dispatchEvent(new CustomEvent('atlas-action',{detail:{type:'respond'}}));
      if(data.active===threadId)render();
    },540);
  };
@@ -203,6 +206,7 @@ canvas.addEventListener('pointercancel',()=>drag=false);
 canvas.addEventListener('wheel',e=>{e.preventDefault();distance=Math.max(1.4,Math.min(8,distance+e.deltaY*.003));sliders();updateCam()},{passive:false});
 ['yaw','pitch','zoom'].forEach(id=>$(id).oninput=()=>{yaw=+$('yaw').value;pitch=+$('pitch').value;distance=+$('zoom').value;updateCam()});
 $('auto').onchange=e=>auto=e.target.checked;$('idle').onchange=e=>idle=e.target.checked;$('eyes').onchange=e=>eyes=e.target.checked;$('height').oninput=e=>{yOffset=+e.target.value;if(model)model.position.y=yOffset};$('reset').onclick=()=>{yaw=pitch=0;distance=3.5;center.set(0,1,0);yOffset=0;auto=false;$('auto').checked=false;['head','larm','rarm','height'].forEach(id=>$(id).value=0);if(model)model.position.y=0;sliders();updateCam()};document.querySelectorAll('[data-gesture]').forEach(x=>x.onclick=()=>{gesture=x.dataset.gesture;gestureStart=performance.now()});
+window.addEventListener('atlas-action',e=>{const type=e.detail?.type;if(type==='think')gesture='think';else if(type==='respond')gesture='nod';else if(type==='listen')gesture='nod';if(type)gestureStart=performance.now()});
 const status=(text,error=false)=>{const e=$('modelStatus');e.textContent=text;e.classList.toggle('error',error)};
 
 function createStudioAvatar(){
@@ -280,7 +284,7 @@ async function installGLB(buffer,label){
  root.traverse(o=>{
    if(o.isBone){
      const n=o.name.toLowerCase();
-     for(const [k,pattern] of Object.entries({head:/head$/,neck:/neck$/,larm:/leftupperarm|upperarm_l|leftarm|leftshoulder/,rarm:/rightupperarm|upperarm_r|rightarm|rightshoulder/,spine:/spine2|chest|upperchest/,leye:/lefteye|eye_l/,reye:/righteye|eye_r/})){
+     for(const [k,pattern] of Object.entries({head:/head$/,neck:/neck$/,larm:/leftupperarm|upperarm_l|leftarm|leftshoulder/,rarm:/rightupperarm|upperarm_r|rightarm|rightshoulder/,spine:/spine2|chest|upperchest/,lleg:/leftupleg|leftthigh|leftupperleg/,rleg:/rightupleg|rightthigh|rightupperleg/,leye:/lefteye|eye_l/,reye:/righteye|eye_r/})){
        if(pattern.test(n)&&!rig[k])rig[k]=o
      }
    }
@@ -372,31 +376,46 @@ try{
  $('modelStatus').onclick=()=>{load()};
 }
 }load();
+let lastFrame=performance.now(),smoothAction=0,rootStartX=0,rootStartZ=0;
 function animate(){
  requestAnimationFrame(animate);
- const t=(performance.now()-t0)/1000;
- if(auto){yaw+=.15;updateCam()}
+ const now=performance.now(),dt=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;
+ const t=(now-t0)/1000;
+ if(auto){yaw+=dt*12;updateCam()}
  if(model){
-  const breath=idle?Math.sin(t*1.9)*.008:0;
+  const breath=idle?Math.sin(t*1.9)*.007:0;
   model.scale.y=1+breath;
-  const g=(performance.now()-gestureStart)/1000;
-  const fade=gesture&&g<3.2?Math.sin(Math.PI*Math.min(1,g/3.2)):0;
-  if(gesture&&g>=3.2)gesture='';
-  // Apply independent rotations relative to each original rest pose.
-  function pose(k,rx=0,ry=0,rz=0){
-   const bone=rig[k];if(!bone)return;
-   const q=base[k];bone.rotation.set(q.x+rx,q.y+ry,q.z+rz);
-  }
-  const headControl=(+($('head').value)||0)*Math.PI/180;
-  pose('head',headControl+(gesture==='nod'?Math.sin(g*8)*.26*fade:0)+(gesture==='think'?.18*fade:0),eyes?Math.sin(t*.7)*.035:0);
-  pose('neck',idle?Math.sin(t*.8)*.012:0);
-  pose('spine',breath*.35,0,idle?Math.sin(t*.35)*.01:0);
-  const leftManual=(+($('larm').value)||0)*Math.PI/180;
-  const rightManual=(+($('rarm').value)||0)*Math.PI/180;
-  // Shoulder abduction is on the local Z axis for this avatar rig.
-  const point=gesture==='point'?fade:0,wave=gesture==='wave'?fade:0;
-  pose('larm',leftManual*.4,point*.25,point*.85-leftManual*.7);
-  pose('rarm',rightManual*.4,-wave*.17,-wave*(1.65+.22*Math.sin(g*12))+rightManual*.7);
+  const elapsed=(now-gestureStart)/1000;
+  const duration=gesture==='dance'?5:gesture==='walk'?4:gesture==='think'?2.4:2.7;
+  const active=!!gesture&&elapsed<duration;
+  const target=active?1:0;
+  smoothAction+= (target-smoothAction)*Math.min(1,dt*5.5);
+  if(gesture&&!active&&smoothAction<.015)gesture='';
+  const weight=smoothAction;
+  const phase=elapsed*(gesture==='dance'?7:gesture==='walk'?7.7:5);
+  const wave=gesture==='wave'?weight:0,point=gesture==='point'?weight:0;
+  const walk=gesture==='walk'?weight:0,dance=gesture==='dance'?weight:0;
+  const nod=gesture==='nod'?weight:0,think=gesture==='think'?weight:0;
+  const pose=(key,x=0,y=0,z=0)=>{
+   const joint=rig[key],neutral=base[key];if(!joint||!neutral)return;
+   const intended=new THREE.Quaternion().setFromEuler(new THREE.Euler(neutral.x+x,neutral.y+y,neutral.z+z,neutral.order));
+   joint.quaternion.slerp(intended,Math.min(1,dt*9));
+  };
+  const headManual=(+($('head').value)||0)*Math.PI/180;
+  pose('head',headManual+nod*Math.sin(phase*1.45)*.23+think*.13+dance*Math.sin(phase)*.09,eyes?Math.sin(t*.7)*.03:0,dance*Math.sin(phase*.7)*.07);
+  pose('neck',idle?Math.sin(t*.8)*.009:0);
+  pose('spine',breath*.3+walk*Math.sin(phase*2)*.025,dance*Math.sin(phase*.5)*.17,dance*Math.sin(phase)*.11);
+  const l=(+($('larm').value)||0)*Math.PI/180,r=(+($('rarm').value)||0)*Math.PI/180;
+  pose('larm',l*.35-walk*Math.sin(phase)*.47+dance*Math.sin(phase)*.45,point*.25,point*.88-l*.65+dance*Math.cos(phase)*.65);
+  pose('rarm',r*.35+walk*Math.sin(phase)*.47+dance*Math.sin(phase+2)*.48,-wave*.16,-wave*(1.45+.28*Math.sin(phase*2))+r*.65+dance*Math.cos(phase+2)*.65);
+  pose('lleg',walk*Math.sin(phase)*.55+dance*Math.sin(phase)*.29);
+  pose('rleg',-walk*Math.sin(phase)*.55+dance*Math.sin(phase+Math.PI)*.29);
+  // Short stage movement, never changes user-controlled camera.
+  const mx=walk*Math.sin(Math.min(1,elapsed/duration)*Math.PI)*.5;
+  model.position.x+=(mx-model.position.x)*Math.min(1,dt*8);
+  const baseY=+($('height').value||0);
+  const bounce=walk*Math.abs(Math.sin(phase))*.035+dance*Math.abs(Math.sin(phase))*.05;
+  model.position.y+=(baseY+bounce-model.position.y)*Math.min(1,dt*8);
   for(const [o,i] of blink){if(o.morphTargetInfluences)o.morphTargetInfluences[i]=Math.max(0,Math.sin(t*1.5)**38)}
   for(const [o,i] of mouth){if(o.morphTargetInfluences)o.morphTargetInfluences[i]=0}
  }
