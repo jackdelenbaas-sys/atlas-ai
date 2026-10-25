@@ -276,10 +276,13 @@ function drawPresentation(image){
 }
 drawPresentation();screenRoot.visible=false;
 let studioTargetX=0;
+let stageWalkSequence=0;
 function walkTo(x){
+ const sequence=++stageWalkSequence;
  studioTargetX=x;gesture='walk';gestureStart=performance.now();playMixamo('walking');
+ if(x>0.1)setTimeout(()=>{if(stageWalkSequence===sequence){gesture='point';gestureStart=performance.now();playMixamo('point')}},3000);
 }
-function showScreen(visible){screenRoot.visible=visible;if(visible)drawPresentation();}
+function showScreen(visible){screenRoot.visible=visible;}
 $('roomToggle').onclick=()=>{studioObjects.visible=!studioObjects.visible;spotlight.visible=studioObjects.visible;rim.visible=studioObjects.visible};
 $('screenToggle').onclick=()=>showScreen(!screenRoot.visible);
 $('stageScreen').onclick=$('screenToggle').onclick;
@@ -375,7 +378,9 @@ async function importMotion(name,buffer){
  });
  if(!motion.tracks.length)throw Error('Retargeting produced no tracks');
  motion.name=name;motionClips.set(name.toLowerCase(),motion);
- if(!mixamoMixer)mixamoMixer=new THREE.AnimationMixer(model);
+ if(!mixamoMixer){mixamoMixer=new THREE.AnimationMixer(model);
+  mixamoMixer.addEventListener('finished',e=>{if(e.action===mixamoCurrent&&motionClips.has('breathing idle')){const idleAction=mixamoMixer.clipAction(motionClips.get('breathing idle'));if(idleAction!==mixamoCurrent){idleAction.reset().fadeIn(.3).play();mixamoCurrent.fadeOut(.3);mixamoCurrent=idleAction}}});
+ }
  return count;
 }
 function playMixamo(type){
@@ -385,7 +390,7 @@ function playMixamo(type){
  if(!clip)return false;
  const next=mixamoMixer.clipAction(clip);
  if(next===mixamoCurrent)return true;
- next.reset().setEffectiveWeight(1).fadeIn(.3).play();
+ next.reset().setLoop(type.toLowerCase()==='idle'?THREE.LoopRepeat:THREE.LoopOnce).setEffectiveWeight(1).fadeIn(.3).play();next.clampWhenFinished=type.toLowerCase()!=='idle';
  if(mixamoCurrent)mixamoCurrent.fadeOut(.3);
  mixamoCurrent=next;
  return true;
