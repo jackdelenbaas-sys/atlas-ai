@@ -67,17 +67,22 @@ html,body{height:100%;overflow:hidden}
 #screenUploadLabel input,#animationsUploadLabel input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
 #motionStatus{display:block;margin-top:10px}
 @media(max-width:760px){#stageActions{bottom:104px;gap:4px}#stageActions button{font-size:10px;padding:6px 8px}}
+
+#stageSurprise{background:linear-gradient(100deg,#214b80ed,#245b78ed)!important;border-color:#88c9ffad!important}
+#surpriseMe:hover{filter:brightness(1.18)}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.9.3 STUDIO</span></header><div id="feed" class="feed"></div></div>
-<div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div id="stageActions"><button id="stageHome">⌂ Center</button><button id="stageScreen">▣ Screen</button><button id="stageWalk">↗ Walk to screen</button></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small>PREVIEW MODE · AI / VOICE NOT CONNECTED</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.9.4 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div id="stageActions"><button id="stageHome">⌂ Center</button><button id="stageScreen">▣ Screen</button><button id="stageWalk">↗ Walk to screen</button><button id="stageSurprise">✦ Surprise Me</button></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small>PREVIEW MODE · AI / VOICE NOT CONNECTED</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
-<div class="section">Animations</div><div class="grid"><button class="btn" data-gesture="wave">👋 Wave</button><button class="btn" data-gesture="nod">✓ Nod</button><button class="btn" data-gesture="point">↗ Point</button><button class="btn" data-gesture="think">◇ Think</button><button class="btn" data-gesture="walk">🚶 Walk</button><button class="btn" data-gesture="dance">♫ Dance</button></div>
+<div class="section">Atlas showtime</div>
+<button class="btn wide" id="surpriseMe" style="text-align:center;font-weight:700;background:linear-gradient(110deg,#234d84,#1c365c);border-color:#8dc8ff70">✦ Surprise Me — play a random show</button>
+<p class="hint" id="showStatus">Atlas picks a short sequence: greeting, exploring, presenting, or dancing.</p>
 <label>Auto rotation <input id="auto" type="checkbox"></label><label>Idle breathing <input id="idle" type="checkbox" checked></label><label>Eye tracking <input id="eyes" type="checkbox" checked></label>
 <div class="section">Virtual studio</div>
-<div class="grid"><button class="btn" id="roomToggle">◈ Room on/off</button><button class="btn" id="screenToggle">▣ Screen on/off</button><button class="btn" id="walkToScreen">↗ Walk to screen</button><button class="btn" id="walkHome">⌂ Return to center</button></div>
+<div class="grid"><button class="btn" id="roomToggle">◈ Room on/off</button><button class="btn" id="screenToggle">▣ Screen on/off</button></div>
 <label id="screenUploadLabel" class="btn">Show an image on Atlas's screen<input id="screenImage" type="file" accept="image/*"></label>
 <p class="hint">The room is built into Atlas—no separate model needed. The presentation screen can display your own images.</p>
 <div class="section">Real Mixamo animations</div>
@@ -221,7 +226,7 @@ canvas.addEventListener('pointerup',()=>drag=false);
 canvas.addEventListener('pointercancel',()=>drag=false);
 canvas.addEventListener('wheel',e=>{e.preventDefault();distance=Math.max(1.4,Math.min(8,distance+e.deltaY*.003));sliders();updateCam()},{passive:false});
 ['yaw','pitch','zoom'].forEach(id=>$(id).oninput=()=>{yaw=+$('yaw').value;pitch=+$('pitch').value;distance=+$('zoom').value;updateCam()});
-$('auto').onchange=e=>auto=e.target.checked;$('idle').onchange=e=>idle=e.target.checked;$('eyes').onchange=e=>eyes=e.target.checked;$('height').oninput=e=>{yOffset=+e.target.value;if(model)model.position.y=yOffset};$('reset').onclick=()=>{yaw=pitch=0;distance=3.5;center.set(0,1,0);yOffset=0;auto=false;$('auto').checked=false;['head','larm','rarm','height'].forEach(id=>$(id).value=0);if(model)model.position.y=0;sliders();updateCam()};document.querySelectorAll('[data-gesture]').forEach(x=>x.onclick=()=>{gesture=x.dataset.gesture;gestureStart=performance.now();playMixamo(gesture)});
+$('auto').onchange=e=>auto=e.target.checked;$('idle').onchange=e=>idle=e.target.checked;$('eyes').onchange=e=>eyes=e.target.checked;$('height').oninput=e=>{yOffset=+e.target.value;if(model)model.position.y=yOffset};$('reset').onclick=()=>{yaw=pitch=0;distance=3.5;center.set(0,1,0);yOffset=0;auto=false;$('auto').checked=false;['head','larm','rarm','height'].forEach(id=>$(id).value=0);if(model)model.position.y=0;sliders();updateCam()};
 window.addEventListener('atlas-action',e=>{const type=e.detail?.type;if(type==='think')gesture='think';else if(type==='respond')gesture='nod';else if(type==='listen')gesture='nod';if(type)gestureStart=performance.now()});
 const status=(text,error=false)=>{const e=$('modelStatus');e.textContent=text;e.classList.toggle('error',error)};
 
@@ -286,8 +291,8 @@ function showScreen(visible){screenRoot.visible=visible;}
 $('roomToggle').onclick=()=>{studioObjects.visible=!studioObjects.visible;spotlight.visible=studioObjects.visible;rim.visible=studioObjects.visible};
 $('screenToggle').onclick=()=>showScreen(!screenRoot.visible);
 $('stageScreen').onclick=$('screenToggle').onclick;
-$('walkToScreen').onclick=$('stageWalk').onclick=()=>{showScreen(true);walkTo(.65)};
-$('walkHome').onclick=$('stageHome').onclick=()=>walkTo(0);
+$('stageWalk').onclick=()=>{showScreen(true);walkTo(.65)};
+$('stageHome').onclick=()=>walkTo(0);
 $('screenImage').addEventListener('change',async e=>{
  const file=e.target.files?.[0];if(!file)return;
  const objectURL=URL.createObjectURL(file),im=new Image();
@@ -357,8 +362,35 @@ async function saveModelData(buffer){
 }
 
 // FBX files retain mesh and skin, but only their animation tracks drive Atlas.
-const motionClips=new Map();let mixamoMixer=null,mixamoCurrent=null,mixamoIdle=null;
-const motionNames={walking:'Walking',walk:'Walking',wave:'Waving',point:'Pointing',dance:'Hip Hop Dancing',idle:'Breathing Idle',think:'Happy Idle',nod:'Happy Idle'};
+const motionClips=new Map();
+const uploadedFingerprints=new Set();
+let mixamoMixer=null,mixamoCurrent=null;
+const ACTION_LIBRARY=Object.freeze({
+ idle:['Breathing Idle','Happy Idle','Ninja Idle'],
+ greet:['Waving','Waving-2','Waving-3'],
+ wave:['Waving','Waving-2','Waving-3'],
+ point:['Pointing','Pointing Forward'],
+ think:['Happy Idle','Breathing Idle'],
+ nod:['Happy Idle','Breathing Idle'],
+ walk:['Walking','Walking While Texting'],
+ back:['Walking Backwards','Walking'],
+ dance:['Hip Hop Dancing','Silly Dancing','Flair','Breakdance 1990'],
+ finish:['Stop Walking','Breathing Idle']
+});
+const SHOW_LIBRARY=Object.freeze([
+ {id:'welcome',title:'A warm welcome',steps:[['wave',2.7],['walk',3.3,.60],['point',2.6,null,true],['back',3.3,0]]},
+ {id:'tour',title:'Studio tour',steps:[['walk',3.5,.68],['point',2.8,null,true],['wave',2.3],['back',3.5,0]]},
+ {id:'celebration',title:'Dance break',steps:[['wave',2.5],['dance',5.5],['point',2.5],['finish',1.7]]},
+ {id:'presenter',title:'Presentation time',steps:[['think',2.3],['walk',3.2,.62],['point',3.1,null,true],['back',3.4,0]]},
+ {id:'justforfun',title:'A little entertainment',steps:[['dance',5.5],['wave',2.2],['walk',3.2,.50],['back',3.2,0]]}
+]);
+const normActionName=name=>String(name||'').toLowerCase().trim().replace(/\.fbx$/i,'').replace(/[_\s-]+/g,' ');
+const clipFor=kind=>(ACTION_LIBRARY[kind]||[kind]).map(n=>motionClips.get(normActionName(n))).find(Boolean);
+async function fileFingerprint(buffer){
+ if(crypto?.subtle){const digest=await crypto.subtle.digest('SHA-256',buffer);return Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('')}
+ // Fallback for older browsers: compare complete bytes of matching lengths using named files.
+ return 'length-'+buffer.byteLength+'-'+new Uint8Array(buffer).slice(0,128).join(',');
+}
 function findSkin(root){let skin;root.traverse(o=>{if(o.isSkinnedMesh&&!skin)skin=o});return skin}
 function normBone(n){return n.toLowerCase().replace(/^mixamorig[:_]?/,'').replace(/[^a-z0-9]/g,'')}
 async function importMotion(name,buffer){
@@ -377,24 +409,72 @@ async function importMotion(name,buffer){
    names,fps:30,hip:'Hips',hipInfluence:new THREE.Vector3(0,0,0),preserveBoneMatrix:true,preserveBonePositions:true
  });
  if(!motion.tracks.length)throw Error('Retargeting produced no tracks');
- motion.name=name;motionClips.set(name.toLowerCase(),motion);
+ motion.name=name;motionClips.set(normActionName(name),motion);
  if(!mixamoMixer){mixamoMixer=new THREE.AnimationMixer(model);
-  mixamoMixer.addEventListener('finished',e=>{if(e.action===mixamoCurrent&&motionClips.has('breathing idle')){const idleAction=mixamoMixer.clipAction(motionClips.get('breathing idle'));if(idleAction!==mixamoCurrent){idleAction.reset().fadeIn(.3).play();mixamoCurrent.fadeOut(.3);mixamoCurrent=idleAction}}});
+  mixamoMixer.addEventListener('finished',e=>{if(e.action===mixamoCurrent&&clipFor('idle')){const idleAction=mixamoMixer.clipAction(clipFor('idle'));if(idleAction!==mixamoCurrent){idleAction.reset().fadeIn(.3).play();mixamoCurrent.fadeOut(.3);mixamoCurrent=idleAction}}});
  }
  return count;
 }
 function playMixamo(type){
  if(!mixamoMixer)return false;
- const clipName=motionNames[type.toLowerCase()]||type;
- const clip=motionClips.get(clipName.toLowerCase());
+ const clip=clipFor(type);
  if(!clip)return false;
  const next=mixamoMixer.clipAction(clip);
- if(next===mixamoCurrent)return true;
- next.reset().setLoop(type.toLowerCase()==='idle'?THREE.LoopRepeat:THREE.LoopOnce).setEffectiveWeight(1).fadeIn(.3).play();next.clampWhenFinished=type.toLowerCase()!=='idle';
- if(mixamoCurrent)mixamoCurrent.fadeOut(.3);
- mixamoCurrent=next;
- return true;
+ if(next===mixamoCurrent && next.isRunning())return true;
+ const loop=['idle','walk','back','dance'].includes(type)?THREE.LoopRepeat:THREE.LoopOnce;
+ next.reset().setLoop(loop).setEffectiveWeight(1).fadeIn(.32).play();
+ next.clampWhenFinished=loop!==THREE.LoopRepeat;
+ if(mixamoCurrent&&mixamoCurrent!==next)mixamoCurrent.fadeOut(.32);
+ mixamoCurrent=next;return true;
 }
+// A new action only needs one entry in ACTION_LIBRARY and an FBX file.
+// Show steps are declarative, reusable, and never clone the character mesh.
+let showRun=null,lastShowId=null;
+function endShow(){
+ showRun=null;studioTargetX=0;
+ playMixamo('idle');
+ $('showStatus').textContent='Ready for another surprise.';
+ $('stageSurprise').textContent='✦ Surprise Me';
+}
+function beginShow(){
+ const hasClips=motionClips.size>0;
+ if(!hasClips){
+  $('showStatus').textContent='Import your Mixamo FBX files once under Real Mixamo animations to enable shows.';
+  document.getElementById('veil').click();return;
+ }
+ const available=SHOW_LIBRARY.filter(show=>show.steps.some(step=>clipFor(step[0])));
+ if(!available.length){
+  $('showStatus').textContent='No compatible movements loaded yet.';
+  document.getElementById('veil').click();return;
+ }
+ const choices=available.filter(show=>show.id!==lastShowId);
+ const selected=(choices.length?choices:available)[Math.floor(Math.random()*(choices.length||available.length))];
+ lastShowId=selected.id;
+ showRun={show:selected,index:-1,at:performance.now()};
+ document.getElementById('veil').click(); // Close either sidebar before the show.
+ $('showStatus').textContent='Playing: '+selected.title;
+ $('stageSurprise').textContent='✦ '+selected.title;
+ nextShowStep(performance.now());
+}
+function nextShowStep(now){
+ if(!showRun)return;
+ const run=showRun;
+ while(++run.index<run.show.steps.length){
+  const [kind,seconds,x,screen]=run.show.steps[run.index];
+  if(!clipFor(kind))continue; // Never fake or duplicate an unavailable motion.
+  if(screen)showScreen(true);
+  if(typeof x==='number')studioTargetX=x;
+  gesture='';smoothAction=0;
+  playMixamo(kind);run.at=now;run.seconds=seconds;
+  run.kind=kind;return;
+ }
+ endShow();
+}
+function updateShow(now){
+ if(showRun&&now-showRun.at>=showRun.seconds*1000)nextShowStep(now);
+}
+$('surpriseMe').onclick=beginShow;
+$('stageSurprise').onclick=beginShow;
 async function motionDBPut(name,buffer){
  const db=await savedAvatarDB();return new Promise((resolve,reject)=>{
   const tx=db.transaction('motions','readwrite');tx.objectStore('motions').put(buffer,name);
@@ -415,7 +495,7 @@ async function restoreMotions(){
   const files=await motionDBRead();if(!files.length)return;
   let loaded=0;const errors=[];
   for(const [name,buf] of files){
-   try{await importMotion(name,buf);loaded++}catch(err){errors.push(name+': '+err.message)}
+   try{const hash=await fileFingerprint(buf);if(uploadedFingerprints.has(hash))continue;await importMotion(name,buf);uploadedFingerprints.add(hash);loaded++}catch(err){errors.push(name+': '+err.message)}
   }
   $('motionStatus').textContent=loaded+' saved animations ready'+(errors.length?' · '+errors.length+' need adjustment':'');
   if(loaded)playMixamo('idle');
@@ -423,21 +503,24 @@ async function restoreMotions(){
 }
 $('animationsUpload').addEventListener('change',async e=>{
  const files=[...(e.target.files||[])];if(!files.length)return;
- let successful=0,errors=[];
+ let successful=0,duplicates=0,errors=[];
  for(const file of files){
   const name=file.name.replace(/\.fbx$/i,'');
-  $('motionStatus').textContent='Converting '+(successful+errors.length+1)+' of '+files.length+': '+name;
+  $('motionStatus').textContent='Checking '+(successful+duplicates+errors.length+1)+' of '+files.length+': '+name;
   try{
    const buffer=await file.arrayBuffer();
+   const hash=await fileFingerprint(buffer);
+   if(uploadedFingerprints.has(hash)){duplicates++;continue}
    await importMotion(name,buffer);
-   await motionDBPut(name,buffer);successful++;
+   await motionDBPut(name,buffer);
+   uploadedFingerprints.add(hash);successful++;
   }catch(err){console.error('Mixamo import failed',name,err);errors.push(name+': '+err.message)}
  }
- $('motionStatus').textContent=successful+'/'+files.length+' imported.'+(errors.length?' Issues: '+errors.slice(0,2).join(' | '):' Saved in this browser.');
+ $('motionStatus').textContent=successful+' new motions saved, '+duplicates+' exact duplicates skipped.'+(errors.length?' Issues: '+errors.slice(0,2).join(' | '):'');
  if(successful)playMixamo('idle');
 });
 window.addEventListener('atlas-action',e=>{
- const kind=e.detail?.type;if(kind==='respond')playMixamo('wave');if(kind==='think')playMixamo('think');
+ const kind=e.detail?.type;if(showRun)return;if(kind==='respond')playMixamo('greet');if(kind==='think')playMixamo('think');
 });
 
 async function installGLB(buffer,label){
@@ -450,6 +533,7 @@ async function installGLB(buffer,label){
  loaded.position.set(-mid.x,-box.min.y,-mid.z);
  const root=new THREE.Group();root.add(loaded);
  if(model)scene.remove(model);scene.add(root);model=root;
+ endShow();motionClips.clear();uploadedFingerprints.clear();mixamoMixer=null;mixamoCurrent=null;
  for(const k of Object.keys(rig))delete rig[k];for(const k of Object.keys(base))delete base[k];
  blink.length=0;mouth.length=0;
  root.traverse(o=>{
@@ -551,6 +635,7 @@ let lastFrame=performance.now(),smoothAction=0,rootStartX=0,rootStartZ=0;
 function animate(){
  requestAnimationFrame(animate);
  const now=performance.now(),dt=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;
+ updateShow(now);
  const t=(now-t0)/1000;
  if(auto){yaw+=dt*12;updateCam()}
  if(model){
