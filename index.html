@@ -93,7 +93,7 @@ html,body{height:100%;overflow:hidden}
 <p class="hint" id="showStatus">Atlas picks a short sequence: greeting, exploring, presenting, or dancing.</p>
 <label>Auto rotation <input id="auto" type="checkbox"></label><label>Idle breathing <input id="idle" type="checkbox" checked></label><label>Eye tracking <input id="eyes" type="checkbox" checked></label>
 <div class="section">Virtual studio</div>
-<div class="grid"><button class="btn" id="roomToggle">◈ Room on/off</button><button class="btn" id="screenToggle">▣ Screen on/off</button><button class="btn" id="walkToScreen">↗ Walk to screen</button><button class="btn" id="walkHome">⌂ Return to center</button></div>
+<div class="grid"><button class="btn" id="roomToggle">◈ Room on/off</button><button class="btn" id="screenToggle">▣ Screen on/off</button><button class="btn" id="walkToScreen">↗ Walk to screen</button><button class="btn" id="walkToWall">↟ Walk to back wall</button><button class="btn" id="walkHome">⌂ Return to center</button></div>
 <label>Screen left / right <input class="range" id="screenX" type="range" min="-2.6" max="2.6" step=".05" value="1.65"></label>
 <label>Screen height <input class="range" id="screenY" type="range" min=".75" max="2.7" step=".05" value="1.55"></label>
 <label>Screen depth <input class="range" id="screenZ" type="range" min="-2.9" max="1.3" step=".05" value="-1.65"></label>
@@ -328,7 +328,7 @@ const status=(text,error=false)=>{const e=$('modelStatus');e.textContent=text;e.
 
 /* Atlas 4.9.5 open studio — human scale, camera-safe scenery, relocatable screen */
 const studio=new THREE.Group();scene.add(studio);
-const ROOM_LIMITS=Object.freeze({minX:-3.85,maxX:3.85,minZ:-3.96,maxZ:2.1});
+const ROOM_LIMITS=Object.freeze({minX:-4.03,maxX:4.03,minZ:-4.05,maxZ:2.26});
 const clampToRoom=(x,z)=>({
  x:THREE.MathUtils.clamp(x,ROOM_LIMITS.minX,ROOM_LIMITS.maxX),
  z:THREE.MathUtils.clamp(z,ROOM_LIMITS.minZ,ROOM_LIMITS.maxZ)
@@ -463,6 +463,7 @@ $('walkToScreen').onclick=()=>{
  walkTo(screenPos.x>0?Math.max(0,screenPos.x-.72):Math.min(0,screenPos.x+.72),screenPos.z+.55);
 };
 $('walkHome').onclick=()=>walkTo(0,0);
+$('walkToWall').onclick=()=>walkTo(model?.position.x||0,ROOM_LIMITS.minZ);
 $('screenImage').addEventListener('change',e=>{
  const file=e.target.files?.[0];if(!file)return;
  const url=URL.createObjectURL(file),im=new Image();
@@ -706,6 +707,40 @@ function strideSpeedFor(type='walk'){
  const meters=clip?.strideMeters||.88;
  return THREE.MathUtils.clamp(meters/Math.max(.35,clip?.duration||1),.5,1.55);
 }
+
+/* Reusable foot contact for EVERY clip, including future FBX uploads.
+   A stance foot is held briefly in world X/Z when close to the ground;
+   lifting or switching feet releases its anchor. Keeps gestures grounded. */
+const footContact={
+ foot:null,anchor:new THREE.Vector3(),last:null,correctionMax:.026,
+ reset(){this.foot=null;this.last=null;},
+ update(dt){
+  if(!model||!rig.lfoot||!rig.rfoot||dt<=0)return;
+  model.updateMatrixWorld(true);
+  const lp=rig.lfoot.getWorldPosition(new THREE.Vector3());
+  const rp=rig.rfoot.getWorldPosition(new THREE.Vector3());
+  const pick=lp.y<rp.y?'left':'right',point=pick==='left'?lp:rp;
+  const onGround=point.y<.18;
+  if(!onGround){this.foot=null;this.last=point.clone();return}
+  const footVelocity=this.last?point.distanceTo(this.last)/Math.max(dt,.008):0;
+  this.last=point.clone();
+  if(this.foot!==pick||footVelocity>2.6){
+   this.foot=pick;this.anchor.copy(point);
+   return;
+  }
+  // Correct small stance slip without freezing Atlas while he walks.
+  const correction=this.correctionMax*Math.min(1,dt*60);
+  const deltaX=THREE.MathUtils.clamp((this.anchor.x-point.x)*.26,-correction,correction);
+  const deltaZ=THREE.MathUtils.clamp((this.anchor.z-point.z)*.26,-correction,correction);
+  const proposed=clampToRoom(model.position.x+deltaX,model.position.z+deltaZ);
+  model.position.x=proposed.x;model.position.z=proposed.z;
+  // If the clip is stationary, cap accumulated offset rather than drifting away.
+  if(!travelPlan&&!showRun){
+   model.position.x=THREE.MathUtils.clamp(model.position.x,-4.03,4.03);
+   model.position.z=THREE.MathUtils.clamp(model.position.z,-4.05,2.26);
+  }
+ }
+};
 const avatarRestQuaternions=new Map();
 const avatarRestPositions=new Map();
 function captureAvatarRestPose(){
@@ -765,7 +800,14 @@ async function importMotion(name,buffer){
  if(tracks.length<35)throw Error('Only '+tracks.length+' compatible joints in '+name+'; expected most of the full body');
  const duration=Math.max(.1,sourceClip.duration);
  const clip=new THREE.AnimationClip(name,duration,tracks);
- if(/walk|turn/i.test(name))clip.strideMeters=measureStrideFromFBX(source,sourceClip,sourceBones);
+ const forwardPattern=/walk|run|jog|sprint|crawl|sneak|stride|step|sidestep/i;
+ // Source hip displacement indicates true root locomotion even if the filename
+ // doesn't contain a conventional movement keyword.
+ const hipMove=hipTranslation?Math.hypot(
+  hipTranslation.values.at(-3)-hipTranslation.values[0],
+  hipTranslation.values.at(-1)-hipTranslation.values[2]):0;
+ clip.isLocomotion=forwardPattern.test(name)||hipMove>.38;
+ if(clip.isLocomotion)clip.strideMeters=measureStrideFromFBX(source,sourceClip,sourceBones);
  clip.optimize();
  const key=normActionName(name);
  const previous=motionClips.get(key);
@@ -788,16 +830,17 @@ async function importMotion(name,buffer){
  }
  return tracks.length;
 }
-function playMixamo(type,force=false){
+function playMixamo(type,force=false,fadeSeconds=.30){
  if(!mixamoMixer)return false;
  const clip=clipFor(type);if(!clip)return false;
  const next=mixamoMixer.clipAction(clip);
  if(next===mixamoCurrent&&next.isRunning()&&!force)return true;
  const loop=['idle','walk','back','dance'].includes(type)||normActionName(type).includes('idle')?THREE.LoopRepeat:THREE.LoopOnce;
  const previous=mixamoCurrent;
- next.reset().setLoop(loop).setEffectiveWeight(1).fadeIn(.42).play();
+ footContact.reset();
+ next.reset().setLoop(loop).setEffectiveWeight(1).fadeIn(fadeSeconds).play();
  next.clampWhenFinished=loop!==THREE.LoopRepeat;
- if(previous&&previous!==next)previous.fadeOut(.42);
+ if(previous&&previous!==next)previous.fadeOut(fadeSeconds);
  mixamoCurrent=next;return true;
 }
 // Reusable actions and named show steps. No duplicate avatar meshes or motion buttons.
