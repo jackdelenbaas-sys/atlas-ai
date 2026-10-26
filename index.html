@@ -174,7 +174,7 @@ window.addEventListener('orientationchange',()=>requestAnimationFrame(refreshMob
 const composer=$('input');
 composer.addEventListener('focus',()=>{
  document.body.classList.add('atlas-typing');refreshMobileViewport();
- requestAnimationFrame(()=>{if(matchMedia('(max-width:760px)').matches)composer.scrollIntoView({block:'nearest',behavior:'instant'})});
+ // Do not call scrollIntoView: it can pan and magnify fixed iPhone Safari layouts.
 });
 composer.addEventListener('blur',()=>{
  document.body.classList.remove('atlas-typing');
@@ -420,6 +420,17 @@ canvas.addEventListener('wheel',e=>{
  e.preventDefault();
  zoomAtPointer(e.clientX,e.clientY,Math.exp(e.deltaY*.0011));
 },{passive:false});
+// Double-tap on mobile uses the same bounded focus logic as desktop double-click.
+let lastPhoneTap=0,lastPhoneTapX=0,lastPhoneTapY=0;
+canvas.addEventListener('pointerup',e=>{
+ if(!mobileCanvas()||e.pointerType!=='touch')return;
+ const now=performance.now();
+ if(now-lastPhoneTap<330&&Math.hypot(e.clientX-lastPhoneTapX,e.clientY-lastPhoneTapY)<28){
+  const hit=subjectAtPointer(e.clientX,e.clientY);
+  if(hit){center.copy(clampCameraPivot(hit));distance=Math.max(1.45,distance*.7);sliders();updateCam()}
+  lastPhoneTap=0;
+ }else{lastPhoneTap=now;lastPhoneTapX=e.clientX;lastPhoneTapY=e.clientY}
+});
 canvas.addEventListener('dblclick',e=>{
  e.preventDefault();
  const hit=subjectAtPointer(e.clientX,e.clientY);
@@ -1134,7 +1145,7 @@ async function installGLB(buffer,label){
  });
  for(const [k,v] of Object.entries(rig))base[k]=v.rotation.clone();
  captureAvatarRestPose();
- center.set(0,Math.max(.8,size.y*.56),-.35);distance=Math.max(3.7,size.y*2.08);sliders();updateCam();
+ center.set(0,Math.max(.8,size.y*.56),-.35);distance=mobileCanvas()?Math.max(4.8,size.y*2.60):Math.max(3.7,size.y*2.08);sliders();updateCam();
  status('Preparing Atlas animation skeleton…');
  $('modelDetails').textContent=label+' · '+(buffer.byteLength/1048576).toFixed(1)+' MB · '+findSkin(model).skeleton.bones.length+' joints';
  void restoreMotions();
