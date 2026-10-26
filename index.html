@@ -108,7 +108,8 @@ html,body{height:100%;overflow:hidden}
 <div class="section">Avatar and camera</div>
 <label>Avatar height <input class="range" type="range" id="height" min="-.25" max=".35" step=".05" value="0"></label>
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
-<p class="hint">Atlas's real motion clips control his limbs. The old manual joint sliders have been removed so they cannot interfere with natural animation.</p><div class="section">Model</div><label id="uploadModelBtn" class="btn wide">Replace Atlas body (optional)<input id="modelUpload" type="file" accept=".glb,model/gltf-binary"></label><p class="hint">The complete original Atlas model now loads automatically from the hosted library, even on a new device.</p><p class="hint" id="modelDetails">Original full-body human model • securely hosted and cached</p></aside></div>
+<p class="hint">Atlas's real motion clips control his limbs. The old manual joint sliders have been removed so they cannot interfere with natural animation.</p><div class="section">Model</div><label id="uploadModelBtn" class="btn wide">Replace Atlas body (optional)<input id="modelUpload" type="file" accept=".glb,model/gltf-binary"></label><p class="hint">The complete original Atlas model now loads automatically from the hosted library, even on a new device.</p><button id="repairAvatar" class="btn wide" style="margin:10px 0;text-align:center">↺ Reset Atlas body and animations</button>
+<p class="hint" id="modelDetails">Original full-body human model • securely hosted and cached</p></aside></div>
 <script>
 (()=>{const $=id=>document.getElementById(id),key='atlas-v43-chat';let data;try{data=JSON.parse(localStorage.getItem(key))}catch{}if(!data||!Array.isArray(data.threads))data={active:1,threads:[{id:1,title:'Welcome to Atlas',msgs:[{role:'atlas',text:'Atlas is ready for a preview. Your human avatar, camera controls, poses, and animations are available. Live AI and voice will be connected later.'}]}]};const save=()=>localStorage.setItem(key,JSON.stringify(data));
 const div=document.getElementById('dividerHandle'),app=document.getElementById('app');
@@ -798,7 +799,6 @@ async function installGLB(buffer,label){
  const root=new THREE.Group();root.add(loaded);
  if(model)scene.remove(model);scene.add(root);model=root;
  motionClips.clear();uploadedFingerprints.clear();mixamoMixer=null;mixamoCurrent=null;showRun=null;travelPlan=null;
- endShow();motionClips.clear();uploadedFingerprints.clear();mixamoMixer=null;mixamoCurrent=null;
  for(const k of Object.keys(rig))delete rig[k];for(const k of Object.keys(base))delete base[k];
  blink.length=0;mouth.length=0;
  root.traverse(o=>{
@@ -817,7 +817,9 @@ async function installGLB(buffer,label){
  for(const [k,v] of Object.entries(rig))base[k]=v.rotation.clone();
  captureAvatarRestPose();
  center.set(0,Math.max(.8,size.y*.56),-.35);distance=Math.max(3.7,size.y*2.08);sliders();updateCam();
- restoreMotions();status('Original Atlas human loaded ✓');$('modelDetails').textContent=label+' · '+(buffer.byteLength/1048576).toFixed(1)+' MB · saved for future visits';
+ status('Preparing Atlas animation skeleton…');
+ $('modelDetails').textContent=label+' · '+(buffer.byteLength/1048576).toFixed(1)+' MB · '+findSkin(model).skeleton.bones.length+' joints';
+ void restoreMotions();
 }
 $('modelUpload').addEventListener('change',async e=>{
  const file=e.target.files?.[0];if(!file)return;
@@ -826,6 +828,23 @@ $('modelUpload').addEventListener('change',async e=>{
 });
 
 
+$('repairAvatar').onclick=async()=>{
+ const button=$('repairAvatar');if(button.disabled)return;
+ button.disabled=true;button.textContent='Restoring Atlas…';
+ try{
+  showRun=null;travelPlan=null;
+  const manifest=await getHostedManifest();
+  status('Reloading the original Atlas body…');
+  const bytes=await getHostedBytes(manifest.model);
+  await installGLB(bytes,'Repaired original Atlas');
+  $('motionStatus').textContent='Rebuilding movement library…';
+ }catch(err){
+  console.error('Atlas repair failure',err);
+  status('Repair unavailable: '+err.message,true);
+ }finally{
+  button.disabled=false;button.textContent='↺ Reset Atlas body and animations';
+ }
+};
 async function load(){
  try{
   let saved=null;
