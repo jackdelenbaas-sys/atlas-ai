@@ -628,76 +628,23 @@ $('modelUpload').addEventListener('change',async e=>{
 
 
 async function load(){
-const loadingStarted=performance.now();
-try{const saved=await readSavedModel();if(saved){await installGLB(saved,'Your saved human model');return}}catch(e){console.warn('Saved avatar unavailable:',e)}
-
-try{
- status('Connecting avatar model…');
- const count=11;
- const urls=Array.from({length:count},(_,i)=>'avatar/part-'+String(i).padStart(2,'0')+'.txt');
- let finished=0;
- const timeout=ms=>new Promise((_,reject)=>setTimeout(()=>reject(new Error('Request timed out')),ms));
- const parts=await Promise.all(urls.map(async (url,i)=>{
-   let err;
-   for(let attempt=0;attempt<3;attempt++){
-     try{
-       const res=await Promise.race([fetch(url,{cache:'force-cache'}),timeout(16000)]);
-       if(!res.ok)throw new Error('HTTP '+res.status+' for '+url);
-       const part=(await res.text()).trim();
-       if(!part || !/^[A-Za-z0-9+/=]+$/.test(part))throw new Error('Invalid avatar segment '+(i+1));
-       finished++;status('Loading avatar data… '+Math.round(finished/count*100)+'%');
-       return part;
-     }catch(e){err=e;await new Promise(r=>setTimeout(r,350*(attempt+1)))}
-   }
-   throw new Error('Could not load '+url+': '+err.message);
- }));
- status('Decoding human avatar…');
- const encoded=parts.join('');
- let zipped;
- try{const raw=atob(encoded);zipped=Uint8Array.from(raw,c=>c.charCodeAt(0))}
- catch(e){throw new Error('Avatar data is incomplete or corrupted')}
- if(zipped[0]!==31 || zipped[1]!==139)throw new Error('Avatar archive header is invalid');
- if(!('DecompressionStream' in window))throw new Error('This browser lacks gzip decompression support; please update Safari');
- const stream=new Blob([zipped]).stream().pipeThrough(new DecompressionStream('gzip'));
- const buffer=await new Response(stream).arrayBuffer();
- const view=new DataView(buffer);
- if(buffer.byteLength<100 || view.getUint32(0,true)!==0x46546c67)throw new Error('Decompressed data is not a GLB 3D model');
- if(view.getUint32(8,true)!==buffer.byteLength)throw new Error('Avatar GLB has incomplete data');
- status('Preparing 3D character…');
- const gltf=await new GLTFLoader().parseAsync(buffer,'');
- const loaded=gltf.scene;
- const box=new THREE.Box3().setFromObject(loaded);
- if(box.isEmpty())throw new Error('3D model contains no visible geometry');
- const size=box.getSize(new THREE.Vector3()),mid=box.getCenter(new THREE.Vector3());
- loaded.position.set(-mid.x,-box.min.y,-mid.z);
- const root=new THREE.Group();root.add(loaded);scene.remove(studioFallback);scene.add(root);model=root;
- center.set(0,Math.max(.8,size.y*.55),0);
- distance=Math.max(2.2,size.y*1.45);sliders();updateCam();
- root.traverse(o=>{
-   if(o.isBone){
-     const n=o.name.toLowerCase();
-     for(const [k,pattern] of Object.entries({head:/head$/,neck:/neck$/,larm:/leftupperarm|upperarm_l|leftarm|leftshoulder/,rarm:/rightupperarm|upperarm_r|rightarm|rightshoulder/,spine:/spine2|chest|upperchest/,leye:/lefteye|eye_l/,reye:/righteye|eye_r/})){
-       if(pattern.test(n)&&!rig[k])rig[k]=o
-     }
-   }
-   if(o.isMesh&&o.morphTargetDictionary){
-     for(const [n,idx] of Object.entries(o.morphTargetDictionary)){
-       const k=n.toLowerCase();if(/blink/.test(k))blink.push([o,idx]);if(/mouthopen|jawopen/.test(k))mouth.push([o,idx])
-     }
-   }
- });
- for(const [k,v] of Object.entries(rig))base[k]=v.rotation.clone();
- status('Atlas online · '+((performance.now()-loadingStarted)/1000).toFixed(1)+'s');
- $('modelDetails').textContent='Human avatar loaded locally from GitHub · '+(buffer.byteLength/1024/1024).toFixed(1)+' MB · '+Object.keys(rig).length+' movable joints';
-}catch(e){
- console.error('Atlas avatar error',e);
- const msg=e?.message||'Unknown error';status('Studio avatar active · original model incomplete');
- $('modelDetails').textContent='Model loading failed: '+msg+'. Use retry below.';
- $('modelStatus').title=msg;
- $('modelStatus').style.pointerEvents='auto';$('modelStatus').style.cursor='pointer';
- $('modelStatus').onclick=()=>{load()};
+ try{
+  const saved=await readSavedModel();
+  if(saved){
+   status('Restoring your real Atlas avatar…');
+   await installGLB(saved,'Your saved Atlas model');
+   return;
+  }
+  status('Import your real Atlas model in Settings');
+  $('modelDetails').textContent='Your real Atlas body is not saved in this browser yet. Import the original .glb once to load it.';
+ }catch(err){
+  console.error('Saved avatar restore failed',err);
+  status('Avatar restore problem · use Settings',true);
+  $('modelDetails').textContent='Saved avatar restore problem: '+err.message+'. Try importing the GLB again.';
+ }
 }
-}load();
+load();
+
 let lastFrame=performance.now(),wasTravelling=false;
 function animate(){
  requestAnimationFrame(animate);
