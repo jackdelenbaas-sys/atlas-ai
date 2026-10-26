@@ -73,8 +73,8 @@ html,body{height:100%;overflow:hidden}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.9.4 STUDIO</span></header><div id="feed" class="feed"></div></div>
-<div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div id="stageActions"><button id="stageHome">⌂ Center</button><button id="stageScreen">▣ Screen</button><button id="stageWalk">↗ Walk to screen</button><button id="stageSurprise">✦ Surprise Me</button></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small>PREVIEW MODE · AI / VOICE NOT CONNECTED</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.9.5 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small>PREVIEW MODE · AI / VOICE NOT CONNECTED</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
 <div class="section">Atlas showtime</div>
@@ -82,7 +82,11 @@ html,body{height:100%;overflow:hidden}
 <p class="hint" id="showStatus">Atlas picks a short sequence: greeting, exploring, presenting, or dancing.</p>
 <label>Auto rotation <input id="auto" type="checkbox"></label><label>Idle breathing <input id="idle" type="checkbox" checked></label><label>Eye tracking <input id="eyes" type="checkbox" checked></label>
 <div class="section">Virtual studio</div>
-<div class="grid"><button class="btn" id="roomToggle">◈ Room on/off</button><button class="btn" id="screenToggle">▣ Screen on/off</button></div>
+<div class="grid"><button class="btn" id="roomToggle">◈ Room on/off</button><button class="btn" id="screenToggle">▣ Screen on/off</button><button class="btn" id="walkToScreen">↗ Walk to screen</button><button class="btn" id="walkHome">⌂ Return to center</button></div>
+<label>Screen left / right <input class="range" id="screenX" type="range" min="-2.6" max="2.6" step=".05" value="1.65"></label>
+<label>Screen height <input class="range" id="screenY" type="range" min=".75" max="2.7" step=".05" value="1.55"></label>
+<label>Screen depth <input class="range" id="screenZ" type="range" min="-2.9" max="1.3" step=".05" value="-1.65"></label>
+<button class="btn wide" id="resetScreen">Reset screen position</button>
 <label id="screenUploadLabel" class="btn">Show an image on Atlas's screen<input id="screenImage" type="file" accept="image/*"></label>
 <p class="hint">The room is built into Atlas—no separate model needed. The presentation screen can display your own images.</p>
 <div class="section">Real Mixamo animations</div>
@@ -290,7 +294,7 @@ function walkTo(x){
 function showScreen(visible){screenRoot.visible=visible;}
 $('roomToggle').onclick=()=>{studioObjects.visible=!studioObjects.visible;spotlight.visible=studioObjects.visible;rim.visible=studioObjects.visible};
 $('screenToggle').onclick=()=>showScreen(!screenRoot.visible);
-$('stageScreen').onclick=$('screenToggle').onclick;
+
 $('stageWalk').onclick=()=>{showScreen(true);walkTo(.65)};
 $('stageHome').onclick=()=>walkTo(0);
 $('screenImage').addEventListener('change',async e=>{
@@ -405,12 +409,14 @@ async function importMotion(name,buffer){
   if(matching){names[b.name]=matching.name;count++}
  }
  if(count<15)throw Error('Skeleton mapping too different: '+count+' matched bones');
+ const sourceHips=fromBones.find(b=>normBone(b.name)==='hips')?.name||'Hips';
  const motion=SkeletonUtils.retargetClip(targetSkin,sourceSkin,source.animations[0],{
-   names,fps:30,hip:'Hips',hipInfluence:new THREE.Vector3(0,0,0),preserveBoneMatrix:true,preserveBonePositions:true
+   names,fps:30,hip:sourceHips,hipInfluence:new THREE.Vector3(0,0,0),
+   preserveBoneMatrix:true,preserveBonePositions:true
  });
- if(!motion.tracks.length)throw Error('Retargeting produced no tracks');
+ if(!motion.tracks.some(track=>track.name.includes('.bones[')))throw Error('Animation did not produce target-bone tracks');
  motion.name=name;motionClips.set(normActionName(name),motion);
- if(!mixamoMixer){mixamoMixer=new THREE.AnimationMixer(model);
+ if(!mixamoMixer){mixamoMixer=new THREE.AnimationMixer(targetSkin);
   mixamoMixer.addEventListener('finished',e=>{if(e.action===mixamoCurrent&&clipFor('idle')){const idleAction=mixamoMixer.clipAction(clipFor('idle'));if(idleAction!==mixamoCurrent){idleAction.reset().fadeIn(.3).play();mixamoCurrent.fadeOut(.3);mixamoCurrent=idleAction}}});
  }
  return count;
@@ -434,7 +440,7 @@ function endShow(){
  showRun=null;studioTargetX=0;
  playMixamo('idle');
  $('showStatus').textContent='Ready for another surprise.';
- $('stageSurprise').textContent='✦ Surprise Me';
+ 
 }
 function beginShow(){
  const hasClips=motionClips.size>0;
@@ -453,7 +459,7 @@ function beginShow(){
  showRun={show:selected,index:-1,at:performance.now()};
  document.getElementById('veil').click(); // Close either sidebar before the show.
  $('showStatus').textContent='Playing: '+selected.title;
- $('stageSurprise').textContent='✦ '+selected.title;
+ 
  nextShowStep(performance.now());
 }
 function nextShowStep(now){
@@ -474,7 +480,7 @@ function updateShow(now){
  if(showRun&&now-showRun.at>=showRun.seconds*1000)nextShowStep(now);
 }
 $('surpriseMe').onclick=beginShow;
-$('stageSurprise').onclick=beginShow;
+
 async function motionDBPut(name,buffer){
  const db=await savedAvatarDB();return new Promise((resolve,reject)=>{
   const tx=db.transaction('motions','readwrite');tx.objectStore('motions').put(buffer,name);
