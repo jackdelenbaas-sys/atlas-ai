@@ -107,7 +107,6 @@ html,body{height:100%;overflow:hidden}
 <div class="section">Camera</div><label>Horizontal rotation <input class="range" type="range" id="yaw" min="-720" max="720" value="0"></label><label>Vertical viewing angle <input class="range" type="range" id="pitch" min="-720" max="720" value="0"></label><label>Zoom <input class="range" type="range" id="zoom" min=".42" max="14" step=".05" value="3.5"></label>
 <p class="hint">Use the mouse wheel over Atlas's face to zoom toward his face, or over any other spot to zoom there. Double-click to focus on an area.</p>
 <div class="section">Avatar and camera</div>
-<label>Avatar height <input class="range" type="range" id="height" min="-.25" max=".35" step=".05" value="0"></label>
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
 <p class="hint">Atlas's real motion clips control his limbs. The old manual joint sliders have been removed so they cannot interfere with natural animation.</p><div class="section">Model</div><label id="uploadModelBtn" class="btn wide">Replace Atlas body (optional)<input id="modelUpload" type="file" accept=".glb,model/gltf-binary"></label><p class="hint">The complete original Atlas model now loads automatically from the hosted library, even on a new device.</p><button id="repairAvatar" class="btn wide" style="margin:10px 0;text-align:center">↺ Reset Atlas body and animations</button>
 <p class="hint" id="modelDetails">Original full-body human model • securely hosted and cached</p></aside></div>
@@ -282,10 +281,9 @@ canvas.addEventListener('dblclick',e=>{
  distance=nextDistance;sliders();updateCam();
 });
 ['yaw','pitch','zoom'].forEach(id=>$(id).oninput=()=>{yaw=+$('yaw').value;pitch=+$('pitch').value;distance=+$('zoom').value;updateCam()});
-$('auto').onchange=e=>auto=e.target.checked;$('idle').onchange=e=>idle=e.target.checked;$('eyes').onchange=e=>eyes=e.target.checked;$('height').oninput=e=>{yOffset=+e.target.value;if(model)model.position.y=yOffset};$('reset').onclick=()=>{
+$('auto').onchange=e=>auto=e.target.checked;$('idle').onchange=e=>idle=e.target.checked;$('eyes').onchange=e=>eyes=e.target.checked;$('reset').onclick=()=>{
  yaw=pitch=0;distance=3.75;center.set(0,1.02,-.15);
  yOffset=0;auto=false;$('auto').checked=false;
- $('height').value=0;
  if(model){model.position.y=0}
  sliders();updateCam();
 };
@@ -1043,7 +1041,8 @@ function animate(){
   // Hard guard even for a manually played action or an interrupted sequence.
   const safe=clampToRoom(model.position.x,model.position.z);
   model.position.x=safe.x;model.position.z=safe.z;
-  model.position.y+=((Number($('height').value)||0)-model.position.y)*Math.min(1,dt*5);
+  // Never lift or sink the entire character: Atlas stays on the floor.
+  model.position.y+=(0-model.position.y)*Math.min(1,dt*5);
   for(const [mesh,index] of blink){
    if(mesh.morphTargetInfluences)mesh.morphTargetInfluences[index]=Math.max(0,Math.sin(t*1.44)**42);
   }
