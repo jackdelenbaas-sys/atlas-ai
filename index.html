@@ -342,12 +342,16 @@ for(const ev of ['pointerup','pointercancel'])canvas.addEventListener(ev,e=>{
  if(draggingScreen&&e.pointerId===screenDragId){draggingScreen=false;e.stopImmediatePropagation()}
 },true);
 let studioTargetX=0,studioTargetZ=0;
-function walkTo(x,z=0){
- if(!clipFor('walk')){
-  $('showStatus').textContent='Please import your Walking.fbx to make Atlas walk naturally.';return;
+async function walkTo(x,z=0){
+ showRun=null;$('showStatus').textContent='Atlas is preparing to walk…';
+ try{
+  await ensureAction('walk');
+  planTravel(x,z);
+  gesture='';playMixamo('walk',true);closeShowSidebar();
+ }catch(err){
+  console.error('Walking error',err);
+  $('showStatus').textContent='Walking unavailable: '+err.message;
  }
- showRun=null;planTravel(x,z);
- gesture='';playMixamo('walk',true);
 }
 $('walkToScreen').onclick=()=>{
  showScreen(true);
@@ -602,43 +606,51 @@ function closeShowSidebar(){
  document.querySelectorAll('.sheet').forEach(el=>el.classList.remove('show'));
  $('veil').classList.remove('show');
 }
+
 function endShow(){
  showRun=null;travelPlan=null;studioTargetX=0;studioTargetZ=0;
- if(model){model.rotation.y=0;model.position.x=0;model.position.z=0;}
- playMixamo('idle',true);
- $('showStatus').textContent='Atlas is standing by.';
+ playMixamo('idle',true);$('showStatus').textContent='Atlas is standing by.';
 }
 function beginShow(){
- if(!motionClips.size||!mixamoMixer){
-  $('showStatus').textContent='Import Mixamo FBX files below once to unlock real movement. No synthetic arm-flailing substitutes.';
-  return;
+ if(!model||!findSkin(model)){
+  $('showStatus').textContent='Atlas is still loading his body. Please try again.';return;
  }
- const available=SHOW_LIBRARY.filter(show=>show.steps.filter(step=>clipFor(step[0])).length>=3);
- if(!available.length){$('showStatus').textContent='Import at least walking, waving and pointing animations to perform sequences.';return;}
- const choices=available.filter(v=>v.id!==lastShowId),pool=choices.length?choices:available;
- const selected=pool[Math.floor(Math.random()*pool.length)];
- lastShowId=selected.id;showRun={show:selected,index:-1,at:performance.now()};
+ const choices=SHOW_LIBRARY.filter(item=>item.id!==lastShowId);
+ const selected=(choices.length?choices:SHOW_LIBRARY)[Math.floor(Math.random()*(choices.length||SHOW_LIBRARY.length))];
+ lastShowId=selected.id;showRun={show:selected,index:-1,at:0,seconds:0,loading:false};
  closeShowSidebar();$('showStatus').textContent='Performing: '+selected.title;
- nextShowStep(performance.now());
+ void nextShowStep();
 }
-function nextShowStep(now){
- if(!showRun)return;
- const run=showRun;
+async function nextShowStep(){
+ const run=showRun;if(!run||run.loading)return;
+ run.loading=true;
  while(++run.index<run.show.steps.length){
   const [kind,seconds,x,z,screen]=run.show.steps[run.index];
-  if(!clipFor(kind))continue;
+  $('showStatus').textContent='Performing '+run.show.title+' · '+kind;
+  try{await ensureAction(kind)}
+  catch(err){console.error('Sequence motion failed:',kind,err);if(showRun!==run)return;continue}
+  if(run!==showRun)return;
   if(screen)showScreen(true);
-  if(typeof x==='number'&&typeof z==='number')planTravel(x,z,seconds*.88);
+  if(typeof x==='number'&&typeof z==='number')planTravel(x,z,seconds*.92);
   else travelPlan=null;
   gesture='';playMixamo(kind,true);
-  run.kind=kind;run.seconds=seconds;run.at=now;return;
+  run.kind=kind;run.seconds=seconds;run.at=performance.now();run.loading=false;
+  return;
  }
- // Travel back to the starting area before returning to idle.
- if(model)planTravel(0,0,2);
- playMixamo('idle',true);showRun=null;
- $('showStatus').textContent='Show complete. Atlas is returning to center.';
+ if(run!==showRun)return;
+ showRun=null;
+ $('showStatus').textContent='Show complete — Atlas is returning to center.';
+ if(model&&Math.hypot(model.position.x,model.position.z)>.08){
+  try{
+   await ensureAction('walk');
+   if(showRun)return;
+   planTravel(0,0,2.5);playMixamo('walk',true);
+  }catch(err){console.warn('Could not return to center',err);endShow()}
+ }else{playMixamo('idle',true)}
 }
-function updateShow(now){if(showRun&&now-showRun.at>=showRun.seconds*1000)nextShowStep(now)}
+function updateShow(now){
+ if(showRun&&!showRun.loading&&now-showRun.at>=showRun.seconds*1000)void nextShowStep();
+}
 $('surpriseMe').onclick=beginShow;
 async function motionDBPut(name,buffer){
  const db=await savedAvatarDB();return new Promise((resolve,reject)=>{
