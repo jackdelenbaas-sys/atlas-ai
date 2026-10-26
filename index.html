@@ -1100,25 +1100,8 @@ function animate(){
     const walkDistance=Math.min(tr.speed*dt,remaining);
     model.position.x+=dx/remaining*walkDistance;
     model.position.z+=dz/remaining*walkDistance;
-    // Plant the low foot: lightly correct contact drift without overriding
-    // the path or causing an animation-frame jump.
-    const left=rig.lfoot,right=rig.rfoot;
-    if(left&&right){
-     model.updateMatrixWorld(true);
-     const lf=left.getWorldPosition(new THREE.Vector3());
-     const rf=right.getWorldPosition(new THREE.Vector3());
-     const foot=lf.y<=rf.y?'left':'right';
-     const footPoint=foot==='left'?lf:rf;
-     if(footPoint.y<.23){
-      if(foot!==tr.contactFoot||!tr.footAnchor){
-       tr.contactFoot=foot;tr.footAnchor=footPoint.clone();
-      }else{
-       const maximum=tr.speed*dt*.20;
-       model.position.x+=THREE.MathUtils.clamp((tr.footAnchor.x-footPoint.x)*.20,-maximum,maximum);
-       model.position.z+=THREE.MathUtils.clamp((tr.footAnchor.z-footPoint.z)*.20,-maximum,maximum);
-      }
-     }else{tr.contactFoot=null;tr.footAnchor=null}
-    }
+    // The universal footContact system runs once AFTER root travel.
+    // Never apply an independent walking-only correction here.
     const bounded=clampToRoom(model.position.x,model.position.z);
     const hitBoundary=Math.abs(bounded.x-model.position.x)>.0001||Math.abs(bounded.z-model.position.z)>.0001;
     model.position.x=bounded.x;model.position.z=bounded.z;
@@ -1144,6 +1127,16 @@ function animate(){
   model.position.x=safe.x;model.position.z=safe.z;
   // Never lift or sink the entire character: Atlas stays on the floor.
   model.position.y+=(0-model.position.y)*Math.min(1,dt*5);
+  if(travelPlan){
+   // Keep Atlas looking ahead while walking rather than lifting his chin
+   // from an incompatible Mixamo head rotation.
+   for(const [key,blend] of [['head',.72],['neck',.56]]){
+    const bone=rig[key],rest=bone&&avatarRestQuaternions.get(bone.name);
+    if(rest)bone.quaternion.slerp(rest,blend);
+   }
+  }
+  // One generalized support-foot lock for all twenty moves and future clips.
+  footContact.update(dt);
   for(const [mesh,index] of blink){
    if(mesh.morphTargetInfluences)mesh.morphTargetInfluences[index]=Math.max(0,Math.sin(t*1.44)**42);
   }
