@@ -640,8 +640,17 @@ $('playSelectedAction').onclick=async()=>{
  const name=$('actionSelect').value;if(!name)return;
  showRun=null;travelPlan=null;
  $('motionStatus').textContent='Loading '+name+'…';
- try{await ensureMotion(name);playMixamo(name,true);closeShowSidebar();reportMotionStatus()}
- catch(err){$('motionStatus').textContent='Could not play '+name+': '+err.message}
+ try{
+  const clip=await ensureMotion(name);
+  if(clip?.isLocomotion&&model){
+   // New locomotion clips automatically advance Atlas instead of walking
+   // in place; end the action at the first physically reachable wall.
+   const backward=/backward/i.test(name);
+   const target=wallDestination(model.rotation.y,backward);
+   planTravel(target.x,target.z,null,name);
+  }
+  playMixamo(name,true);closeShowSidebar();reportMotionStatus();
+ }catch(err){$('motionStatus').textContent='Could not play '+name+': '+err.message}
 };
 
 let mixamoMixer=null,mixamoCurrent=null;
@@ -845,6 +854,19 @@ function playMixamo(type,force=false,fadeSeconds=.30){
 }
 // Reusable actions and named show steps. No duplicate avatar meshes or motion buttons.
 let showRun=null,lastShowId=null,travelPlan=null;
+function wallDestination(facing,backward=false){
+ if(!model)return {x:0,z:0};
+ const directionX=Math.sin(facing)*(backward?-1:1);
+ const directionZ=Math.cos(facing)*(backward?-1:1);
+ const {minX,maxX,minZ,maxZ}=ROOM_LIMITS;
+ const times=[];
+ if(directionX>.00001)times.push((maxX-model.position.x)/directionX);
+ else if(directionX<-.00001)times.push((minX-model.position.x)/directionX);
+ if(directionZ>.00001)times.push((maxZ-model.position.z)/directionZ);
+ else if(directionZ<-.00001)times.push((minZ-model.position.z)/directionZ);
+ const length=Math.max(0,Math.min(...times.filter(t=>t>=0))-0.035);
+ return clampToRoom(model.position.x+directionX*length,model.position.z+directionZ*length);
+}
 function planTravel(x,z,seconds=null,type='walk'){
  if(!model)return;
  const bounded=clampToRoom(x,z);
@@ -857,7 +879,7 @@ function planTravel(x,z,seconds=null,type='walk'){
   fromX,fromZ,toX:studioTargetX,toZ:studioTargetZ,
   totalDistance:d,kind:type,contactFoot:null,footAnchor:null
  };
- if(d<.04){travelPlan=null;if(!showRun)playMixamo('idle',true)}
+ if(d<.04){travelPlan=null;if(!showRun)playMixamo('idle',true,.13)}
 }
 function closeShowSidebar(){
  document.querySelectorAll('.sheet').forEach(el=>el.classList.remove('show'));
@@ -888,8 +910,10 @@ async function nextShowStep(){
   catch(err){console.error('Sequence motion failed:',kind,err);if(showRun!==run)return;continue}
   if(run!==showRun)return;
   if(screen)showScreen(true);
-  if(typeof x==='number'&&typeof z==='number')planTravel(x,z,null,kind);
-  else travelPlan=null;
+  if(typeof x==='number'&&typeof z==='number'){
+   planTravel(x,z,null,kind);
+   if(!travelPlan)continue; // Never keep walking in place at a wall.
+  }else travelPlan=null;
   gesture='';playMixamo(kind,true);
   run.kind=kind;
   // Walking lasts exactly as long as its real calibrated gait needs; never
@@ -1100,14 +1124,14 @@ function animate(){
     model.position.x=bounded.x;model.position.z=bounded.z;
     if(hitBoundary){
      travelPlan=null;
-     playMixamo('idle',true); // Stop at the room's edge, no walking in place.
+     playMixamo('idle',true,.13); // Finish on the support foot at the boundary.
      if(!showRun)$('showStatus').textContent='Atlas reached the edge of the room.';
     }
    }
    if(travelPlan&&Math.hypot(tr.toX-model.position.x,tr.toZ-model.position.z)<=.04){
     model.position.x=tr.toX;model.position.z=tr.toZ;
     travelPlan=null;
-    playMixamo('idle',true);
+    playMixamo('idle',true,.13);
    }
    wasTravelling=true;
   }else if(!showRun&&wasTravelling){
