@@ -539,6 +539,22 @@ async function importMotion(name,buffer){
  const sourceSkin=findSkin(source),targetSkin=findSkin(model);
  if(!sourceSkin||!targetSkin)throw Error('Could not find both Mixamo and Atlas skeletons');
  const fromBones=sourceSkin.skeleton.bones;
+ // FBXLoader names tracks by original nodes. RetargetClip binds the source
+ // mixer to sourceSkin, so convert original tracks to .bones[name] paths.
+ const originalClip=source.animations[0],sourceClip=originalClip.clone();
+ sourceClip.tracks=originalClip.tracks.flatMap(track=>{
+  const dot=track.name.lastIndexOf('.');
+  if(dot<0)return [];
+  let label=track.name.slice(0,dot);
+  if(label.includes('['))label=label.slice(label.indexOf('[')+1).split(']')[0];
+  const property=track.name.slice(dot+1);
+  if(!['position','quaternion','scale'].includes(property))return [];
+  const sourceBone=fromBones.find(b=>normBone(b.name)===normBone(label));
+  if(!sourceBone)return [];
+  const copy=track.clone();copy.name='.bones['+sourceBone.name+'].'+property;
+  return [copy];
+ });
+ if(sourceClip.tracks.length<10)throw Error('FBX tracks do not match source skeleton');
  const names={};let count=0;
  for(const b of targetSkin.skeleton.bones){
   const matching=fromBones.find(x=>normBone(x.name)===normBone(b.name));
@@ -546,7 +562,7 @@ async function importMotion(name,buffer){
  }
  if(count<15)throw Error('Skeleton mapping too different: '+count+' matched bones');
  const sourceHips=fromBones.find(b=>normBone(b.name)==='hips')?.name||'Hips';
- const motion=SkeletonUtils.retargetClip(targetSkin,sourceSkin,source.animations[0],{
+ const motion=SkeletonUtils.retargetClip(targetSkin,sourceSkin,sourceClip,{
    names,fps:30,hip:sourceHips,hipInfluence:new THREE.Vector3(0,0,0),
    preserveBoneMatrix:true,preserveBonePositions:true
  });
