@@ -1,0 +1,26 @@
+{
+  "version": "4.9.6",
+  "model": "https://atlas-motion-library.floot.app/_cdn/static/e8a6e945-c3c9-41e3-8393-8ae9a3d6aa30-atlas-real-human.glb",
+  "motions": {
+    "Breathing Idle": "https://atlas-motion-library.floot.app/_cdn/static/6d53b32f-c715-43d9-a6be-9dc955fca8a7-atlas-breathing-idle.fbx",
+    "Happy Idle": "https://atlas-motion-library.floot.app/_cdn/static/45dc5759-9e66-43d4-92b4-3181a61d6475-atlas-happy-idle.fbx",
+    "Ninja Idle": "https://atlas-motion-library.floot.app/_cdn/static/a3289c1d-4b25-4198-a16c-a119f8f97c62-atlas-ninja-idle.fbx",
+    "Laying Idle": "https://atlas-motion-library.floot.app/_cdn/static/3978812c-a1c0-4197-9646-16c79658e4d8-atlas-laying-idle.fbx",
+    "Standing Idle To Fight Idle": "https://atlas-motion-library.floot.app/_cdn/static/30472cdc-f382-46ad-9241-1f93091df7aa-atlas-standing-idle-to-fight-idle.fbx",
+    "Walking": "https://atlas-motion-library.floot.app/_cdn/static/e65e3bc2-c063-4a7a-b38e-1efdab43280d-atlas-walking.fbx",
+    "Walking Backwards": "https://atlas-motion-library.floot.app/_cdn/static/f6a364db-7e24-4487-bbbf-ee73c1424d34-atlas-walking-backwards.fbx",
+    "Walking Left Turn": "https://atlas-motion-library.floot.app/_cdn/static/fea2c91d-eaab-499f-9454-3ac7d52260cd-atlas-walking-left-turn.fbx",
+    "Walking While Texting": "https://atlas-motion-library.floot.app/_cdn/static/5eb80218-807f-4d7d-a770-fe62ea9032ec-atlas-walking-while-texting.fbx",
+    "Drunk Walking Turn": "https://atlas-motion-library.floot.app/_cdn/static/d0427bc9-d12d-4bcc-a867-626eda548b48-atlas-drunk-walking-turn.fbx",
+    "Stop Walking": "https://atlas-motion-library.floot.app/_cdn/static/0b9253e3-d43e-493f-8b8c-f3f76b2fdb8c-atlas-stop-walking.fbx",
+    "Waving": "https://atlas-motion-library.floot.app/_cdn/static/ecf96b48-bb19-4e93-bfde-d651849afa76-atlas-waving.fbx",
+    "Waving-2": "https://atlas-motion-library.floot.app/_cdn/static/ec17a4ec-60c7-4ddf-9766-ba38afc054d7-atlas-waving-2.fbx",
+    "Waving-3": "https://atlas-motion-library.floot.app/_cdn/static/a62b1a5d-19fd-4753-85c2-e28d02c7869e-atlas-waving-3.fbx",
+    "Pointing": "https://atlas-motion-library.floot.app/_cdn/static/6c38d2fa-cfaa-40d1-9a70-a84c902393f7-atlas-pointing.fbx",
+    "Pointing Forward": "https://atlas-motion-library.floot.app/_cdn/static/0a1b0c19-e4fd-4d21-9940-a5859dcff927-atlas-pointing-forward.fbx",
+    "Hip Hop Dancing": "https://atlas-motion-library.floot.app/_cdn/static/b654194e-4a3e-4131-bea7-5d69997282c1-atlas-hip-hop-dancing.fbx",
+    "Silly Dancing": "https://atlas-motion-library.floot.app/_cdn/static/c140bd2b-2da7-4317-b2d1-938ea6181fc5-atlas-silly-dancing.fbx",
+    "Breakdance 1990": "https://atlas-motion-library.floot.app/_cdn/static/9250c48e-dfd5-41fe-b026-df4fca529b00-atlas-breakdance-1990.fbx",
+    "Flair": "https://atlas-motion-library.floot.app/_cdn/static/9422620a-0a16-4738-a217-1b940d11a620-atlas-flair.fbx"
+  }
+}
