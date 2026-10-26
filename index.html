@@ -261,15 +261,9 @@ function subjectAtPointer(clientX,clientY){
  zoomRaycaster.setFromCamera(zoomPointer,camera);
  const hits=zoomRaycaster.intersectObject(model,true);
  if(!hits.length)return null;
- const hit=hits[0].point;
- const world=new THREE.Box3().setFromObject(model);
- // Ignore invalid points caused by a moving/animated mesh's stale bounds.
- if(world.isEmpty())return null;
- return new THREE.Vector3(
-  THREE.MathUtils.clamp(hit.x,world.min.x,world.max.x),
-  THREE.MathUtils.clamp(hit.y,world.min.y,world.max.y),
-  THREE.MathUtils.clamp(hit.z,world.min.z,world.max.z)
- );
+ // A real mesh hit is already inside the body. Computing a full animated
+ // bounding box for every Safari wheel tick caused unnecessary stalls.
+ return hits[0].point.clone();
 }
 function defaultFocus(){
  return new THREE.Vector3(0,1.05,0);
@@ -828,7 +822,7 @@ async function importMotion(name,buffer){
  const hipMove=hipTranslation?Math.hypot(
   hipTranslation.values.at(-3)-hipTranslation.values[0],
   hipTranslation.values.at(-1)-hipTranslation.values[2]):0;
- clip.isLocomotion=forwardPattern.test(name)||hipMove>.65;
+ clip.isLocomotion=(forwardPattern.test(name)&&!/stop|idle/i.test(name))||hipMove>.65;
  if(clip.isLocomotion)clip.strideMeters=measureStrideFromFBX(source,sourceClip,sourceBones);
  clip.optimize();
  const key=normActionName(name);
@@ -857,7 +851,13 @@ function playMixamo(type,force=false,fadeSeconds=.30){
  const clip=clipFor(type);if(!clip)return false;
  const next=mixamoMixer.clipAction(clip);
  if(next===mixamoCurrent&&next.isRunning()&&!force)return true;
- const loop=['idle','walk','back','dance'].includes(type)||normActionName(type).includes('idle')?THREE.LoopRepeat:THREE.LoopOnce;
+ const normalized=normActionName(type);
+ // Exact names in the motion picker (for example "Walking") need the same
+ // looping behavior as the alias "walk". Otherwise legs stop after 1 second
+ // while stage travel continues, which causes the reported sliding.
+ const repeating=Boolean(clip.isLocomotion)||['idle','walk','back','dance'].includes(type)
+   ||/idle|danc(e|ing)|walk(ing)?|run(ning)?/i.test(normalized)&&!/stop/i.test(normalized);
+ const loop=repeating?THREE.LoopRepeat:THREE.LoopOnce;
  const previous=mixamoCurrent;
  footContact.reset();
  next.reset().setLoop(loop).setEffectiveWeight(1).fadeIn(fadeSeconds).play();
