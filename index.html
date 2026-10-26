@@ -279,6 +279,19 @@ const floorGrid=new THREE.GridHelper(7.1,16,0x396b9a,0x24415f);
 floorGrid.material.transparent=true;floorGrid.material.opacity=.22;
 floorGrid.material.depthTest=false;floorGrid.material.depthWrite=false;floorGrid.renderOrder=-99;
 floorGrid.position.set(0,.013,-.65);studioObjects.add(floorGrid);
+/* Contact shadow makes the moving human read as grounded, not floating. */
+const shadowCanvas=document.createElement('canvas');shadowCanvas.width=128;shadowCanvas.height=128;
+const shadowCtx=shadowCanvas.getContext('2d'),shadowGradient=shadowCtx.createRadialGradient(64,64,5,64,64,62);
+shadowGradient.addColorStop(0,'rgba(0,0,0,.37)');
+shadowGradient.addColorStop(.48,'rgba(0,0,0,.15)');
+shadowGradient.addColorStop(1,'rgba(0,0,0,0)');
+shadowCtx.fillStyle=shadowGradient;shadowCtx.fillRect(0,0,128,128);
+const shadowTexture=new THREE.CanvasTexture(shadowCanvas);
+const footShadow=new THREE.Mesh(new THREE.PlaneGeometry(1.1,.70),
+ new THREE.MeshBasicMaterial({map:shadowTexture,transparent:true,depthWrite:false,depthTest:false,side:THREE.DoubleSide}));
+footShadow.rotation.x=-Math.PI/2;footShadow.position.y=.026;footShadow.renderOrder=-75;
+studio.add(footShadow);
+
 const spotlight=new THREE.SpotLight(0xd4e9ff,22,12,.87,.49,.6);
 spotlight.position.set(-2.7,3.5,2.6);spotlight.target.position.set(0,1.1,0);studio.add(spotlight,spotlight.target);
 const rim=new THREE.PointLight(0x6d95f7,3.4,7);rim.position.set(2.1,2.6,-2);studio.add(rim);
@@ -878,6 +891,9 @@ function animate(){
  updateShow(now);
  orientScreen();
  if(model){
+  footShadow.position.x=model.position.x;
+  footShadow.position.z=model.position.z;
+  footShadow.visible=studioObjects.visible;
   if(mixamoMixer)mixamoMixer.update(dt);
   const realAction=Boolean(mixamoCurrent&&mixamoCurrent.isRunning());
   // Animation clips own the body, not procedural poses. A calm bind-pose idle
