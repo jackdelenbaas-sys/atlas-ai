@@ -434,6 +434,38 @@ const MOTION_MANIFEST='assets/motions.json';
 let hostedManifest=null,manifestTask=null;
 const pendingMotions=new Map();
 const failedMotions=new Map();
+
+const ATLAS_CACHE='atlas-motion-files-496';
+let warmCacheStarted=false;
+async function getHostedBytes(url){
+ let cache;
+ try{if('caches' in window){cache=await caches.open(ATLAS_CACHE);const found=await cache.match(url);if(found)return await found.arrayBuffer()}}
+ catch(err){console.warn('Motion cache read not available',err)}
+ const response=await fetch(url,{cache:'force-cache'});
+ if(!response.ok)throw Error('Asset download failed: HTTP '+response.status);
+ if(cache)cache.put(url,response.clone()).catch(err=>console.warn('Motion cache write skipped',err));
+ return await response.arrayBuffer();
+}
+async function cacheAllHostedMotions(){
+ if(warmCacheStarted||!hostedManifest||!('caches' in window))return;
+ warmCacheStarted=true;
+ try{
+  const cache=await caches.open(ATLAS_CACHE);
+  const entries=Object.entries(hostedManifest.motions);
+  let cached=0;
+  for(const [name,url] of entries){
+   if(await cache.match(url)){cached++;continue}
+   try{
+    const response=await fetch(url,{cache:'force-cache'});
+    if(response.ok){await cache.put(url,response);cached++}
+   }catch(err){console.warn('Could not cache '+name,err)}
+   // Keep downloading cooperative rather than competing with 3D animation frames.
+   await new Promise(resolve=>setTimeout(resolve,150));
+  }
+  $('motionStatus').textContent=entries.length+' hosted · '+cached+' downloaded to this browser · '+motionClips.size+' prepared to play';
+ }catch(err){console.warn('Background motion cache unavailable',err);reportMotionStatus()}
+}
+
 async function getHostedManifest(){
  if(hostedManifest)return hostedManifest;
  if(!manifestTask)manifestTask=(async()=>{
@@ -465,9 +497,7 @@ async function ensureMotion(name){
   const manifest=await getHostedManifest();
   const match=Object.keys(manifest.motions).find(n=>normActionName(n)===key);
   if(!match)throw Error('Not in Atlas library: '+name);
-  const response=await fetch(manifest.motions[match],{cache:'force-cache'});
-  if(!response.ok)throw Error('Movement download failed '+response.status+': '+match);
-  const buffer=await response.arrayBuffer();
+  const buffer=await getHostedBytes(manifest.motions[match]);
   await importMotion(match,buffer);
   failedMotions.delete(key);reportMotionStatus();
   return motionClips.get(key);
@@ -493,6 +523,8 @@ async function initializeAtlasMotions(){
    try{await ensureAction(kind)}catch(e){console.warn('Cannot preload',kind,e)}
   }
   reportMotionStatus();
+  // After important moves load, silently download all remaining original FBX files.
+  setTimeout(()=>{void cacheAllHostedMotions()},1300);
  }catch(err){
   console.error('Atlas animation startup',err);
   $('motionStatus').textContent='Animation loading error: '+err.message;
