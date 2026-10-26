@@ -646,6 +646,34 @@ function normBone(n){return n.toLowerCase().replace(/^mixamorig[:_]?/,'').replac
 // The original human GLB has a valid 73-bone rig. Preserve its BIND rotations!
 // Mixamo re-rigged its OBJ with different joint axes; copying absolute rotations
 // inverted Atlas's thigh bones (feet appeared above his head).
+
+/* Match root translation to the actual distance a Mixamo foot travels per gait cycle.
+   The source rig is sampled once, on import, not every rendered frame. */
+function measureStrideFromFBX(source,sourceClip,sourceBones){
+ const left=sourceBones.get('leftfoot'),right=sourceBones.get('rightfoot');
+ if(!left||!right||!sourceClip?.duration)return .85;
+ const mixer=new THREE.AnimationMixer(source);
+ const act=mixer.clipAction(sourceClip);act.play();
+ const range={lMin:Infinity,lMax:-Infinity,rMin:Infinity,rMax:-Infinity};
+ const p=new THREE.Vector3();
+ for(let i=0;i<33;i++){
+  const frame=(i/33)*sourceClip.duration;
+  mixer.setTime(frame);source.updateMatrixWorld(true);
+  left.getWorldPosition(p);
+  range.lMin=Math.min(range.lMin,p.z);range.lMax=Math.max(range.lMax,p.z);
+  right.getWorldPosition(p);
+  range.rMin=Math.min(range.rMin,p.z);range.rMax=Math.max(range.rMax,p.z);
+ }
+ mixer.stopAllAction();mixer.uncacheRoot(source);
+ const leftSpan=range.lMax-range.lMin,rightSpan=range.rMax-range.rMin;
+ // Two feet alternate support each cycle: full step distance ≈ twice swing span.
+ return THREE.MathUtils.clamp(2*Math.max(leftSpan,rightSpan),.45,1.65);
+}
+function strideSpeedFor(type='walk'){
+ const clip=clipFor(type)||clipFor('walk');
+ const meters=clip?.strideMeters||.88;
+ return THREE.MathUtils.clamp(meters/Math.max(.35,clip?.duration||1),.5,1.55);
+}
 const avatarRestQuaternions=new Map();
 const avatarRestPositions=new Map();
 function captureAvatarRestPose(){
@@ -705,6 +733,7 @@ async function importMotion(name,buffer){
  if(tracks.length<35)throw Error('Only '+tracks.length+' compatible joints in '+name+'; expected most of the full body');
  const duration=Math.max(.1,sourceClip.duration);
  const clip=new THREE.AnimationClip(name,duration,tracks);
+ if(/walk|turn/i.test(name))clip.strideMeters=measureStrideFromFBX(source,sourceClip,sourceBones);
  clip.optimize();
  const key=normActionName(name);
  const previous=motionClips.get(key);
@@ -741,14 +770,19 @@ function playMixamo(type,force=false){
 }
 // Reusable actions and named show steps. No duplicate avatar meshes or motion buttons.
 let showRun=null,lastShowId=null,travelPlan=null;
-function planTravel(x,z,seconds=null){
- studioTargetX=THREE.MathUtils.clamp(x,-2.35,2.35);
- studioTargetZ=THREE.MathUtils.clamp(z,-2.2,1.45);
+function planTravel(x,z,seconds=null,type='walk'){
  if(!model)return;
+ const bounded=clampToRoom(x,z);
+ studioTargetX=bounded.x;studioTargetZ=bounded.z;
  const fromX=model.position.x,fromZ=model.position.z;
  const d=Math.hypot(studioTargetX-fromX,studioTargetZ-fromZ);
- travelPlan={start:performance.now(),seconds:seconds||Math.max(1.3,d/.78),
-  fromX,fromZ,toX:studioTargetX,toZ:studioTargetZ};
+ const speed=strideSpeedFor(type);
+ travelPlan={
+  start:performance.now(),seconds:d/speed,speed,
+  fromX,fromZ,toX:studioTargetX,toZ:studioTargetZ,
+  totalDistance:d,kind:type,contactFoot:null,footAnchor:null
+ };
+ if(d<.04){travelPlan=null;if(!showRun)playMixamo('idle',true)}
 }
 function closeShowSidebar(){
  document.querySelectorAll('.sheet').forEach(el=>el.classList.remove('show'));
@@ -779,10 +813,14 @@ async function nextShowStep(){
   catch(err){console.error('Sequence motion failed:',kind,err);if(showRun!==run)return;continue}
   if(run!==showRun)return;
   if(screen)showScreen(true);
-  if(typeof x==='number'&&typeof z==='number')planTravel(x,z,seconds*.92);
+  if(typeof x==='number'&&typeof z==='number')planTravel(x,z,null,kind);
   else travelPlan=null;
   gesture='';playMixamo(kind,true);
-  run.kind=kind;run.seconds=seconds;run.at=performance.now();run.loading=false;
+  run.kind=kind;
+  // Walking lasts exactly as long as its real calibrated gait needs; never
+  // cut off a step merely because a sequence had a shorter nominal duration.
+  run.seconds=travelPlan?Math.max(.45,travelPlan.seconds+.14):seconds;
+  run.at=performance.now();run.loading=false;
   return;
  }
  if(run!==showRun)return;
