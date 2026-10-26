@@ -477,7 +477,7 @@ async function getHostedManifest(){
   const select=$('actionSelect');select.replaceChildren();
   for(const name of Object.keys(data.motions)){
    const opt=document.createElement('option');opt.value=name;opt.textContent=name;
-   if(name==='Waving')opt.selected=true;
+   if(name==='Waving-3')opt.selected=true;
    select.append(opt);
   }
   reportMotionStatus();
@@ -541,8 +541,8 @@ $('playSelectedAction').onclick=async()=>{
 let mixamoMixer=null,mixamoCurrent=null;
 const ACTION_LIBRARY=Object.freeze({
  idle:['Breathing Idle','Happy Idle','Ninja Idle'],
- greet:['Waving','Waving-2','Waving-3'],
- wave:['Waving','Waving-2','Waving-3'],
+ greet:['Waving-3','Waving-2','Waving'],
+ wave:['Waving-3','Waving-2','Waving'],
  point:['Pointing','Pointing Forward'],
  think:['Happy Idle','Breathing Idle'],
  nod:['Happy Idle','Breathing Idle'],
@@ -717,8 +717,15 @@ $('animationsUpload').addEventListener('change',async e=>{
  $('motionStatus').textContent=successful+' new motions saved, '+duplicates+' exact duplicates skipped.'+(errors.length?' Issues: '+errors.slice(0,2).join(' | '):'');
  if(successful)playMixamo('idle');
 });
+let chatActionVersion=0;
 window.addEventListener('atlas-action',e=>{
- const kind=e.detail?.type;if(showRun)return;if(kind==='respond')playMixamo('greet');if(kind==='think')playMixamo('think');
+ const kind=e.detail?.type;
+ const action=kind==='respond'?'greet':kind==='think'?'think':kind==='listen'?'nod':null;
+ if(!action||showRun||!model)return;
+ const token=++chatActionVersion;
+ void ensureAction(action).then(()=>{
+  if(token===chatActionVersion&&!showRun&&model)playMixamo(action,true);
+ }).catch(err=>console.warn('Chat gesture unavailable',action,err));
 });
 
 async function installGLB(buffer,label){
