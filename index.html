@@ -1084,9 +1084,6 @@ function animate(){
  updateShow(now);
  orientScreen();
  if(model){
-  footShadow.position.x=model.position.x;
-  footShadow.position.z=model.position.z;
-  footShadow.visible=studioObjects.visible;
   if(mixamoMixer)mixamoMixer.update(dt);
   const realAction=Boolean(mixamoCurrent&&mixamoCurrent.isRunning());
   // Animation clips own the body, not procedural poses. A calm bind-pose idle
@@ -1150,6 +1147,9 @@ function animate(){
   }
   // One generalized support-foot lock for all twenty moves and future clips.
   footContact.update(dt);
+  footShadow.position.x=model.position.x;
+  footShadow.position.z=model.position.z;
+  footShadow.visible=studioObjects.visible;
   for(const [mesh,index] of blink){
    if(mesh.morphTargetInfluences)mesh.morphTargetInfluences[index]=Math.max(0,Math.sin(t*1.44)**42);
   }
