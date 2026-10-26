@@ -113,9 +113,17 @@ html,body{height:100%;overflow:hidden}
  #app .bubble{max-width:90%;font-size:13px}
  #app .sheet{width:min(365px,92vw);bottom:0;top:0}
  #app .right:after{height:100px}
- body.atlas-typing #app .left{min-height:0}
- body.atlas-typing #app .right .voicebar{display:none}
+ /* Keyboard mode: dedicate the entire available viewport to the avatar and composer. */
+ body.atlas-typing #app{grid-template-rows:minmax(0,1fr)!important}
+ body.atlas-typing #app .left,
+ body.atlas-typing #dividerHandle{display:none!important}
+ body.atlas-typing #app .right{grid-row:1;min-height:0;height:100%!important}
+ body.atlas-typing #app .right .voicebar,
+ body.atlas-typing #app .right .status,
+ body.atlas-typing #app .right #settingsBtn,
+ body.atlas-typing #app .right #stageActions{display:none!important}
  body.atlas-typing #app .right .controls{bottom:max(7px,env(safe-area-inset-bottom))!important}
+ body.atlas-typing #app .right .stage{inset:0!important;height:100%!important}
 }
 @media(max-width:760px) and (max-height:480px){
  #app{--mobile-split:27%}
