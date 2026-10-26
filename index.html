@@ -425,6 +425,83 @@ async function saveModelData(buffer){
 // FBX files retain mesh and skin, but only their animation tracks drive Atlas.
 const motionClips=new Map();
 const uploadedFingerprints=new Set();
+
+const MOTION_MANIFEST='assets/motions.json';
+let hostedManifest=null,manifestTask=null;
+const pendingMotions=new Map();
+const failedMotions=new Map();
+async function getHostedManifest(){
+ if(hostedManifest)return hostedManifest;
+ if(!manifestTask)manifestTask=(async()=>{
+  const response=await fetch(MOTION_MANIFEST,{cache:'no-cache'});
+  if(!response.ok)throw Error('Hosted motion library unavailable: HTTP '+response.status);
+  const data=await response.json();
+  if(!data.model||!data.motions||!Object.keys(data.motions).length)throw Error('Atlas motion manifest is invalid');
+  hostedManifest=data;
+  const select=$('actionSelect');select.replaceChildren();
+  for(const name of Object.keys(data.motions)){
+   const opt=document.createElement('option');opt.value=name;opt.textContent=name;
+   if(name==='Waving')opt.selected=true;
+   select.append(opt);
+  }
+  reportMotionStatus();
+  return data;
+ })().catch(err=>{manifestTask=null;throw err});
+ return manifestTask;
+}
+function reportMotionStatus(){
+ const total=hostedManifest?Object.keys(hostedManifest.motions).length:0;
+ $('motionStatus').textContent=total+' actions hosted · '+motionClips.size+' loaded · the rest load automatically';
+}
+async function ensureMotion(name){
+ const key=normActionName(name);
+ if(motionClips.has(key))return motionClips.get(key);
+ if(pendingMotions.has(key))return pendingMotions.get(key);
+ const promise=(async()=>{
+  const manifest=await getHostedManifest();
+  const match=Object.keys(manifest.motions).find(n=>normActionName(n)===key);
+  if(!match)throw Error('Not in Atlas library: '+name);
+  const response=await fetch(manifest.motions[match],{cache:'force-cache'});
+  if(!response.ok)throw Error('Movement download failed '+response.status+': '+match);
+  const buffer=await response.arrayBuffer();
+  await importMotion(match,buffer);
+  failedMotions.delete(key);reportMotionStatus();
+  return motionClips.get(key);
+ })();
+ pendingMotions.set(key,promise);
+ try{return await promise}
+ catch(err){failedMotions.set(key,err.message||String(err));console.error('Atlas motion',name,err);throw err}
+ finally{pendingMotions.delete(key)}
+}
+async function ensureAction(kind){
+ const choices=ACTION_LIBRARY[kind]||[kind];
+ let lastError;
+ for(const name of choices){try{return await ensureMotion(name)}catch(e){lastError=e}}
+ throw lastError||Error('No motion available for '+kind);
+}
+async function initializeAtlasMotions(){
+ try{
+  await getHostedManifest();
+  await ensureAction('idle');
+  playMixamo('idle',true);
+  status('Atlas is online · real movements ready');
+  for(const kind of ['walk','wave','point','dance']){
+   try{await ensureAction(kind)}catch(e){console.warn('Cannot preload',kind,e)}
+  }
+  reportMotionStatus();
+ }catch(err){
+  console.error('Atlas animation startup',err);
+  $('motionStatus').textContent='Animation loading error: '+err.message;
+ }
+}
+$('playSelectedAction').onclick=async()=>{
+ const name=$('actionSelect').value;if(!name)return;
+ showRun=null;travelPlan=null;
+ $('motionStatus').textContent='Loading '+name+'…';
+ try{await ensureMotion(name);playMixamo(name,true);closeShowSidebar();reportMotionStatus()}
+ catch(err){$('motionStatus').textContent='Could not play '+name+': '+err.message}
+};
+
 let mixamoMixer=null,mixamoCurrent=null;
 const ACTION_LIBRARY=Object.freeze({
  idle:['Breathing Idle','Happy Idle','Ninja Idle'],
