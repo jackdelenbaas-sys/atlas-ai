@@ -107,7 +107,7 @@ html,body{height:100%;overflow:hidden}
 <p class="hint">Atlas downloads professional animations automatically and saves them in its cache. No file import required.</p>
 <details style="margin-top:14px"><summary class="hint" style="cursor:pointer">Advanced: import a custom FBX</summary>
 <label id="animationsUploadLabel" class="btn">Import an additional FBX<input id="animationsUpload" type="file" accept=".fbx" multiple></label></details>
-<div class="section">Camera</div><label>Horizontal rotation <input class="range" type="range" id="yaw" min="-720" max="720" value="0"></label><label>Vertical viewing angle <input class="range" type="range" id="pitch" min="-720" max="720" value="0"></label><label>Zoom <input class="range" type="range" id="zoom" min=".42" max="14" step=".05" value="3.5"></label>
+<div class="section">Camera</div><label>Horizontal rotation <input class="range" type="range" id="yaw" min="-720" max="720" value="0"></label><label>Vertical viewing angle <input class="range" type="range" id="pitch" min="-720" max="720" value="0"></label><label>Zoom <input class="range" type="range" id="zoom" min=".72" max="12" step=".05" value="3.5"></label>
 <p class="hint">Scroll over Atlas to zoom toward that body part without panning away. Double-click Atlas to focus. Use the ⌖ button by the message box to reset the view.</p>
 <div class="section">Avatar and camera</div>
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
@@ -251,6 +251,7 @@ canvas.addEventListener('pointercancel',()=>drag=false);
 // A ray hit now selects a body part, and the camera gently aims at that point.
 // Blank-room scrolling NEVER pans the camera.
 const zoomRaycaster=new THREE.Raycaster(),zoomPointer=new THREE.Vector2();
+let lockedZoomFocus=null,lockedZoomTime=0,lockedZoomX=0,lockedZoomY=0;
 function subjectAtPointer(clientX,clientY){
  if(!model)return null;
  const rect=canvas.getBoundingClientRect();
@@ -288,12 +289,23 @@ function zoomAtPointer(clientX,clientY,zoomFactor){
  const inward=next<distance;
  if(Math.abs(next-distance)<.00001)return;
  if(inward){
-  const hit=subjectAtPointer(clientX,clientY);
-  // A hit gradually becomes the CENTER of the close-up. The view doesn't
-  // translate in the cursor direction or lose the character offscreen.
-  if(hit)center.lerp(clampCameraPivot(hit),.32);
+  const now=performance.now();
+  const moved=Math.hypot(clientX-lockedZoomX,clientY-lockedZoomY)>38;
+  // A single scroll gesture keeps the SAME body part selected. Without this
+  // the hit changes under the cursor every frame, causing the view to drift.
+  if(!lockedZoomFocus||moved||now-lockedZoomTime>430){
+   lockedZoomFocus=subjectAtPointer(clientX,clientY);
+  }
+  lockedZoomTime=now;lockedZoomX=clientX;lockedZoomY=clientY;
+  // Pan only in proportion to the actual zoom amount. Safari trackpads may
+  // emit dozens of tiny wheel events; fixed .32 per event caused runaway pan.
+  if(lockedZoomFocus){
+   const blend=THREE.MathUtils.clamp((1-zoomFactor)*2.1,.01,.28);
+   center.lerp(clampCameraPivot(lockedZoomFocus),blend);
+  }
  }else{
-  center.lerp(defaultFocus(),.16);
+  lockedZoomFocus=null;
+  center.lerp(defaultFocus(),THREE.MathUtils.clamp((zoomFactor-1)*1.3,.01,.22));
  }
  clampCameraPivot(center);
  distance=next;sliders();updateCam();
@@ -306,6 +318,7 @@ canvas.addEventListener('dblclick',e=>{
  e.preventDefault();
  const hit=subjectAtPointer(e.clientX,e.clientY);
  if(!hit)return;
+ lockedZoomFocus=hit.clone();lockedZoomTime=performance.now();
  center.copy(clampCameraPivot(hit));
  distance=THREE.MathUtils.clamp(Math.min(distance*.72,1.8),.80,12);
  sliders();updateCam();
@@ -815,7 +828,7 @@ async function importMotion(name,buffer){
  const hipMove=hipTranslation?Math.hypot(
   hipTranslation.values.at(-3)-hipTranslation.values[0],
   hipTranslation.values.at(-1)-hipTranslation.values[2]):0;
- clip.isLocomotion=forwardPattern.test(name)||hipMove>.38;
+ clip.isLocomotion=forwardPattern.test(name)||hipMove>.65;
  if(clip.isLocomotion)clip.strideMeters=measureStrideFromFBX(source,sourceClip,sourceBones);
  clip.optimize();
  const key=normActionName(name);
@@ -877,7 +890,7 @@ function planTravel(x,z,seconds=null,type='walk'){
  travelPlan={
   start:performance.now(),seconds:d/speed,speed,
   fromX,fromZ,toX:studioTargetX,toZ:studioTargetZ,
-  totalDistance:d,kind:type,contactFoot:null,footAnchor:null
+  totalDistance:d,kind:type,backward:/back/i.test(type),contactFoot:null,footAnchor:null
  };
  if(d<.04){travelPlan=null;if(!showRun)playMixamo('idle',true,.13)}
 }
@@ -1094,7 +1107,7 @@ function animate(){
    const remaining=Math.hypot(dx,dz);
    const shouldStop=remaining<=.025;
    if(!shouldStop){
-    const heading=Math.atan2(dx,dz)+(tr.kind==='back'?Math.PI:0);
+    const heading=Math.atan2(dx,dz)+(tr.backward?Math.PI:0);
     const turn=Math.atan2(Math.sin(heading-model.rotation.y),Math.cos(heading-model.rotation.y));
     model.rotation.y+=turn*Math.min(1,dt*5.2);
     const walkDistance=Math.min(tr.speed*dt,remaining);
