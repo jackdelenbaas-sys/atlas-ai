@@ -551,6 +551,8 @@ async function importMotion(name,buffer){
    preserveBoneMatrix:true,preserveBonePositions:true
  });
  if(!motion.tracks.some(track=>track.name.includes('.bones[')))throw Error('Animation did not produce target-bone tracks');
+ // Keep Mixamo's root translations from moving the character off the stage.
+ motion.tracks=motion.tracks.filter(track=>!track.name.endsWith('[Hips].position'));
  motion.name=name;motionClips.set(normActionName(name),motion);
  if(!mixamoMixer){mixamoMixer=new THREE.AnimationMixer(targetSkin);
   mixamoMixer.addEventListener('finished',e=>{if(e.action===mixamoCurrent&&clipFor('idle')){const idleAction=mixamoMixer.clipAction(clipFor('idle'));if(idleAction!==mixamoCurrent){idleAction.reset().fadeIn(.3).play();mixamoCurrent.fadeOut(.3);mixamoCurrent=idleAction}}});
@@ -562,7 +564,7 @@ function playMixamo(type,force=false){
  const clip=clipFor(type);if(!clip)return false;
  const next=mixamoMixer.clipAction(clip);
  if(next===mixamoCurrent&&next.isRunning()&&!force)return true;
- const loop=['idle','walk','back','dance'].includes(type)?THREE.LoopRepeat:THREE.LoopOnce;
+ const loop=['idle','walk','back','dance'].includes(type)||normActionName(type).includes('idle')?THREE.LoopRepeat:THREE.LoopOnce;
  const previous=mixamoCurrent;
  next.reset().setLoop(loop).setEffectiveWeight(1).fadeIn(.42).play();
  next.clampWhenFinished=loop!==THREE.LoopRepeat;
@@ -636,18 +638,7 @@ async function motionDBRead(){
   tx.onerror=()=>reject(tx.error);
  });
 }
-async function restoreMotions(){
- try{
-  if(!findSkin(model))return;
-  const files=await motionDBRead();if(!files.length)return;
-  let loaded=0;const errors=[];
-  for(const [name,buf] of files){
-   try{const hash=await fileFingerprint(buf);if(uploadedFingerprints.has(hash))continue;await importMotion(name,buf);uploadedFingerprints.add(hash);loaded++}catch(err){errors.push(name+': '+err.message)}
-  }
-  $('motionStatus').textContent=loaded+' saved animations ready'+(errors.length?' · '+errors.length+' need adjustment':'');
-  if(loaded)playMixamo('idle');
- }catch(err){$('motionStatus').textContent='Animation restore issue: '+err.message}
-}
+async function restoreMotions(){return initializeAtlasMotions()}
 $('animationsUpload').addEventListener('change',async e=>{
  const files=[...(e.target.files||[])];if(!files.length)return;
  let successful=0,duplicates=0,errors=[];
@@ -710,18 +701,24 @@ $('modelUpload').addEventListener('change',async e=>{
 
 async function load(){
  try{
-  const saved=await readSavedModel();
+  let saved=null;
+  try{saved=await readSavedModel()}catch(err){console.warn('No stored Atlas body',err)}
   if(saved){
-   status('Restoring your real Atlas avatar…');
-   await installGLB(saved,'Your saved Atlas model');
-   return;
+    status('Restoring Atlas from your browser…');
+    try{await installGLB(saved,'Saved original Atlas');return}
+    catch(err){console.warn('Cached avatar damaged; fetching fresh original',err)}
   }
-  status('Import your real Atlas model in Settings');
-  $('modelDetails').textContent='Your real Atlas body is not saved in this browser yet. Import the original .glb once to load it.';
+  status('Downloading the real Atlas human…');
+  const manifest=await getHostedManifest();
+  const response=await fetch(manifest.model,{cache:'force-cache'});
+  if(!response.ok)throw Error('Human model download failed: HTTP '+response.status);
+  const buffer=await response.arrayBuffer();
+  await installGLB(buffer,'Original Atlas model · hosted');
+  saveModelData(buffer).catch(err=>console.warn('Unable to cache Atlas model',err));
  }catch(err){
-  console.error('Saved avatar restore failed',err);
-  status('Avatar restore problem · use Settings',true);
-  $('modelDetails').textContent='Saved avatar restore problem: '+err.message+'. Try importing the GLB again.';
+  console.error('Atlas model startup failed',err);
+  status('Avatar unavailable — retry in Settings',true);
+  $('modelDetails').textContent='Automatic load issue: '+(err.message||err);
  }
 }
 load();
