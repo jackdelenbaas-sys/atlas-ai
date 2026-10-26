@@ -78,11 +78,14 @@ html,body{height:100%;overflow:hidden}
 .right .inputglass,.right .voicebar{pointer-events:auto}
 .right .inputglass{box-shadow:0 15px 45px #000a}
 .right:after{content:"";position:absolute;left:0;right:0;bottom:0;height:140px;pointer-events:none;z-index:2;background:linear-gradient(transparent,#030b17ad)}
+
+.center-atlas{flex:none;width:38px;height:38px;font-size:25px;color:#b8e3ff;background:#1c3652a8;border-color:#87c5ff65}
+.center-atlas:hover{background:#2b5786c9;border-color:#c6e8ff}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.9.8 STUDIO</span></header><div id="feed" class="feed"></div></div>
-<div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small>PREVIEW MODE · AI / VOICE NOT CONNECTED</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.9.9 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small>PREVIEW MODE · AI / VOICE NOT CONNECTED</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
 <div class="section">Atlas showtime</div>
@@ -105,7 +108,7 @@ html,body{height:100%;overflow:hidden}
 <details style="margin-top:14px"><summary class="hint" style="cursor:pointer">Advanced: import a custom FBX</summary>
 <label id="animationsUploadLabel" class="btn">Import an additional FBX<input id="animationsUpload" type="file" accept=".fbx" multiple></label></details>
 <div class="section">Camera</div><label>Horizontal rotation <input class="range" type="range" id="yaw" min="-720" max="720" value="0"></label><label>Vertical viewing angle <input class="range" type="range" id="pitch" min="-720" max="720" value="0"></label><label>Zoom <input class="range" type="range" id="zoom" min=".42" max="14" step=".05" value="3.5"></label>
-<p class="hint">Use the mouse wheel over Atlas's face to zoom toward his face, or over any other spot to zoom there. Double-click to focus on an area.</p>
+<p class="hint">Scroll over Atlas to zoom toward that body part without panning away. Double-click Atlas to focus. Use the ⌖ button by the message box to reset the view.</p>
 <div class="section">Avatar and camera</div>
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
 <p class="hint">Atlas's real motion clips control his limbs. The old manual joint sliders have been removed so they cannot interfere with natural animation.</p><div class="section">Model</div><label id="uploadModelBtn" class="btn wide">Replace Atlas body (optional)<input id="modelUpload" type="file" accept=".glb,model/gltf-binary"></label><p class="hint">The complete original Atlas model now loads automatically from the hosted library, even on a new device.</p><button id="repairAvatar" class="btn wide" style="margin:10px 0;text-align:center">↺ Reset Atlas body and animations</button>
@@ -243,50 +246,81 @@ canvas.addEventListener('pointermove',e=>{
 });
 canvas.addEventListener('pointerup',()=>drag=false);
 canvas.addEventListener('pointercancel',()=>drag=false);
-// Cursor-anchored dolly: scale the whole camera-to-hit vector, keeping the
-// exact point under the mouse stable on screen. This works for face closeups.
+// Stable subject-focused zoom. The former "cursor-anchored dolly" scaled
+// the orbit pivot around a moving ray hit and could fling the body offscreen.
+// A ray hit now selects a body part, and the camera gently aims at that point.
+// Blank-room scrolling NEVER pans the camera.
 const zoomRaycaster=new THREE.Raycaster(),zoomPointer=new THREE.Vector2();
-function cursorWorldFocus(clientX,clientY){
+function subjectAtPointer(clientX,clientY){
+ if(!model)return null;
  const rect=canvas.getBoundingClientRect();
+ if(rect.width<=0||rect.height<=0)return null;
  zoomPointer.set((clientX-rect.left)/rect.width*2-1,-(clientY-rect.top)/rect.height*2+1);
- camera.updateMatrixWorld(true);zoomRaycaster.setFromCamera(zoomPointer,camera);
- if(model){
-  const hits=zoomRaycaster.intersectObject(model,true);
-  if(hits.length)return hits[0].point.clone();
- }
- // When pointing at empty studio, zoom into the scene at the current pivot depth.
- const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(
-  camera.getWorldDirection(new THREE.Vector3()),center
+ camera.updateMatrixWorld(true);
+ zoomRaycaster.setFromCamera(zoomPointer,camera);
+ const hits=zoomRaycaster.intersectObject(model,true);
+ if(!hits.length)return null;
+ const hit=hits[0].point;
+ const world=new THREE.Box3().setFromObject(model);
+ // Ignore invalid points caused by a moving/animated mesh's stale bounds.
+ if(world.isEmpty())return null;
+ return new THREE.Vector3(
+  THREE.MathUtils.clamp(hit.x,world.min.x,world.max.x),
+  THREE.MathUtils.clamp(hit.y,world.min.y,world.max.y),
+  THREE.MathUtils.clamp(hit.z,world.min.z,world.max.z)
  );
- return zoomRaycaster.ray.intersectPlane(plane,new THREE.Vector3())||center.clone();
 }
-function zoomTowardCursor(x,y,ratio){
- const nextDistance=THREE.MathUtils.clamp(distance*ratio,.42,14);
- const appliedRatio=nextDistance/distance;
- if(Math.abs(appliedRatio-1)<.00001)return;
- const point=cursorWorldFocus(x,y);
- // Keeping the center between the same ray and point preserves mouse focus.
- center.copy(point).add(center.clone().sub(point).multiplyScalar(appliedRatio));
- distance=nextDistance;sliders();updateCam();
+function defaultFocus(){
+ return new THREE.Vector3(0,1.05,0);
+}
+function clampCameraPivot(point){
+ // Zoom targets stay in a small region around the human. No room-wall
+ // ray intersections or repeated wheel events can move Atlas out of view.
+ if(!model)return point;
+ const mx=model.position.x,mz=model.position.z;
+ point.x=THREE.MathUtils.clamp(point.x,mx-.72,mx+.72);
+ point.y=THREE.MathUtils.clamp(point.y,.30,1.82);
+ point.z=THREE.MathUtils.clamp(point.z,mz-.78,mz+.78);
+ return point;
+}
+function zoomAtPointer(clientX,clientY,zoomFactor){
+ const next=THREE.MathUtils.clamp(distance*zoomFactor,.72,12);
+ const inward=next<distance;
+ if(Math.abs(next-distance)<.00001)return;
+ if(inward){
+  const hit=subjectAtPointer(clientX,clientY);
+  // A hit gradually becomes the CENTER of the close-up. The view doesn't
+  // translate in the cursor direction or lose the character offscreen.
+  if(hit)center.lerp(clampCameraPivot(hit),.32);
+ }else{
+  center.lerp(defaultFocus(),.16);
+ }
+ clampCameraPivot(center);
+ distance=next;sliders();updateCam();
 }
 canvas.addEventListener('wheel',e=>{
  e.preventDefault();
- zoomTowardCursor(e.clientX,e.clientY,Math.exp(e.deltaY*.00145));
+ zoomAtPointer(e.clientX,e.clientY,Math.exp(e.deltaY*.0011));
 },{passive:false});
 canvas.addEventListener('dblclick',e=>{
- e.preventDefault();const point=cursorWorldFocus(e.clientX,e.clientY);
- const nextDistance=THREE.MathUtils.clamp(distance*.55,.52,14);
- const ratio=nextDistance/distance;
- center.copy(point).add(center.clone().sub(point).multiplyScalar(ratio));
- distance=nextDistance;sliders();updateCam();
+ e.preventDefault();
+ const hit=subjectAtPointer(e.clientX,e.clientY);
+ if(!hit)return;
+ center.copy(clampCameraPivot(hit));
+ distance=THREE.MathUtils.clamp(Math.min(distance*.72,1.8),.80,12);
+ sliders();updateCam();
 });
 ['yaw','pitch','zoom'].forEach(id=>$(id).oninput=()=>{yaw=+$('yaw').value;pitch=+$('pitch').value;distance=+$('zoom').value;updateCam()});
-$('auto').onchange=e=>auto=e.target.checked;$('idle').onchange=e=>idle=e.target.checked;$('eyes').onchange=e=>eyes=e.target.checked;$('reset').onclick=()=>{
- yaw=pitch=0;distance=3.75;center.set(0,1.02,-.15);
+$('auto').onchange=e=>auto=e.target.checked;$('idle').onchange=e=>idle=e.target.checked;$('eyes').onchange=e=>eyes=e.target.checked;function centerAtlasView(returnPerson=false){
+ yaw=0;pitch=0;distance=3.8;center.copy(defaultFocus());
  yOffset=0;auto=false;$('auto').checked=false;
- if(model){model.position.y=0}
  sliders();updateCam();
-};
+ if(returnPerson&&model&&Math.hypot(model.position.x,model.position.z)>.1){
+  void walkTo(0,0);
+ }
+}
+$('reset').onclick=()=>centerAtlasView(false);
+$('centerAtlas').onclick=()=>centerAtlasView(true);
 window.addEventListener('atlas-action',e=>{const type=e.detail?.type;if(type==='think')gesture='think';else if(type==='respond')gesture='nod';else if(type==='listen')gesture='nod';if(type)gestureStart=performance.now()});
 const status=(text,error=false)=>{const e=$('modelStatus');e.textContent=text;e.classList.toggle('error',error)};
 
