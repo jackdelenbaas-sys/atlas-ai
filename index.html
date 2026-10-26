@@ -81,10 +81,50 @@ html,body{height:100%;overflow:hidden}
 
 .center-atlas{flex:none;width:38px;height:38px;font-size:25px;color:#b8e3ff;background:#1c3652a8;border-color:#87c5ff65}
 .center-atlas:hover{background:#2b5786c9;border-color:#c6e8ff}
+
+/* ATLAS 5.0 — iPhone-first layout; all overrides scoped to phone widths. */
+@media(max-width:760px){
+ html,body{margin:0;width:100%;max-width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
+ body{position:fixed;inset:0}
+ #app{--mobile-split:43%;height:var(--atlas-visible-height,100dvh)!important;max-height:var(--atlas-visible-height,100dvh)!important;width:100%;min-width:0;display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+ grid-template-rows:minmax(0,var(--mobile-split)) minmax(0,1fr)!important;overflow:hidden;touch-action:pan-y}
+ #app .left{height:auto!important;min-height:0;min-width:0;overflow:hidden;border-right:0;border-bottom:1px solid #8dbdff45}
+ #app .left .feed{height:100%;min-height:0;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:12px 14px 20px;scrollbar-width:none}
+ #app .left .feed::-webkit-scrollbar{width:0}
+ #app .right{height:auto;min-height:0;min-width:0;overflow:hidden}
+ #app .right .stage{position:absolute!important;inset:0!important;width:100%;height:100%;bottom:0!important}
+ #canvas{display:block;width:100%!important;height:100%!important;touch-action:none!important}
+ #dividerHandle{top:var(--mobile-split)!important;bottom:auto!important;left:0!important;right:0!important;width:100%!important;height:28px!important;
+ transform:translateY(-50%)!important;touch-action:none;cursor:row-resize;z-index:13}
+ #dividerHandle:before{height:3px!important;width:100%!important}
+ #dividerHandle:after{content:"•••"!important;padding:3px 17px!important;font-size:17px}
+ #app .right .controls{position:absolute;left:4%;width:92%;bottom:max(11px,env(safe-area-inset-bottom))!important;z-index:9}
+ #app .inputglass{min-height:54px;padding:5px 6px 5px 14px;gap:6px;backdrop-filter:blur(16px)}
+ #app .inputglass input{font-size:16px!important;min-height:36px;line-height:1.2;width:0;min-width:0}
+ #app .inputglass .circle{width:40px;height:40px;flex:0 0 40px;font-size:18px}
+ #app .inputglass .center-atlas{width:37px;height:37px;flex-basis:37px}
+ #app .voicebar{margin-top:8px;gap:8px}
+ #app .voicebar .circle{width:39px;height:39px}
+ #app .right .status{left:12px;top:14px;max-width:calc(100% - 74px)}
+ #app .right .status .badge{display:block;font-size:9px;max-width:100%;white-space:normal}
+ #app header{height:52px;padding:0 12px;gap:10px}
+ #app .logo{font-size:12px;letter-spacing:.22em}
+ #app header .badge{font-size:9px;letter-spacing:.06em}
+ #app .bubble{max-width:90%;font-size:13px}
+ #app .sheet{width:min(365px,92vw);bottom:0;top:0}
+ #app .right:after{height:100px}
+ body.atlas-typing #app .left{min-height:0}
+ body.atlas-typing #app .right .voicebar{display:none}
+ body.atlas-typing #app .right .controls{bottom:max(7px,env(safe-area-inset-bottom))!important}
+}
+@media(max-width:760px) and (max-height:480px){
+ #app{--mobile-split:27%}
+ #app .right .voicebar{display:none}
+}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">4.9.9 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">5.0 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small>PREVIEW MODE · AI / VOICE NOT CONNECTED</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
@@ -119,21 +159,52 @@ const div=document.getElementById('dividerHandle'),app=document.getElementById('
 let split=Number(localStorage.getItem('atlas-split')||46);split=Math.max(20,Math.min(80,split));
 app.style.setProperty('--split',split+'%');
 let resizing=false,splitFrame=0,pendingSplit=null;
+const mobileSaved=Number(localStorage.getItem('atlas-mobile-split'));
+if(Number.isFinite(mobileSaved)&&mobileSaved>=24&&mobileSaved<=70)app.style.setProperty('--mobile-split',mobileSaved+'%');
+const visualViewport=window.visualViewport;
+function refreshMobileViewport(){
+ if(!matchMedia('(max-width:760px)').matches)return;
+ const visualHeight=visualViewport?.height||window.innerHeight;
+ const height=Math.max(240,Math.round(visualHeight));
+ app.style.setProperty('--atlas-visible-height',height+'px');
+}
+refreshMobileViewport();
+visualViewport?.addEventListener('resize',refreshMobileViewport);
+window.addEventListener('orientationchange',()=>requestAnimationFrame(refreshMobileViewport));
+const composer=$('input');
+composer.addEventListener('focus',()=>{
+ document.body.classList.add('atlas-typing');refreshMobileViewport();
+ requestAnimationFrame(()=>{if(matchMedia('(max-width:760px)').matches)composer.scrollIntoView({block:'nearest',behavior:'instant'})});
+});
+composer.addEventListener('blur',()=>{
+ document.body.classList.remove('atlas-typing');
+ requestAnimationFrame(refreshMobileViewport);
+});
 function applySplit(){
  splitFrame=0;if(pendingSplit===null)return;
  split=pendingSplit;pendingSplit=null;
- app.style.setProperty('--split',split.toFixed(2)+'%');
+ app.style.setProperty(mobileLayout()?'--mobile-split':'--split',split.toFixed(2)+'%');
 }
-function setSplit(clientX){
- const rect=app.getBoundingClientRect(),p=(clientX-rect.left)/rect.width*100;
- pendingSplit=Math.max(20,Math.min(80,p));
+const mobileLayout=()=>matchMedia('(max-width:760px)').matches;
+function setSplit(position){
+ const rect=app.getBoundingClientRect();
+ if(mobileLayout()){
+  const p=(position-rect.top)/rect.height*100;
+  pendingSplit=Math.max(24,Math.min(70,p));
+ }else{
+  const p=(position-rect.left)/rect.width*100;
+  pendingSplit=Math.max(20,Math.min(80,p));
+ }
  if(!splitFrame)splitFrame=requestAnimationFrame(applySplit);
 }
-function saveSplit(){if(splitFrame){cancelAnimationFrame(splitFrame);applySplit()}localStorage.setItem('atlas-split',split.toFixed(2))}
-div.addEventListener('pointerdown',e=>{if(matchMedia('(max-width:760px)').matches)return;resizing=true;div.setPointerCapture(e.pointerId);document.body.classList.add('resizing')});
-div.addEventListener('pointermove',e=>{if(resizing)setSplit(e.clientX)});
+function saveSplit(){
+ if(splitFrame){cancelAnimationFrame(splitFrame);applySplit()}
+ localStorage.setItem(mobileLayout()?'atlas-mobile-split':'atlas-split',split.toFixed(2));
+}
+div.addEventListener('pointerdown',e=>{e.preventDefault();resizing=true;div.setPointerCapture(e.pointerId);document.body.classList.add('resizing')});
+div.addEventListener('pointermove',e=>{if(resizing){e.preventDefault();setSplit(mobileLayout()?e.clientY:e.clientX)}});
 div.addEventListener('pointerup',()=>{resizing=false;document.body.classList.remove('resizing');saveSplit()});
-div.addEventListener('pointercancel',()=>{resizing=false;document.body.classList.remove('resizing')});
+div.addEventListener('pointercancel',()=>{resizing=false;document.body.classList.remove('resizing');saveSplit()});
 div.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();split=Math.max(20,Math.min(80,split+(e.key==='ArrowRight'?3:-3)));app.style.setProperty('--split',split+'%');localStorage.setItem('atlas-split',split);window.dispatchEvent(new Event('resize'))}});
 const active=()=>data.threads.find(x=>x.id===data.active)||data.threads[0];let pendingByThread=new Map(),lastThread=null,renderCount=0;
 function render(){
@@ -237,15 +308,56 @@ function sliders(){
  $('zoom').value=String(distance)
 }
 updateCam();
-canvas.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY;canvas.setPointerCapture(e.pointerId)});
+const phonePointers=new Map();
+let pinchDistance=0;
+function mobileCanvas(){return matchMedia('(max-width:760px)').matches}
+canvas.addEventListener('pointerdown',e=>{
+ if(mobileCanvas()){
+  phonePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  canvas.setPointerCapture(e.pointerId);
+  if(phonePointers.size===2){
+   const pts=[...phonePointers.values()];
+   pinchDistance=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
+   drag=false;
+  }else if(phonePointers.size===1){
+   drag=true;px=e.clientX;py=e.clientY;
+  }
+  return;
+ }
+ drag=true;px=e.clientX;py=e.clientY;canvas.setPointerCapture(e.pointerId);
+});
 canvas.addEventListener('pointermove',e=>{
+ if(mobileCanvas()){
+  if(!phonePointers.has(e.pointerId))return;
+  phonePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(phonePointers.size>=2){
+   const pts=[...phonePointers.values()],now=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
+   if(pinchDistance>8&&now>8){
+    const ratio=THREE.MathUtils.clamp(pinchDistance/now,.80,1.25);
+    distance=THREE.MathUtils.clamp(distance*ratio,1.05,12);
+    sliders();updateCam();
+   }
+   pinchDistance=now;drag=false;return;
+  }
+  if(!drag)return;
+  yaw-=(e.clientX-px)*.36;
+  pitch-=(e.clientY-py)*.28;
+  px=e.clientX;py=e.clientY;sliders();updateCam();
+  return;
+ }
  if(!drag)return;
  yaw-=(e.clientX-px)*.45;
  pitch-=(e.clientY-py)*.37;
- px=e.clientX;py=e.clientY;sliders();updateCam()
+ px=e.clientX;py=e.clientY;sliders();updateCam();
 });
-canvas.addEventListener('pointerup',()=>drag=false);
-canvas.addEventListener('pointercancel',()=>drag=false);
+function releaseCameraPointer(e){
+ phonePointers.delete(e.pointerId);
+ if(phonePointers.size===1){
+  const p=[...phonePointers.values()][0];px=p.x;py=p.y;drag=true;
+ }else{drag=false;pinchDistance=0}
+}
+canvas.addEventListener('pointerup',releaseCameraPointer);
+canvas.addEventListener('pointercancel',releaseCameraPointer);
 // Stable subject-focused zoom. The former "cursor-anchored dolly" scaled
 // the orbit pivot around a moving ray hit and could fling the body offscreen.
 // A ray hit now selects a body part, and the camera gently aims at that point.
