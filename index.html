@@ -296,6 +296,12 @@ const status=(text,error=false)=>{const e=$('modelStatus');e.textContent=text;e.
 
 /* Atlas 4.9.5 open studio — human scale, camera-safe scenery, relocatable screen */
 const studio=new THREE.Group();scene.add(studio);
+const ROOM_LIMITS=Object.freeze({minX:-3.85,maxX:3.85,minZ:-3.96,maxZ:2.1});
+const clampToRoom=(x,z)=>({
+ x:THREE.MathUtils.clamp(x,ROOM_LIMITS.minX,ROOM_LIMITS.maxX),
+ z:THREE.MathUtils.clamp(z,ROOM_LIMITS.minZ,ROOM_LIMITS.maxZ)
+});
+
 const studioObjects=new THREE.Group();studio.add(studioObjects);
 const mat=(color,glow=0,strength=0)=>new THREE.MeshStandardMaterial({color,metalness:.23,roughness:.68,emissive:glow,emissiveIntensity:strength});
 function studioBox(w,h,d,x,y,z,m=mat(0x101b2c)){
@@ -304,15 +310,15 @@ function studioBox(w,h,d,x,y,z,m=mat(0x101b2c)){
  o.material=o.material.clone();o.material.depthTest=false;o.material.depthWrite=false;
  o.renderOrder=-100;studioObjects.add(o);return o;
 }
-studioBox(7.4,.07,11.6,0,-.07,1.8,mat(0x0c1723));
-studioBox(7.4,3.7,.07,0,1.85,-3.72,mat(0x0a1322));
-studioBox(.06,3.7,6.2,-3.67,1.85,-.65,mat(0x14243b));
-studioBox(.06,3.7,6.2,3.67,1.85,-.65,mat(0x14243b));
-for(const x of [-3.25,-2.06,2.06,3.25])studioBox(.035,3.14,.08,x,1.85,-3.6,mat(0x245487,0x539ee8,.42));
-for(const y of [.20,3.43])studioBox(7.20,.025,.08,0,y,-3.60,mat(0x3275a7,0x539ee8,.52));
-studioBox(7.10,.045,.06,0,3.56,-2.65,mat(0x1c4d7a,0x539ee8,.5));
-studioBox(7.10,.045,.06,0,3.56,1.02,mat(0x1c4d7a,0x539ee8,.5));
-const floorGrid=new THREE.GridHelper(7.1,16,0x396b9a,0x24415f);
+studioBox(8.8,.07,13.0,0,-.07,1.9,mat(0x0c1723));
+studioBox(8.8,4.0,.07,0,2.0,-4.38,mat(0x0a1322));
+studioBox(.06,4.0,7.0,-4.37,2.0,-.9,mat(0x14243b));
+studioBox(.06,4.0,7.0,4.37,2.0,-.9,mat(0x14243b));
+for(const x of [-3.95,-2.45,2.45,3.95])studioBox(.035,3.32,.08,x,2.0,-4.26,mat(0x245487,0x539ee8,.42));
+for(const y of [.20,3.74])studioBox(8.60,.025,.08,0,y,-4.26,mat(0x3275a7,0x539ee8,.52));
+studioBox(8.55,.045,.06,0,3.84,-3.25,mat(0x1c4d7a,0x539ee8,.5));
+studioBox(8.55,.045,.06,0,3.84,1.42,mat(0x1c4d7a,0x539ee8,.5));
+const floorGrid=new THREE.GridHelper(8.5,20,0x396b9a,0x24415f);
 floorGrid.material.transparent=true;floorGrid.material.opacity=.22;
 floorGrid.material.depthTest=false;floorGrid.material.depthWrite=false;floorGrid.renderOrder=-99;
 floorGrid.position.set(0,.013,-.65);studioObjects.add(floorGrid);
@@ -360,7 +366,7 @@ function drawPresentation(image){
  screenTex.needsUpdate=true;
 }
 drawPresentation();
-const screenPos={x:1.65,y:1.55,z:-1.65};
+const screenPos={x:1.85,y:1.63,z:-2.2};
 function applyScreenPosition(){
  screenRoot.position.set(screenPos.x,screenPos.y,screenPos.z);
  for(const [id,k] of [['screenX','x'],['screenY','y'],['screenZ','z']])$(id).value=screenPos[k];
@@ -369,7 +375,7 @@ applyScreenPosition();screenRoot.visible=false;
 for(const [id,k] of [['screenX','x'],['screenY','y'],['screenZ','z']]){
  $(id).oninput=e=>{screenPos[k]=Number(e.target.value);applyScreenPosition()};
 }
-$('resetScreen').onclick=()=>{Object.assign(screenPos,{x:1.65,y:1.55,z:-1.65});applyScreenPosition()};
+$('resetScreen').onclick=()=>{Object.assign(screenPos,{x:1.85,y:1.63,z:-2.2});applyScreenPosition()};
 function showScreen(visible){screenRoot.visible=Boolean(visible)}
 $('screenToggle').onclick=()=>showScreen(!screenRoot.visible);
 $('roomToggle').onclick=()=>{studioObjects.visible=!studioObjects.visible;spotlight.visible=studioObjects.visible;rim.visible=studioObjects.visible};
