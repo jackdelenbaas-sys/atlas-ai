@@ -698,53 +698,59 @@ try{
  $('modelStatus').onclick=()=>{load()};
 }
 }load();
-let lastFrame=performance.now(),smoothAction=0,rootStartX=0,rootStartZ=0;
+let lastFrame=performance.now(),wasTravelling=false;
 function animate(){
  requestAnimationFrame(animate);
  const now=performance.now(),dt=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;
- updateShow(now);
  const t=(now-t0)/1000;
- if(auto){yaw+=dt*12;updateCam()}
+ if(auto){yaw+=dt*12;updateCam();}
+ updateShow(now);
+ orientScreen();
  if(model){
   if(mixamoMixer)mixamoMixer.update(dt);
-  const breath=idle?Math.sin(t*1.9)*.007:0;
-  model.scale.y=1+breath;
-  const elapsed=(now-gestureStart)/1000;
-  const duration=gesture==='dance'?5:gesture==='walk'?4:gesture==='think'?2.4:2.7;
-  const active=!!gesture&&elapsed<duration;
-  const target=active?1:0;
-  smoothAction+= (target-smoothAction)*Math.min(1,dt*5.5);
-  if(gesture&&!active&&smoothAction<.015)gesture='';
-  const weight=smoothAction;
-  const phase=elapsed*(gesture==='dance'?7:gesture==='walk'?7.7:5);
-  const wave=gesture==='wave'?weight:0,point=gesture==='point'?weight:0;
-  const walk=gesture==='walk'?weight:0,dance=gesture==='dance'?weight:0;
-  const nod=gesture==='nod'?weight:0,think=gesture==='think'?weight:0;
-  const pose=(key,x=0,y=0,z=0)=>{
-   if(mixamoMixer&&mixamoCurrent&&mixamoCurrent.isRunning())return;
-   const joint=rig[key],neutral=base[key];if(!joint||!neutral)return;
-   const intended=new THREE.Quaternion().setFromEuler(new THREE.Euler(neutral.x+x,neutral.y+y,neutral.z+z,neutral.order));
-   joint.quaternion.slerp(intended,Math.min(1,dt*9));
-  };
-  const headManual=(+($('head').value)||0)*Math.PI/180;
-  pose('head',headManual+nod*Math.sin(phase*1.45)*.23+think*.13+dance*Math.sin(phase)*.09,eyes?Math.sin(t*.7)*.03:0,dance*Math.sin(phase*.7)*.07);
-  pose('neck',idle?Math.sin(t*.8)*.009:0);
-  pose('spine',breath*.3+walk*Math.sin(phase*2)*.025,dance*Math.sin(phase*.5)*.17,dance*Math.sin(phase)*.11);
-  const l=(+($('larm').value)||0)*Math.PI/180,r=(+($('rarm').value)||0)*Math.PI/180;
-  pose('larm',l*.35-walk*Math.sin(phase)*.47+dance*Math.sin(phase)*.45,point*.25,point*.88-l*.65+dance*Math.cos(phase)*.65);
-  pose('rarm',r*.35+walk*Math.sin(phase)*.47+dance*Math.sin(phase+2)*.48,-wave*.16,-wave*(1.45+.28*Math.sin(phase*2))+r*.65+dance*Math.cos(phase+2)*.65);
-  pose('lleg',walk*Math.sin(phase)*.55+dance*Math.sin(phase)*.29);
-  pose('rleg',-walk*Math.sin(phase)*.55+dance*Math.sin(phase+Math.PI)*.29);
-  // Short stage movement, never changes user-controlled camera.
-  const mx=studioTargetX+walk*Math.sin(Math.min(1,elapsed/duration)*Math.PI)*.015;
-  model.position.x+=(mx-model.position.x)*Math.min(1,dt*2.2);
-  const baseY=+($('height').value||0);
-  const bounce=walk*Math.abs(Math.sin(phase))*.035+dance*Math.abs(Math.sin(phase))*.05;
-  model.position.y+=(baseY+bounce-model.position.y)*Math.min(1,dt*8);
-  for(const [o,i] of blink){if(o.morphTargetInfluences)o.morphTargetInfluences[i]=Math.max(0,Math.sin(t*1.5)**38)}
-  for(const [o,i] of mouth){if(o.morphTargetInfluences)o.morphTargetInfluences[i]=0}
+  const realAction=Boolean(mixamoCurrent&&mixamoCurrent.isRunning());
+  // Animation clips own the body, not procedural poses. A calm bind-pose idle
+  // remains visible if no Mixamo animations have been imported yet.
+  const breathe=idle&&!realAction?Math.sin(t*1.8)*.0025:0;
+  model.scale.y=1+breathe;
+  if(!realAction){
+   for(const k of ['head','neck','spine','larm','rarm','lleg','rleg']){
+    const joint=rig[k],neutral=base[k];
+    if(joint&&neutral)joint.quaternion.slerp(new THREE.Quaternion().setFromEuler(neutral),Math.min(1,dt*4));
+   }
+  }
+  // Traverse real floor coordinates while playing the real walking clip.
+  if(travelPlan){
+   const tr=travelPlan,progress=Math.min(1,(now-tr.start)/1000/tr.seconds);
+   const ease=progress*progress*(3-2*progress);
+   const x=THREE.MathUtils.lerp(tr.fromX,tr.toX,ease);
+   const z=THREE.MathUtils.lerp(tr.fromZ,tr.toZ,ease);
+   const dx=tr.toX-tr.fromX,dz=tr.toZ-tr.fromZ;
+   if(Math.hypot(dx,dz)>.1){
+    const desired=Math.atan2(dx,dz);
+    const delta=Math.atan2(Math.sin(desired-model.rotation.y),Math.cos(desired-model.rotation.y));
+    model.rotation.y+=delta*Math.min(1,dt*4);
+   }
+   model.position.x=x;model.position.z=z;
+   wasTravelling=true;
+   if(progress>=1){
+    travelPlan=null;
+    if(!showRun){
+     model.rotation.y+=Math.atan2(Math.sin(-model.rotation.y),Math.cos(-model.rotation.y))*Math.min(1,dt*6);
+     playMixamo('idle',true);
+    }
+   }
+  }else if(!showRun&&wasTravelling){
+   model.rotation.y+=Math.atan2(Math.sin(-model.rotation.y),Math.cos(-model.rotation.y))*Math.min(1,dt*4);
+   if(Math.abs(model.rotation.y)<.02){model.rotation.y=0;wasTravelling=false;}
+  }
+  model.position.y+=((Number($('height').value)||0)-model.position.y)*Math.min(1,dt*5);
+  for(const [mesh,index] of blink){
+   if(mesh.morphTargetInfluences)mesh.morphTargetInfluences[index]=Math.max(0,Math.sin(t*1.44)**42);
+  }
+  for(const [mesh,index] of mouth){if(mesh.morphTargetInfluences)mesh.morphTargetInfluences[index]=0;}
  }
- renderer.render(scene,camera)
+ renderer.render(scene,camera);
 }
 animate();
 </script></body></html>
