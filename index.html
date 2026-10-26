@@ -898,7 +898,7 @@ async function installGLB(buffer,label){
  root.traverse(o=>{
    if(o.isBone){
      const n=o.name.toLowerCase();
-     for(const [k,pattern] of Object.entries({head:/head$/,neck:/neck$/,larm:/leftupperarm|upperarm_l|leftarm|leftshoulder/,rarm:/rightupperarm|upperarm_r|rightarm|rightshoulder/,spine:/spine2|chest|upperchest/,lleg:/leftupleg|leftthigh|leftupperleg/,rleg:/rightupleg|rightthigh|rightupperleg/,leye:/lefteye|eye_l/,reye:/righteye|eye_r/})){
+     for(const [k,pattern] of Object.entries({head:/head$/,neck:/neck$/,larm:/leftupperarm|upperarm_l|leftarm|leftshoulder/,rarm:/rightupperarm|upperarm_r|rightarm|rightshoulder/,spine:/spine2|chest|upperchest/,lleg:/leftupleg|leftthigh|leftupperleg/,rleg:/rightupleg|rightthigh|rightupperleg/,lfoot:/leftfoot$/,rfoot:/rightfoot$/,leye:/lefteye|eye_l/,reye:/righteye|eye_r/})){
        if(pattern.test(n)&&!rig[k])rig[k]=o
      }
    }
@@ -987,31 +987,62 @@ function animate(){
     if(joint&&neutral)joint.quaternion.slerp(new THREE.Quaternion().setFromEuler(neutral),Math.min(1,dt*4));
    }
   }
-  // Traverse real floor coordinates while playing the real walking clip.
+  // Walk at a constant world speed measured from the actual foot swing.
+  // PerspectiveCamera does the size change naturally: back of room is smaller.
   if(travelPlan){
-   const tr=travelPlan,progress=Math.min(1,(now-tr.start)/1000/tr.seconds);
-   const ease=progress*progress*(3-2*progress);
-   const x=THREE.MathUtils.lerp(tr.fromX,tr.toX,ease);
-   const z=THREE.MathUtils.lerp(tr.fromZ,tr.toZ,ease);
-   const dx=tr.toX-tr.fromX,dz=tr.toZ-tr.fromZ;
-   if(Math.hypot(dx,dz)>.1){
-    const desired=Math.atan2(dx,dz);
-    const delta=Math.atan2(Math.sin(desired-model.rotation.y),Math.cos(desired-model.rotation.y));
-    model.rotation.y+=delta*Math.min(1,dt*4);
-   }
-   model.position.x=x;model.position.z=z;
-   wasTravelling=true;
-   if(progress>=1){
-    travelPlan=null;
-    if(!showRun){
-     model.rotation.y+=Math.atan2(Math.sin(-model.rotation.y),Math.cos(-model.rotation.y))*Math.min(1,dt*6);
-     playMixamo('idle',true);
+   const tr=travelPlan;
+   const dx=tr.toX-model.position.x,dz=tr.toZ-model.position.z;
+   const remaining=Math.hypot(dx,dz);
+   const shouldStop=remaining<=.025;
+   if(!shouldStop){
+    const heading=Math.atan2(dx,dz)+(tr.kind==='back'?Math.PI:0);
+    const turn=Math.atan2(Math.sin(heading-model.rotation.y),Math.cos(heading-model.rotation.y));
+    model.rotation.y+=turn*Math.min(1,dt*5.2);
+    const walkDistance=Math.min(tr.speed*dt,remaining);
+    model.position.x+=dx/remaining*walkDistance;
+    model.position.z+=dz/remaining*walkDistance;
+    // Plant the low foot: lightly correct contact drift without overriding
+    // the path or causing an animation-frame jump.
+    const left=rig.lfoot,right=rig.rfoot;
+    if(left&&right){
+     model.updateMatrixWorld(true);
+     const lf=left.getWorldPosition(new THREE.Vector3());
+     const rf=right.getWorldPosition(new THREE.Vector3());
+     const foot=lf.y<=rf.y?'left':'right';
+     const footPoint=foot==='left'?lf:rf;
+     if(footPoint.y<.23){
+      if(foot!==tr.contactFoot||!tr.footAnchor){
+       tr.contactFoot=foot;tr.footAnchor=footPoint.clone();
+      }else{
+       const maximum=tr.speed*dt*.20;
+       model.position.x+=THREE.MathUtils.clamp((tr.footAnchor.x-footPoint.x)*.20,-maximum,maximum);
+       model.position.z+=THREE.MathUtils.clamp((tr.footAnchor.z-footPoint.z)*.20,-maximum,maximum);
+      }
+     }else{tr.contactFoot=null;tr.footAnchor=null}
+    }
+    const bounded=clampToRoom(model.position.x,model.position.z);
+    const hitBoundary=Math.abs(bounded.x-model.position.x)>.0001||Math.abs(bounded.z-model.position.z)>.0001;
+    model.position.x=bounded.x;model.position.z=bounded.z;
+    if(hitBoundary){
+     travelPlan=null;
+     playMixamo('idle',true); // Stop at the room's edge, no walking in place.
+     if(!showRun)$('showStatus').textContent='Atlas reached the edge of the room.';
     }
    }
+   if(travelPlan&&Math.hypot(tr.toX-model.position.x,tr.toZ-model.position.z)<=.04){
+    model.position.x=tr.toX;model.position.z=tr.toZ;
+    travelPlan=null;
+    playMixamo('idle',true);
+   }
+   wasTravelling=true;
   }else if(!showRun&&wasTravelling){
-   model.rotation.y+=Math.atan2(Math.sin(-model.rotation.y),Math.cos(-model.rotation.y))*Math.min(1,dt*4);
-   if(Math.abs(model.rotation.y)<.02){model.rotation.y=0;wasTravelling=false;}
+   const turn=Math.atan2(Math.sin(-model.rotation.y),Math.cos(-model.rotation.y));
+   model.rotation.y+=turn*Math.min(1,dt*4.0);
+   if(Math.abs(turn)<.018){model.rotation.y=0;wasTravelling=false}
   }
+  // Hard guard even for a manually played action or an interrupted sequence.
+  const safe=clampToRoom(model.position.x,model.position.z);
+  model.position.x=safe.x;model.position.z=safe.z;
   model.position.y+=((Number($('height').value)||0)-model.position.y)*Math.min(1,dt*5);
   for(const [mesh,index] of blink){
    if(mesh.morphTargetInfluences)mesh.morphTargetInfluences[index]=Math.max(0,Math.sin(t*1.44)**42);
