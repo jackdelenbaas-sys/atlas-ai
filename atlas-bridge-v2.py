@@ -69,27 +69,76 @@ def brave_search(q,kind='web'):
              'text':str(x.get('description') or x.get('snippet') or '')[:700],
              'image': (x.get('properties') or {}).get('url') or (x.get('thumbnail') or {}).get('src') or ''} for x in arr]
 
+class DDGParser(HTMLParser):
+    def __init__(self):
+        super().__init__(); self.results=[];self.link=None;self.text=[];self.snippet=False
+    def handle_starttag(self,tag,attrs):
+        a=dict(attrs)
+        if tag=='a' and ('result__a' in a.get('class','') or 'result-link' in a.get('class','')):
+            self.link=a.get('href','');self.text=[]
+    def handle_data(self,data):
+        if self.link is not None:self.text.append(data.strip())
+    def handle_endtag(self,tag):
+        if tag=='a' and self.link is not None:
+            raw=self.link; p=urlparse(raw)
+            if p.path.startswith('/l/') and 'uddg' in parse_qs(p.query):raw=parse_qs(p.query)['uddg'][0]
+            if raw.startswith('https://') and len(self.results)<9:
+                title=' '.join(x for x in self.text if x).strip()
+                if title:self.results.append({'title':title[:180],'url':raw[:700],'text':''})
+            self.link=None;self.text=[]
+
+class OpenGraphParser(HTMLParser):
+    def __init__(self):super().__init__();self.image=''
+    def handle_starttag(self,tag,attrs):
+        if tag!='meta':return
+        a=dict(attrs)
+        if a.get('property') in ('og:image','og:image:secure_url') and a.get('content','').startswith('https://'):
+            self.image=a['content']
+
+def search_ddg(q):
+    html,_=retrieve('https://html.duckduckgo.com/html/?'+urlencode({'q':q}),280000)
+    parser=DDGParser();parser.feed(html)
+    return parser.results[:7]
+
 def search_web(q,kind='web'):
     if not q or len(q)>250:raise ValueError('Invalid search query')
     key=brave_key()
     if key:return {'results':brave_search(q,kind),'provider':'brave','configured':True}
-    if kind=='images':return {'results':[],'provider':'none','configured':False,'error':'Image search requires a Brave Search API key'}
-    # Free fallback for general search. Search engines may discontinue their RSS endpoints.
-    url='https://www.bing.com/search?'+urlencode({'q':q,'format':'rss'})
+    errors=[]
+    query=q if kind!='images' else q+' photos pictures'
+    if kind=='news':query=q+' latest news'
     try:
+        results=search_ddg(query)
+        if results:
+            if kind=='images':
+                images=[]
+                for item in results[:5]:
+                    try:
+                        html,_=retrieve(item['url'],140000)
+                        meta=OpenGraphParser();meta.feed(html)
+                        if meta.image:
+                            item['image']=meta.image;images.append(item)
+                    except Exception:pass
+                if images:return {'results':images,'provider':'ddg-page-images','configured':False}
+            else:
+                return {'results':results,'provider':'duckduckgo-html','configured':False}
+        errors.append('DuckDuckGo returned no usable results')
+    except Exception as e:errors.append('DuckDuckGo: '+str(e)[:130])
+    if kind=='images':return {'results':[],'provider':'duckduckgo-html','configured':False,'error':'No accessible website images found. '+('; '.join(errors))}
+    try:
+        url='https://www.bing.com/search?'+urlencode({'q':query,'format':'rss'})
         raw,_=retrieve(url,220000)
         root=ET.fromstring(raw)
         results=[]
         for el in root.findall('.//item')[:8]:
-            title=el.findtext('title') or ''
             link=el.findtext('link') or ''
-            description=el.findtext('description') or ''
             if link.startswith('https://'):
-                results.append({'title':title[:180],'url':link[:700],'text':description[:600]})
+                results.append({'title':(el.findtext('title') or '')[:180],'url':link[:700],
+                                'text':(el.findtext('description') or '')[:600]})
         if results:return {'results':results,'provider':'bing-rss','configured':False}
-    except Exception as err:
-        return {'results':[],'provider':'bing-rss','configured':False,'error':str(err)[:190]}
-    return {'results':[],'provider':'bing-rss','configured':False,'error':'Search provider returned zero results'}
+        errors.append('Bing RSS returned no results')
+    except Exception as e:errors.append('Bing RSS: '+str(e)[:130])
+    return {'results':[],'provider':'free-search','configured':False,'error':'; '.join(errors)}
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,fmt,*args): pass
