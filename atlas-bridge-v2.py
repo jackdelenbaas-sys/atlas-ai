@@ -114,11 +114,32 @@ def google_news(q):
         hits.append({'title':title[:180],'url':link[:700],'text':description[:500]})
     return hits
 
+def commons_images(q):
+    url='https://commons.wikimedia.org/w/api.php?'+urlencode({'action':'query','generator':'search','gsrsearch':q,'gsrnamespace':'6','gsrlimit':'8','prop':'imageinfo','iiprop':'url|mime','iiurlwidth':'400','format':'json'})
+    raw,_=retrieve(url,250000)
+    data=json.loads(raw)
+    pages=list(data.get('query',{}).get('pages',{}).values())
+    results=[]
+    for p in sorted(pages,key=lambda p:p.get('index',99)):
+        info=(p.get('imageinfo') or [{}])[0]
+        img=info.get('thumburl') or info.get('url') or ''
+        mime=info.get('mime','')
+        if img.startswith('https://') and mime.startswith('image/') and mime!='image/svg+xml':
+            results.append({'title':p.get('title','').replace('File:','')[:180],'url':info.get('descriptionurl','') or info.get('url',''),
+                'image':img,'text':'Image from Wikimedia Commons (check the source page for license)'})
+    return results
+
 def search_web(q,kind='web'):
     if not q or len(q)>250:raise ValueError('Invalid search query')
     key=brave_key()
     if key:return {'results':brave_search(q,kind),'provider':'brave','configured':True}
     errors=[]
+    if kind=='images':
+        try:
+            images=commons_images(q)
+            if images:return {'results':images,'provider':'wikimedia-commons','configured':False}
+            errors.append('Wikimedia Commons had no matching images')
+        except Exception as e:errors.append('Wikimedia Commons: '+str(e)[:130])
     if kind=='news':
         try:
             hits=google_news(q)
@@ -195,7 +216,7 @@ class Handler(BaseHTTPRequestHandler):
                 extractor=Extractor();extractor.feed(html)
                 text=' '.join(extractor.parts)[:14000]
                 return self.reply(200,{'title':extractor.title[:180],'url':final,'text':text})
-            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v4','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'page metadata','webRead':True})
+            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v4','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'Wikimedia Commons + page metadata','webRead':True})
             if path=='/atlas/diagnostics':
                 tests={}
                 for name,query,kind in [('web','Zeeland Michigan','web'),('news','Tesla','news'),('images','Alps mountain landscape','images')]:
