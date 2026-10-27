@@ -111,7 +111,8 @@ def google_news(q):
         if not link.startswith('https://'):continue
         title=(item.findtext('title') or '')
         description=re.sub(r'<[^>]+>',' ',(item.findtext('description') or ''))
-        hits.append({'title':title[:180],'url':link[:700],'text':description[:500]})
+        published=(item.findtext('pubDate') or '')
+        hits.append({'title':title[:180],'url':link[:700],'text':description[:500],'published':published[:80]})
     return hits
 
 def commons_images(q):
@@ -221,7 +222,7 @@ class Handler(BaseHTTPRequestHandler):
                 extractor=Extractor();extractor.feed(html)
                 text=' '.join(extractor.parts)[:14000]
                 return self.reply(200,{'title':extractor.title[:180],'url':final,'text':text})
-            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v6','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'Wikimedia Commons + page metadata','webRead':True})
+            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v7','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'Wikimedia Commons + page metadata','webRead':True})
             if path=='/atlas/diagnostics':
                 def run_test(item):
                     name,query,kind=item
@@ -232,7 +233,7 @@ class Handler(BaseHTTPRequestHandler):
                 checks=[('web','Zeeland Michigan','web'),('news','Tesla','news'),('images','Alps mountain landscape','images')]
                 with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
                     tests=dict(pool.map(run_test,checks))
-                return self.reply(200,{'bridge':'atlas-v6','tests':tests})
+                return self.reply(200,{'bridge':'atlas-v7','tests':tests})
             if path=='/api/tags':return self.forward()
             return self.reply(404,{'error':'Unknown endpoint'})
         except Exception as e:return self.reply(502,{'error':str(e)[:250]})
