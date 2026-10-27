@@ -132,7 +132,7 @@ html,body{height:100%;overflow:hidden}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">6.0 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">6.1 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">LOCAL AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
@@ -233,6 +233,19 @@ function atlasLinkify(el,text){
   cursor=match.index+match[0].length;
  }
  if(cursor<text.length)el.append(document.createTextNode(text.slice(cursor)));
+}
+function atlasShowImages(thread,sources){
+ if(!sources?.length||thread.id!==data.active)return;
+ const feed=$('feed'),bubble=[...feed.querySelectorAll('.bubble.atlas')].at(-1);
+ if(!bubble)return;
+ const gallery=document.createElement('div');gallery.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px;';
+ for(const hit of sources.slice(0,4)){
+  const imgUrl=hit.image;if(typeof imgUrl!=='string'||!imgUrl.startsWith('https://'))continue;
+  const link=document.createElement('a');link.href=hit.url;link.target='_blank';link.rel='noopener noreferrer';
+  const img=document.createElement('img');img.src=imgUrl;img.alt=hit.title||'Search image';img.loading='lazy';img.referrerPolicy='no-referrer';img.style.cssText='width:100%;height:135px;object-fit:cover;border-radius:9px;';
+  link.append(img);gallery.append(link);
+ }
+ if(gallery.childElementCount)bubble.append(gallery);
 }
 function render(){
  const feed=$('feed'),t=active(),same=lastThread===t.id,nearBottom=feed.scrollHeight-feed.scrollTop-feed.clientHeight<100;
@@ -402,6 +415,7 @@ async function askAtlasLocalAI(thread){
   const result=await response.json(),reply=String(result?.message?.content||'').trim();
   if(!reply)throw Error('Ollama returned no answer');
   appendMsg(thread,'atlas',reply+(sources.length?'\n\nLive results ('+researchMode+'):\n'+sources.slice(0,6).map((x,i)=>'• '+x.title+': '+x.url+(x.image?'\n  Image: '+x.image:'')).join('\n'):''),true);
+  if(researchMode==='images')atlasShowImages(thread,sources);
   window.dispatchEvent(new CustomEvent('atlas-action',{detail:{type:'respond'}}));
   setAIStatus('AI ONLINE · QWEN3 1.7B');
  }catch(err){
