@@ -8,7 +8,7 @@ from urllib.parse import urlparse, parse_qs, urlencode, urljoin, unquote
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from html.parser import HTMLParser
 from xml.etree import ElementTree as ET
-import json, socket, ipaddress, urllib.error, urllib.request, threading, time, os, re
+import json, socket, ipaddress, urllib.error, urllib.request, threading, time, os, re, concurrent.futures
 
 ORIGIN = "https://jackdelenbaas-sys.github.io"
 MAX_BODY = 120000
@@ -221,15 +221,18 @@ class Handler(BaseHTTPRequestHandler):
                 extractor=Extractor();extractor.feed(html)
                 text=' '.join(extractor.parts)[:14000]
                 return self.reply(200,{'title':extractor.title[:180],'url':final,'text':text})
-            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v5','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'Wikimedia Commons + page metadata','webRead':True})
+            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v6','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'Wikimedia Commons + page metadata','webRead':True})
             if path=='/atlas/diagnostics':
-                tests={}
-                for name,query,kind in [('web','Zeeland Michigan','web'),('news','Tesla','news'),('images','Alps mountain landscape','images')]:
+                def run_test(item):
+                    name,query,kind=item
                     try:
                         outcome=search_web(query,kind)
-                        tests[name]={'provider':outcome.get('provider'),'count':len(outcome.get('results',[])),'error':outcome.get('error','')}
-                    except Exception as err:tests[name]={'provider':'error','count':0,'error':str(err)[:150]}
-                return self.reply(200,{'bridge':'atlas-v5','tests':tests})
+                        return name,{'provider':outcome.get('provider'),'count':len(outcome.get('results',[])),'error':outcome.get('error','')}
+                    except Exception as err:return name,{'provider':'error','count':0,'error':str(err)[:150]}
+                checks=[('web','Zeeland Michigan','web'),('news','Tesla','news'),('images','Alps mountain landscape','images')]
+                with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+                    tests=dict(pool.map(run_test,checks))
+                return self.reply(200,{'bridge':'atlas-v6','tests':tests})
             if path=='/api/tags':return self.forward()
             return self.reply(404,{'error':'Unknown endpoint'})
         except Exception as e:return self.reply(502,{'error':str(e)[:250]})
@@ -247,7 +250,9 @@ class Handler(BaseHTTPRequestHandler):
             conn=HTTPConnection('127.0.0.1',11434,timeout=180)
             conn.request(self.command,urlparse(self.path).path,body=body,headers={'Host':'localhost:11434','Content-Type':'application/json'})
             r=conn.getresponse()
-            data=r.read(400000)
+            data=r.read(2_000_000)
+            if r.length is not None and r.length>2_000_000:
+                conn.close();return self.reply(502,{'error':'Ollama response exceeded safe limit'})
             self.send_response(r.status);self.cors()
             self.send_header('Content-Type','application/json')
             self.send_header('Content-Length',str(len(data)))
