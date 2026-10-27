@@ -81,7 +81,7 @@ class DDGParser(HTMLParser):
     def handle_endtag(self,tag):
         if tag=='a' and self.link is not None:
             raw=self.link; p=urlparse(raw)
-            if (p.path.startswith('/l/') or p.path.startswith('/l')) and 'uddg' in parse_qs(p.query):raw=parse_qs(p.query)['uddg'][0]
+            if 'uddg' in parse_qs(p.query):raw=parse_qs(p.query)['uddg'][0]
             if raw.startswith('//'):raw='https:'+raw
             if raw.startswith('https://') and len(self.results)<9:
                 title=' '.join(x for x in self.text if x).strip()
@@ -132,7 +132,12 @@ def commons_images(q):
 def search_web(q,kind='web'):
     if not q or len(q)>250:raise ValueError('Invalid search query')
     key=brave_key()
-    if key:return {'results':brave_search(q,kind),'provider':'brave','configured':True}
+    if key:
+        try:
+            result=brave_search(q,kind)
+            if result:return {'results':result,'provider':'brave','configured':True}
+        except Exception as error:
+            print('Brave search unavailable:',str(error)[:150],flush=True)
     errors=[]
     if kind=='images':
         try:
@@ -216,7 +221,7 @@ class Handler(BaseHTTPRequestHandler):
                 extractor=Extractor();extractor.feed(html)
                 text=' '.join(extractor.parts)[:14000]
                 return self.reply(200,{'title':extractor.title[:180],'url':final,'text':text})
-            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v4','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'Wikimedia Commons + page metadata','webRead':True})
+            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v5','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'Wikimedia Commons + page metadata','webRead':True})
             if path=='/atlas/diagnostics':
                 tests={}
                 for name,query,kind in [('web','Zeeland Michigan','web'),('news','Tesla','news'),('images','Alps mountain landscape','images')]:
@@ -224,7 +229,7 @@ class Handler(BaseHTTPRequestHandler):
                         outcome=search_web(query,kind)
                         tests[name]={'provider':outcome.get('provider'),'count':len(outcome.get('results',[])),'error':outcome.get('error','')}
                     except Exception as err:tests[name]={'provider':'error','count':0,'error':str(err)[:150]}
-                return self.reply(200,{'bridge':'atlas-v4','tests':tests})
+                return self.reply(200,{'bridge':'atlas-v5','tests':tests})
             if path=='/api/tags':return self.forward()
             return self.reply(404,{'error':'Unknown endpoint'})
         except Exception as e:return self.reply(502,{'error':str(e)[:250]})
