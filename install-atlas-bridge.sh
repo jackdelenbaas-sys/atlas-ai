@@ -40,5 +40,8 @@ echo ""
 echo "Private Tailscale HTTPS check:"
 curl -fLsS --max-time 10 "https://erins-mac-mini.tail04f5e9.ts.net/atlas/status" || true
 echo ""
+echo ""
+echo "WEB SEARCH SMOKE CHECK:"
+curl -fLsS --max-time 18 "http://127.0.0.1:11435/atlas/search?q=Zeeland%20Michigan&type=web" | "$PYTHON" -c 'import sys,json; d=json.load(sys.stdin); print("Provider:",d.get("provider"),"Results:",len(d.get("results",[])),"Error:",d.get("error","none"))' || echo "Search test failed; use the app diagnostics for details."
 echo "Setup finished. Keep Ollama and Tailscale connected."
 echo "To uninstall the new bridge later: launchctl bootout $USER_DOMAIN/io.atlasai.private-bridge; rm -f '$PLIST' '$TARGET'"
