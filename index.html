@@ -132,7 +132,7 @@ html,body{height:100%;overflow:hidden}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">7.1 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">7.2 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">LOCAL AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
@@ -388,7 +388,7 @@ function atlasResearchAssessment(sources,mode){
   try{const host=new URL(item.url).hostname.replace(/^www\\./,'');if(!unique.has(host))unique.set(host,[]);unique.get(host).push(item)}catch{}
  }
  const domains=[...unique.keys()];
- const readable=sources.filter(x=>/Website excerpt:/.test(x.text||'')).length;
+ const readable=sources.filter(x=>x.read).length;
  const dated=sources.filter(x=>x.published).length;
  const warnings=[];
  if(domains.length<2)warnings.push('Only one independent source domain was found.');
@@ -412,7 +412,19 @@ async function askAtlasLocalAI(thread){
    const newsRequest=/\b(news|headlines)\b/i.test(question);
    if(url){try{sources=await atlasReadWebsite(url);researchMode='website'}catch(e){researchErrors.push('Website reading: '+e.message);console.warn('Website reading unavailable',e)}}
    if(!sources.length){
-    try{sources=await atlasBridgeSearch(question,imageRequest?'images':newsRequest?'news':'web');if(sources.length){researchMode=imageRequest?'images':newsRequest?'news':'web';const details=imageRequest?[]:await Promise.allSettled(sources.slice(0,2).map(x=>atlasReadWebsite(x.url)));for(let i=0;i<details.length;i++){const v=details[i];if(v.status==='fulfilled'&&v.value.length)sources[i].text=(sources[i].text+'\nWebsite excerpt: '+v.value[0].text.slice(0,1700)).slice(0,2100)}}}catch(e){researchErrors.push('Web search: '+e.message);console.warn('Broader search unavailable',e)}
+    try{sources=await atlasBridgeSearch(question,imageRequest?'images':newsRequest?'news':'web');if(sources.length){researchMode=imageRequest?'images':newsRequest?'news':'web';const details=imageRequest?[]:await Promise.allSettled(sources.slice(0,5).map(async x=>{
+ let target=x.url;
+ if(target.includes('news.google.com/rss/articles/')){
+  try{
+   const topic=x.title.split(' - ').slice(0,-1).join(' - ')||x.title;
+   const matches=await atlasBridgeSearch(topic,'web');
+   const publisher=x.title.split(' - ').at(-1).toLowerCase().replace(/[^a-z0-9]/g,'');
+   const found=matches.find(z=>{try{return new URL(z.url).hostname.toLowerCase().replace(/[^a-z0-9]/g,'').includes(publisher.slice(0,7))}catch{return false}});
+   if(found)target=found.url;
+  }catch(e){console.warn('Direct article lookup unavailable',e)}
+ }
+ return await atlasReadWebsite(target)
+}));for(let i=0;i<details.length;i++){const v=details[i];if(v.status==='fulfilled'&&v.value.length){sources[i].text=(sources[i].text+'\nWebsite excerpt: '+v.value[0].text.slice(0,2200)).slice(0,2900);sources[i].readUrl=v.value[0].url;sources[i].read=true}else sources[i].read=false}}}catch(e){researchErrors.push('Web search: '+e.message);console.warn('Broader search unavailable',e)}
    }
    if(!sources.length&&!imageRequest){
     try{sources=await atlasWikiResearch(question);if(sources.length)researchMode='wikipedia'}catch(e){researchErrors.push('Wikipedia: '+e.message);console.warn('Wikipedia research unavailable',e)}
@@ -436,11 +448,11 @@ async function askAtlasLocalAI(thread){
   if(!response.ok){atlasAIHealthyUntil=0;throw Error('Ollama HTTP '+response.status)}
   const result=await response.json(),reply=String(result?.message?.content||'').trim();
   if(!reply)throw Error('Ollama returned no answer');
-  const misleading=/\\b(?:could not retrieve|can't access|cannot access|no internet access|can't browse|cannot browse|no live web|couldn't retrieve)\\b/i.test(reply);
+  const misleading=/(?:could not retrieve|can't access|cannot access|no internet access|can't browse|cannot browse|no live web|couldn't retrieve)/i.test(reply);
   let answer=reply;
   if(sources.length&&misleading)answer='The search retrieved '+sources.length+' results. Here are the source headlines; article details may not all be accessible.';
   const evidence=assessment?.warnings?.length?'\\n\\nVerification limits: '+assessment.warnings.join(' '):'';
-  const sourceFooter=sources.length?'\\n\\nSources ('+researchMode+'):\\n'+sources.slice(0,5).map((x,i)=>'['+(i+1)+'] '+x.title+' — '+x.url).join('\\n'):'';
+  const sourceFooter=sources.length?'\\n\\nSources ('+researchMode+'):\\n'+sources.slice(0,5).map((x,i)=>'['+(i+1)+'] '+x.title+' — '+(x.readUrl||x.url)+(x.read?' (article read)':' (headline only)')).join('\\n'):'';
   appendMsg(thread,'atlas',answer+evidence+sourceFooter,true);
   if(researchMode==='images'){atlasShowImages(thread,sources);atlasScrollBottom()}
   window.dispatchEvent(new CustomEvent('atlas-action',{detail:{type:'respond'}}));
