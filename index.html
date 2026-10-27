@@ -132,13 +132,13 @@ html,body{height:100%;overflow:hidden}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">5.4 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">5.5 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">LOCAL AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
 <div class="section">Local AI connection</div>
 <p class="hint" id="localAiHelp">Atlas connects to Qwen3 through your private Tailscale HTTPS address. Your Mac must be running Ollama and Tailscale.</p>
-<button class="btn wide" id="testLocalAI">↻ Test Ollama Connection</button>
+<button class="btn wide" id="testLocalAI">↻ Test Ollama Connection</button><p class="hint" id="aiDiagnostic" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere">Test hasn't run yet.</p>
 <button class="btn wide" id="copyAiFix">Copy one-time Mac permission command</button>
 <p class="hint">After running the command, quit Ollama completely and reopen it. The website cannot set Mac environment variables itself.</p>
 <p class="hint">The private HTTPS endpoint works only for devices authorized on your Tailscale network. Do not enable public Funnel.</p>
@@ -273,18 +273,26 @@ async function probeOllama(base){
  }finally{clearTimeout(timer)}
 }
 async function checkLocalAI(){
+ const start=Date.now();
+ const diagnostic=$('aiDiagnostic');
+ if(diagnostic)diagnostic.textContent='Testing private HTTPS connection…';
+ const btn=$('testLocalAI');if(btn){btn.disabled=true;btn.textContent='Testing…'}
  let errors=[];
  for(const base of ATLAS_ENDPOINTS){
   try{
    atlasEndpoint=await probeOllama(base);
    setAIStatus('AI ONLINE · QWEN3 1.7B');
    localAIInfo('Connected to Qwen3 on your Mac. Chat messages now use your real AI.');
+   if(diagnostic)diagnostic.textContent='SUCCESS: '+base+'/api/tags responded with '+ATLAS_MODEL+' in '+(Date.now()-start)+'ms';
+   if(btn){btn.disabled=false;btn.textContent='↻ Test Ollama Connection'}
    return true;
   }catch(err){errors.push(err)}
  }
  const detail=errors.map(e=>e?.message||String(e)).join('; ');
  setAIStatus('AI OFFLINE · '+(detail.includes('403')?'SERVER REJECTED':detail.includes('Failed to fetch')?'NETWORK/CORS':'CHECK CONNECTION'));
  localAIInfo('Secure endpoint: '+ATLAS_ENDPOINTS[0]+' — '+detail+'. Open the endpoint /api/tags directly in Safari to distinguish HTTP 403 from browser CORS.');
+ if(diagnostic)diagnostic.textContent='FAILED ('+(Date.now()-start)+'ms): '+detail+'\nEndpoint: '+ATLAS_ENDPOINTS[0]+'/api/tags'+'\nIf this says Load failed or Failed to fetch, Safari may be denying this site permission to reach a private network device.';
+ if(btn){btn.disabled=false;btn.textContent='↻ Test Ollama Connection'}
  console.warn('Ollama checks failed:',errors);
  return false;
 }
