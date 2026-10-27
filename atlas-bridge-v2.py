@@ -81,7 +81,8 @@ class DDGParser(HTMLParser):
     def handle_endtag(self,tag):
         if tag=='a' and self.link is not None:
             raw=self.link; p=urlparse(raw)
-            if p.path.startswith('/l/') and 'uddg' in parse_qs(p.query):raw=parse_qs(p.query)['uddg'][0]
+            if (p.path.startswith('/l/') or p.path.startswith('/l')) and 'uddg' in parse_qs(p.query):raw=parse_qs(p.query)['uddg'][0]
+            if raw.startswith('//'):raw='https:'+raw
             if raw.startswith('https://') and len(self.results)<9:
                 title=' '.join(x for x in self.text if x).strip()
                 if title:self.results.append({'title':title[:180],'url':raw[:700],'text':''})
@@ -100,11 +101,30 @@ def search_ddg(q):
     parser=DDGParser();parser.feed(html)
     return parser.results[:7]
 
+def google_news(q):
+    url='https://news.google.com/rss/search?'+urlencode({'q':q,'hl':'en-US','gl':'US','ceid':'US:en'})
+    raw,_=retrieve(url,220000)
+    root=ET.fromstring(raw)
+    hits=[]
+    for item in root.findall('.//item')[:8]:
+        link=(item.findtext('link') or '')
+        if not link.startswith('https://'):continue
+        title=(item.findtext('title') or '')
+        description=re.sub(r'<[^>]+>',' ',(item.findtext('description') or ''))
+        hits.append({'title':title[:180],'url':link[:700],'text':description[:500]})
+    return hits
+
 def search_web(q,kind='web'):
     if not q or len(q)>250:raise ValueError('Invalid search query')
     key=brave_key()
     if key:return {'results':brave_search(q,kind),'provider':'brave','configured':True}
     errors=[]
+    if kind=='news':
+        try:
+            hits=google_news(q)
+            if hits:return {'results':hits,'provider':'google-news-rss','configured':False}
+            errors.append('Google News returned no items')
+        except Exception as e:errors.append('Google News: '+str(e)[:110])
     query=q if kind!='images' else q+' photos pictures'
     if kind=='news':query=q+' latest news'
     try:
@@ -175,7 +195,15 @@ class Handler(BaseHTTPRequestHandler):
                 extractor=Extractor();extractor.feed(html)
                 text=' '.join(extractor.parts)[:14000]
                 return self.reply(200,{'title':extractor.title[:180],'url':final,'text':text})
-            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v3','webSearch':'brave' if brave_key() else 'bing-rss fallback','images':bool(brave_key()),'webRead':True})
+            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v4','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'page metadata','webRead':True})
+            if path=='/atlas/diagnostics':
+                tests={}
+                for name,query,kind in [('web','Zeeland Michigan','web'),('news','Tesla','news'),('images','Alps mountain landscape','images')]:
+                    try:
+                        outcome=search_web(query,kind)
+                        tests[name]={'provider':outcome.get('provider'),'count':len(outcome.get('results',[])),'error':outcome.get('error','')}
+                    except Exception as err:tests[name]={'provider':'error','count':0,'error':str(err)[:150]}
+                return self.reply(200,{'bridge':'atlas-v4','tests':tests})
             if path=='/api/tags':return self.forward()
             return self.reply(404,{'error':'Unknown endpoint'})
         except Exception as e:return self.reply(502,{'error':str(e)[:250]})
