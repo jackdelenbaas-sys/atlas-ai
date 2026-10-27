@@ -132,7 +132,7 @@ html,body{height:100%;overflow:hidden}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">5.3 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">5.4 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">LOCAL AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
@@ -266,7 +266,7 @@ async function probeOllama(base){
  const c=new AbortController(),timer=setTimeout(()=>c.abort(),5000);
  try{
   const res=await fetch(base+'/api/tags',{cache:'no-store',signal:c.signal});
-  if(!res.ok)throw Error('HTTP '+res.status);
+  if(!res.ok)throw Error('HTTPS endpoint returned HTTP '+res.status+(res.status===403?' (likely Ollama Host-header rejection)':''));
   const data=await res.json();
   if(!data.models?.some(m=>m.name===ATLAS_MODEL))throw Error('Qwen3 1.7B is not installed');
   return base;
@@ -282,8 +282,9 @@ async function checkLocalAI(){
    return true;
   }catch(err){errors.push(err)}
  }
- setAIStatus('AI OFFLINE · LOCAL PERMISSION');
- localAIInfo('Atlas could not access the private Tailscale HTTPS endpoint. Make sure Tailscale and Ollama are running, and that your device is authorized on your tailnet. If an origin error appears, allow this website in Ollama and restart it.');
+ const detail=errors.map(e=>e?.message||String(e)).join('; ');
+ setAIStatus('AI OFFLINE · '+(detail.includes('403')?'SERVER REJECTED':detail.includes('Failed to fetch')?'NETWORK/CORS':'CHECK CONNECTION'));
+ localAIInfo('Secure endpoint: '+ATLAS_ENDPOINTS[0]+' — '+detail+'. Open the endpoint /api/tags directly in Safari to distinguish HTTP 403 from browser CORS.');
  console.warn('Ollama checks failed:',errors);
  return false;
 }
@@ -309,7 +310,7 @@ async function askAtlasLocalAI(thread){
  }catch(err){
   console.error('Atlas local AI',err);
   const message=err.message==='local-origin-permission'?
-   'Atlas cannot reach your private Ollama server over Tailscale HTTPS. Verify Tailscale and Ollama are connected on this device.':
+   'Atlas cannot reach Ollama over Tailscale. Settings → Local AI now displays the actual connection error.':
    err.name==='AbortError'?'Atlas timed out while thinking. Please try again.':
    'Atlas could not reach Ollama: '+String(err.message||err);
   appendMsg(thread,'atlas',message,true);
