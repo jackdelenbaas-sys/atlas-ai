@@ -132,7 +132,7 @@ html,body{height:100%;overflow:hidden}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">5.8 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">5.9 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div class="inputglass"><input id="input" autocomplete="off" placeholder="Ask Atlas anything…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">LOCAL AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
@@ -221,6 +221,19 @@ div.addEventListener('pointerup',()=>{resizing=false;document.body.classList.rem
 div.addEventListener('pointercancel',()=>{resizing=false;document.body.classList.remove('resizing');saveSplit()});
 div.addEventListener('keydown',e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();split=Math.max(20,Math.min(80,split+(e.key==='ArrowRight'?3:-3)));app.style.setProperty('--split',split+'%');localStorage.setItem('atlas-split',split);window.dispatchEvent(new Event('resize'))}});
 const active=()=>data.threads.find(x=>x.id===data.active)||data.threads[0];let pendingByThread=new Map(),lastThread=null,renderCount=0;
+function atlasLinkify(el,text){
+ el.replaceChildren();
+ const re=/https:\/\/[^\\s<>"']+/g;let cursor=0,match;
+ while((match=re.exec(text))){
+  if(match.index>cursor)el.append(document.createTextNode(text.slice(cursor,match.index)));
+  const clean=match[0].replace(/[.,;!?)]+$/,'');
+  const a=document.createElement('a');a.href=clean;a.textContent=clean;a.target='_blank';a.rel='noopener noreferrer';a.style.color='#81d9ff';a.style.textDecoration='underline';
+  el.append(a);
+  if(clean.length!==match[0].length)el.append(document.createTextNode(match[0].slice(clean.length)));
+  cursor=match.index+match[0].length;
+ }
+ if(cursor<text.length)el.append(document.createTextNode(text.slice(cursor)));
+}
 function render(){
  const feed=$('feed'),t=active(),same=lastThread===t.id,nearBottom=feed.scrollHeight-feed.scrollTop-feed.clientHeight<100;
  if(!same){feed.replaceChildren();renderCount=0;lastThread=t.id}
@@ -228,7 +241,7 @@ function render(){
  while(renderCount<t.msgs.length){
    const m=t.msgs[renderCount++],el=document.createElement('div');
    el.className='bubble '+(m.role==='user'?'user':'atlas');
-   el.textContent=m.text;feed.append(el);
+   atlasLinkify(el,m.text);feed.append(el);
  }
  let typing=feed.querySelector('[data-typing]');
  if(pendingByThread.has(t.id)&&!typing){
@@ -245,7 +258,7 @@ function appendMsg(t,role,text,animate=true){
  if(!current)return null;
  const oldTyping=feed.querySelector('[data-typing]');if(oldTyping)oldTyping.remove();
  const el=document.createElement('div');el.className='bubble '+(role==='user'?'user':'atlas');
- el.textContent=text;feed.append(el);renderCount=t.msgs.length;
+ atlasLinkify(el,text);feed.append(el);renderCount=t.msgs.length;
  if(animate)el.classList.add(role==='atlas'?'just-replied':'just-in');
  if(nearBottom)feed.scrollTop=feed.scrollHeight;
  return el;
@@ -362,7 +375,7 @@ async function askAtlasLocalAI(thread){
    const url=question.match(/https:\/\/[^\s<>"']+/i)?.[0];
    if(url){try{sources=await atlasReadWebsite(url);researchMode='website'}catch(e){console.warn('Website reading unavailable',e)}}
    if(!sources.length){
-    try{sources=await atlasBridgeSearch(question);if(sources.length)researchMode='web'}catch(e){console.warn('Broader search unavailable',e)}
+    try{sources=await atlasBridgeSearch(question);if(sources.length){researchMode='web';const details=await Promise.allSettled(sources.slice(0,2).map(x=>atlasReadWebsite(x.url)));for(let i=0;i<details.length;i++){const v=details[i];if(v.status==='fulfilled'&&v.value.length)sources[i].text=(sources[i].text+'\nWebsite excerpt: '+v.value[0].text.slice(0,1700)).slice(0,2100)}}}catch(e){console.warn('Broader search unavailable',e)}
    }
    if(!sources.length){
     try{sources=await atlasWikiResearch(question);if(sources.length)researchMode='wikipedia'}catch(e){console.warn('Wikipedia research unavailable',e)}
