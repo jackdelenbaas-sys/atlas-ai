@@ -8,7 +8,7 @@ from urllib.parse import urlparse, parse_qs, urlencode, urljoin, unquote
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from html.parser import HTMLParser
 from xml.etree import ElementTree as ET
-import json, socket, ipaddress, urllib.error, urllib.request, threading, time
+import json, socket, ipaddress, urllib.error, urllib.request, threading, time, os, re
 
 ORIGIN = "https://jackdelenbaas-sys.github.io"
 MAX_BODY = 120000
@@ -52,19 +52,45 @@ def retrieve(url,limit=300000):
         if not any(x in ctype for x in ('html','text/','xml','rss','json')):raise ValueError('Unsupported content type')
         final=r.geturl(); public_url(final)
         return r.read(limit).decode('utf-8',errors='replace'),final
-def search_web(q):
+def brave_key():
+    try:
+        with open(os.path.expanduser('~/.atlas-brave-key')) as file: return file.read().strip()
+    except OSError: return ''
+
+def brave_search(q,kind='web'):
+    key=brave_key()
+    if not key: raise ValueError('Brave API key not configured')
+    route={'web':'web/search','images':'images/search','news':'news/search'}[kind]
+    url='https://api.search.brave.com/res/v1/'+route+'?'+urlencode({'q':q[:250],'count':8})
+    req=Request(url,headers={'X-Subscription-Token':key,'Accept':'application/json'})
+    with urllib.request.urlopen(req,timeout=12) as r: data=json.load(r)
+    arr=data.get(kind,{}).get('results',[])
+    return [{'title':str(x.get('title',''))[:180],'url':str(x.get('url') or x.get('page_url') or '')[:700],
+             'text':str(x.get('description') or x.get('snippet') or '')[:700],
+             'image': (x.get('properties') or {}).get('url') or (x.get('thumbnail') or {}).get('src') or ''} for x in arr]
+
+def search_web(q,kind='web'):
     if not q or len(q)>250:raise ValueError('Invalid search query')
+    key=brave_key()
+    if key:return {'results':brave_search(q,kind),'provider':'brave','configured':True}
+    if kind=='images':return {'results':[],'provider':'none','configured':False,'error':'Image search requires a Brave Search API key'}
+    # Free fallback for general search. Search engines may discontinue their RSS endpoints.
     url='https://www.bing.com/search?'+urlencode({'q':q,'format':'rss'})
-    raw,_=retrieve(url,220000)
-    root=ET.fromstring(raw)
-    results=[]
-    for el in root.findall('.//item')[:7]:
-        title=el.findtext('title') or ''
-        link=el.findtext('link') or ''
-        description=el.findtext('description') or ''
-        if link.startswith('https://'):
-            results.append({'title':title[:180],'url':link[:700],'text':description[:600]})
-    return results
+    try:
+        raw,_=retrieve(url,220000)
+        root=ET.fromstring(raw)
+        results=[]
+        for el in root.findall('.//item')[:8]:
+            title=el.findtext('title') or ''
+            link=el.findtext('link') or ''
+            description=el.findtext('description') or ''
+            if link.startswith('https://'):
+                results.append({'title':title[:180],'url':link[:700],'text':description[:600]})
+        if results:return {'results':results,'provider':'bing-rss','configured':False}
+    except Exception as err:
+        return {'results':[],'provider':'bing-rss','configured':False,'error':str(err)[:190]}
+    return {'results':[],'provider':'bing-rss','configured':False,'error':'Search provider returned zero results'}
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,fmt,*args): pass
     def cors(self):
@@ -93,14 +119,14 @@ class Handler(BaseHTTPRequestHandler):
         path=urlparse(self.path).path
         try:
             qs=parse_qs(urlparse(self.path).query)
-            if path=='/atlas/search':return self.reply(200,{'results':search_web(qs.get('q',[''])[0])})
+            if path=='/atlas/search':return self.reply(200,search_web(qs.get('q',[''])[0],qs.get('type',['web'])[0] if qs.get('type',['web'])[0] in ('web','images','news') else 'web'))
             if path=='/atlas/read':
                 url=qs.get('url',[''])[0]
                 html,final=retrieve(url)
                 extractor=Extractor();extractor.feed(html)
                 text=' '.join(extractor.parts)[:14000]
                 return self.reply(200,{'title':extractor.title[:180],'url':final,'text':text})
-            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v2','webSearch':'bing-rss','webRead':True})
+            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v3','webSearch':'brave' if brave_key() else 'bing-rss fallback','images':bool(brave_key()),'webRead':True})
             if path=='/api/tags':return self.forward()
             return self.reply(404,{'error':'Unknown endpoint'})
         except Exception as e:return self.reply(502,{'error':str(e)[:250]})
