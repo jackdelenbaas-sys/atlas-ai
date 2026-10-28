@@ -130,12 +130,27 @@ def commons_images(q):
                 'image':img,'text':'Image from Wikimedia Commons (check the source page for license)'})
     return results
 
+def relevant_results(query, results):
+    # Reject search-engine substitutions (e.g., "what's" -> WhatsApp).
+    stop={'what','whats','when','where','which','with','from','latest','news','about','tell','give','show','search','find','please','current','recent','research','multiple','articles','explain','developments','confirmed','information','speculation','the','and','for','are','how','does','new','full'}
+    tokens=[w for w in re.findall(r"[a-z0-9]+",query.lower()) if len(w)>=4 and w not in stop]
+    if not tokens:return results
+    core=tokens[:5]
+    matches=[]
+    for hit in results:
+        hay=(' '+str(hit.get('title',''))+' '+str(hit.get('text',''))+' '+str(hit.get('url',''))).lower()
+        count=sum(bool(re.search(r'(?<![a-z0-9])'+re.escape(token)+r'(?![a-z0-9])',hay)) for token in core)
+        if count>=min(2,len(core)) or (len(core)==1 and count>=1):
+            matches.append(hit)
+    return matches
+
 def search_web(q,kind='web'):
     if not q or len(q)>250:raise ValueError('Invalid search query')
     key=brave_key()
     if key:
         try:
             result=brave_search(q,kind)
+            result=relevant_results(q,result)
             if result:return {'results':result,'provider':'brave','configured':True}
         except Exception as error:
             print('Brave search unavailable:',str(error)[:150],flush=True)
@@ -143,19 +158,21 @@ def search_web(q,kind='web'):
     if kind=='images':
         try:
             images=commons_images(q)
+            images=relevant_results(q,images)
             if images:return {'results':images,'provider':'wikimedia-commons','configured':False}
             errors.append('Wikimedia Commons had no matching images')
         except Exception as e:errors.append('Wikimedia Commons: '+str(e)[:130])
     if kind=='news':
         try:
             hits=google_news(q)
+            hits=relevant_results(q,hits)
             if hits:return {'results':hits,'provider':'google-news-rss','configured':False}
             errors.append('Google News returned no items')
         except Exception as e:errors.append('Google News: '+str(e)[:110])
     query=q if kind!='images' else q+' photos pictures'
     if kind=='news':query=q+' latest news'
     try:
-        results=search_ddg(query)
+        results=relevant_results(q,search_ddg(query))
         if results:
             if kind=='images':
                 images=[]
@@ -182,10 +199,11 @@ def search_web(q,kind='web'):
             if link.startswith('https://'):
                 results.append({'title':(el.findtext('title') or '')[:180],'url':link[:700],
                                 'text':(el.findtext('description') or '')[:600]})
+        results=relevant_results(q,results)
         if results:return {'results':results,'provider':'bing-rss','configured':False}
         errors.append('Bing RSS returned no results')
     except Exception as e:errors.append('Bing RSS: '+str(e)[:130])
-    return {'results':[],'provider':'free-search','configured':False,'error':'; '.join(errors)}
+    return {'results':[],'provider':'free-search','configured':False,'error':'No on-topic results found. '+('; '.join(errors))}
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self,fmt,*args): pass
@@ -222,7 +240,7 @@ class Handler(BaseHTTPRequestHandler):
                 extractor=Extractor();extractor.feed(html)
                 text=' '.join(extractor.parts)[:14000]
                 return self.reply(200,{'title':extractor.title[:180],'url':final,'text':text})
-            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v7','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'Wikimedia Commons + page metadata','webRead':True})
+            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v8','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'Wikimedia Commons + page metadata','webRead':True})
             if path=='/atlas/diagnostics':
                 def run_test(item):
                     name,query,kind=item
