@@ -240,15 +240,15 @@ class Handler(BaseHTTPRequestHandler):
                 extractor=Extractor();extractor.feed(html)
                 text=' '.join(extractor.parts)[:14000]
                 return self.reply(200,{'title':extractor.title[:180],'url':final,'text':text})
-            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v8','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'Wikimedia Commons + page metadata','webRead':True})
+            if path=='/atlas/status':return self.reply(200,{'bridge':'atlas-v9','webSearch':'Brave' if brave_key() else 'DuckDuckGo/Bing RSS','news':'Google News RSS','images':'Brave' if brave_key() else 'Wikimedia Commons + page metadata','webRead':True})
             if path=='/atlas/diagnostics':
                 def run_test(item):
                     name,query,kind=item
                     try:
                         outcome=search_web(query,kind)
-                        return name,{'provider':outcome.get('provider'),'count':len(outcome.get('results',[])),'error':outcome.get('error','')}
+                        return name,{'provider':outcome.get('provider'),'count':len(outcome.get('results',[])),'titles':[v.get('title','')[:110] for v in outcome.get('results',[])[:3]],'error':outcome.get('error','')}
                     except Exception as err:return name,{'provider':'error','count':0,'error':str(err)[:150]}
-                checks=[('web','Zeeland Michigan','web'),('news','Tesla','news'),('images','Alps mountain landscape','images')]
+                checks=[('web','Zeeland Michigan','web'),('news','Tesla','news'),('tesla_fsd','Tesla unsupervised full self driving','news'),('images','Alps mountain landscape','images')]
                 with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
                     tests=dict(pool.map(run_test,checks))
                 return self.reply(200,{'bridge':'atlas-v7','tests':tests})
