@@ -179,7 +179,9 @@ function modeFromText(t,attachments=[]){
  const editPicture=hasImage&&/\b(?:edit|change|transform|recolor|retouch|remove|replace|add|turn|make|stylize|restyle|enhance|erase)\b/i.test(q)&&!/\b(?:explain|describe|identify|what|why|how|analyze)\b/i.test(q);
  if(asks&&video)return 'video';
  if((asks&&image)||editPicture)return 'image';
- // "make a picture of..." is unambiguous; vague requests remain a normal chat.
+ // A short request to make a visual object means create the picture, not write instructions.
+ if(/^\s*(?:please\s+)?(?:make|create|generate|draw|design)\s+(?:me\s+)?(?:an?\s+)?(?:[a-z-]+\s+){0,3}(?:car|truck|boat|house|castle|robot|character|person|dog|cat|pirate|spaceship|airplane|landscape|scene|monster|dragon|mascot|portrait|logo)\s*[.!?]*$/i.test(q))return 'image';
+ // Other vague requests remain chat rather than starting an expensive generation.
  return 'chat';
 }
 async function createVideo(text,m){
