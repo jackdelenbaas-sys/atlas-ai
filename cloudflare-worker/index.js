@@ -59,7 +59,12 @@ export default {async fetch(request,env){
  const origin=request.headers.get('Origin');
  if(origin&&origin!==ORIGIN)return json({error:'Origin not allowed'},403,cors);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
- if(!env.OPENAI_API_KEY||!env.ATLAS_ACCESS_TOKEN||env.ATLAS_ACCESS_TOKEN.length<24)return json({error:'Hosted AI requires private OPENAI_API_KEY and strong ATLAS_ACCESS_TOKEN secrets.'},503,cors);
+ // Runtime bindings, NOT Cloudflare's separate Build variables/secrets.
+ const missing=[];
+ if(!env.OPENAI_API_KEY)missing.push('OPENAI_API_KEY');
+ if(!env.ATLAS_ACCESS_TOKEN)missing.push('ATLAS_ACCESS_TOKEN');
+ if(missing.length)return json({error:'Missing Worker RUNTIME secrets: '+missing.join(', ')+'. Add them in Worker Settings → Variables and Secrets (runtime), not Settings → Builds → Variables and secrets.',code:'MISSING_RUNTIME_SECRETS',missing},503,cors);
+ if(env.ATLAS_ACCESS_TOKEN.length<24)return json({error:'ATLAS_ACCESS_TOKEN must be at least 24 characters in runtime Worker secrets.',code:'TOKEN_TOO_SHORT'},503,cors);
  if(request.headers.get('Authorization')!=='Bearer '+env.ATLAS_ACCESS_TOKEN)return json({error:'Atlas access token required. Configure it in Settings.'},401,cors);
  const path=new URL(request.url).pathname;
  try{
