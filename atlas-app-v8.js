@@ -228,8 +228,21 @@ async function send(){
   txt=txt.replace(/<atlas_action>[\s\S]*?<\/atlas_action>/gi,'').trim();
   if(current===data.active)push('atlas',txt,{images:response.images||[],sources:response.sources||[]});
   else {const thread=data.threads.find(x=>x.id===current);if(thread){thread.msgs.push({role:'atlas',text:txt,sources:response.sources||[]});save()}}
-  dispatch('respond');if(match)dispatch('motion',match[1]);
-  if(speaking&&window.speechSynthesis){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(txt.slice(0,1400));u.rate=1.06;speechSynthesis.speak(u)}
+  // Explicit user motions or model-selected actions take precedence over
+  // a generic reply nod, so the body follows the intended movement.
+  if(match)dispatch('motion',match[1]);
+  else if(!action)dispatch('respond');
+  if(speaking&&window.speechSynthesis&&current===data.active){
+    speechSynthesis.cancel();
+    dispatch('speech',false);
+    const utterance=new SpeechSynthesisUtterance(txt.slice(0,1400));
+    utterance.rate=1.03;
+    utterance.onstart=()=>dispatch('speech',true);
+    utterance.onboundary=()=>dispatch('speech-boundary');
+    utterance.onend=()=>dispatch('speech',false);
+    utterance.onerror=()=>dispatch('speech',false);
+    speechSynthesis.speak(utterance);
+  }
  }catch(e){if(current===data.active)push('atlas','That didn’t work: '+e.message+'. Check the API connection in Settings.');setStatus('ATLAS · ERROR');console.error('Atlas request',e)}
  finally{busy=false;render();if(status.textContent!=='ATLAS · ERROR')setStatus('ATLAS · READY')}
 }
@@ -248,7 +261,7 @@ $('atlasMemoryClear').onclick=()=>{if(confirm('Clear saved memory notes?')){putM
 $('mic').title='Speak into Atlas';
 $('mic').onclick=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){alert('Voice input is not supported in this browser.');return}
  if(recognizer){recognizer.stop();recognizer=null;return}recognizer=new SR();recognizer.lang='en-US';recognizer.onresult=e=>{composer.value=e.results[0][0].transcript;composer.focus()};recognizer.onend=()=>{recognizer=null;$('mic').classList.remove('on')};recognizer.start();$('mic').classList.add('on')};
-$('speaker').title='Speak Atlas responses';$('speaker').onclick=()=>{speaking=!speaking;$('speaker').classList.toggle('on',speaking);if(!speaking)speechSynthesis?.cancel()};
+$('speaker').title='Speak Atlas responses';$('speaker').onclick=()=>{speaking=!speaking;$('speaker').classList.toggle('on',speaking);if(!speaking){speechSynthesis?.cancel();dispatch('speech',false)}};
 const app=$('app'),divider=$('dividerHandle');let dragging=false;
 divider.addEventListener('pointerdown',e=>{dragging=true;divider.setPointerCapture(e.pointerId)});
 divider.addEventListener('pointermove',e=>{if(!dragging)return;const r=app.getBoundingClientRect(),mobile=matchMedia('(max-width:760px)').matches;
