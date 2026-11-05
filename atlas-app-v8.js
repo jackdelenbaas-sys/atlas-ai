@@ -134,8 +134,9 @@ async function processFiles(){
   if(file.type.startsWith('image/'))out.push({name:file.name,type:'image/jpeg',data:await reduceImage(file)});
   else if(file.type.startsWith('video/'))out.push({name:file.name,type:file.type,frames:await videoFrames(file)});
   else if(file.type==='application/pdf')out.push({name:file.name,type:file.type,data:await imageData(file)});
+  else if(/\.(docx|pptx|xlsx)$/i.test(file.name))out.push({name:file.name,type:file.type||'application/vnd.openxmlformats-officedocument',data:await imageData(file)});
   else if(file.type.startsWith('text/')||/\.(md|txt|csv|json|js|ts|py|html|css|xml|log)$/i.test(file.name))out.push({name:file.name,type:'text/plain',text:(await textData(file)).slice(0,16000)});
-  else throw Error('Unsupported attachment: '+file.name+'. Use images, videos, PDF, or text files.');
+  else throw Error('Unsupported attachment: '+file.name+'. Use images, videos, PDF, Office, or text files.');
  }return out;
 }
 function attachmentPreview(){
@@ -191,7 +192,7 @@ async function send(){
  }catch(e){if(current===data.active)push('atlas','That didn’t work: '+e.message+'. Check the API connection in Settings.');setStatus('ATLAS · ERROR');console.error('Atlas request',e)}
  finally{busy=false;render();if(status.textContent!=='ATLAS · ERROR')setStatus('ATLAS · READY')}
 }
-const input=document.createElement('input');input.type='file';input.multiple=true;input.accept='image/*,video/*,.pdf,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.log';input.hidden=true;document.body.append(input);
+const input=document.createElement('input');input.type='file';input.multiple=true;input.accept='image/*,video/*,.pdf,.docx,.pptx,.xlsx,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.log';input.hidden=true;document.body.append(input);
 input.onchange=()=>{files=[...files,...input.files].slice(0,8);input.value='';attachmentPreview()};
 $('atlasAttach').onclick=()=>input.click();
 $('atlasImage').onclick=()=>{queuedMode='image';composer.placeholder='Describe the image to create…';composer.focus()};
