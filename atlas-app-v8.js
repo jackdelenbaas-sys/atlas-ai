@@ -11,12 +11,13 @@ const putMem=m=>{try{localStorage.setItem(MEM,JSON.stringify(m.slice(-80)))}catc
 const save=()=>{try{const lean={active:data.active,threads:data.threads.slice(0,70).map(t=>({id:t.id,title:t.title,msgs:t.msgs.slice(-160).map(m=>({role:m.role,text:m.text, sources:m.sources||[]}))}))};localStorage.setItem(STORE,JSON.stringify(lean))}catch(e){console.warn('Conversation storage full',e)}};
 const active=()=>data.threads.find(t=>t.id===data.active)||data.threads[0];
 let files=[],busy=false,queuedMode='chat',speaking=false,recognizer=null;
+const modelSetting=$('atlasModelChoice');if(modelSetting){modelSetting.value=localStorage.getItem('atlas-model-choice')||'gpt-6-luna';modelSetting.onchange=()=>localStorage.setItem('atlas-model-choice',modelSetting.value)}
 function bottom(){feed.scrollTop=feed.scrollHeight;requestAnimationFrame(()=>feed.scrollTop=feed.scrollHeight)}
 function linkify(node,text){
  const re=/https:\/\/[^\s<>"]+/g;let i=0,m;
  while((m=re.exec(text))){if(m.index>i)node.append(document.createTextNode(text.slice(i,m.index)));
   const url=m[0].replace(/[.,;!?)}]+$/,'');
-  const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=url.length>90?new URL(url).hostname+' · open source':url;a.style.color='#8be0ff';a.style.textDecoration='underline';node.append(a);i=m.index+m[0].length;
+  const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';let label=url;if(url.length>90){try{label=new URL(url).hostname+' · open source'}catch{label='open source'}}a.textContent=label;a.style.color='#8be0ff';a.style.textDecoration='underline';node.append(a);i=m.index+m[0].length;
  }
  node.append(document.createTextNode(text.slice(i)));
 }
@@ -54,6 +55,14 @@ function remember(text){
  const list=memories(),fact=m[1].trim();
  if(!list.some(x=>(x.text||'').toLowerCase()===fact.toLowerCase()))list.push({text:fact,date:new Date().toISOString()});
  putMem(list);push('atlas','Noted. My memory has officially been upgraded with that little gem.');return true;
+}
+function relevantHistory(question,currentId){
+ const words=new Set((question.toLowerCase().match(/[a-z]{4,}/g)||[]).filter(w=>!['what','when','where','with','that','this','have','about','from','please','could','would','create','make'].includes(w)));
+ const matches=[];
+ for(const thread of data.threads){for(const msg of thread.msgs){if(!msg.text||thread.id===currentId)continue;
+  const lower=msg.text.toLowerCase(),score=[...words].filter(w=>lower.includes(w)).length;
+  if(score>0)matches.push({score,text:msg.text.slice(0,350),thread:thread.title})}}
+ return matches.sort((a,b)=>b.score-a.score).slice(0,8).map(x=>'['+x.thread+'] '+x.text);
 }
 function summarizeMemory(text){
  const m=text.match(/^\s*(?:I prefer|I like|my favorite|my favourite)\s+(.{3,160})/i);
@@ -148,7 +157,8 @@ async function send(){
   if(mode==='video'){const m=push('atlas','Starting your video…');await createVideo(text,m);dispatch('respond');return}
   const attachments=await (async()=>{const prior=files;files=selection;try{return await processFiles()}finally{files=prior}})();
   const memory=memories().slice(-35).map(x=>x.text);
-  const payload={text:text||'Describe the files I attached.',history,attachments,memories:memory};
+  const related=relevantHistory(text,t.id);
+  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],model:modelSetting?.value||'gpt-6-luna'};
   response=await api('/atlas/api/'+mode,payload,mode==='image'?210000:150000);
   let txt=response.text||'Done. Consider the dramatic entrance complete.';
   const match=txt.match(/<atlas_action>(wave|dance|point|think|greet|idle)<\/atlas_action>/i);
