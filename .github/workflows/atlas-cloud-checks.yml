@@ -5,6 +5,8 @@ on:
     paths:
       - "index.html"
       - "atlas-app-v8.js"
+      - "cloudflare-worker/**"
+      - "atlas-hosted-worker.js"
       - "atlas-cloud-bridge.py"
       - "install-atlas-cloud.sh"
       - "tests/**"
@@ -28,6 +30,10 @@ jobs:
       - name: Check that Atlas loads its cloud frontend
         run: |
           node -e "const fs=require('fs'); const h=fs.readFileSync('index.html','utf8'); if (!h.includes('atlas-app-v8.js')) process.exit(1); if (h.includes('askAtlasLocalAI')) process.exit(1)"
+      - name: Check hosted Worker JavaScript syntax and permissions
+        run: |
+          node --check cloudflare-worker/index.js
+          node --test tests/atlas-hosted.test.mjs
       - name: Check backend Python syntax
         run: python3 -m py_compile atlas-cloud-bridge.py
       - name: Check installer shell syntax
