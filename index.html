@@ -700,6 +700,13 @@ const ACTION_LIBRARY=Object.freeze({
  walk:['Walking','Walking While Texting'],
  back:['Walking Backwards','Walking'],
  dance:['Hip Hop Dancing','Silly Dancing','Flair','Breakdance 1990'],
+ hiphop:['Hip Hop Dancing'],
+ sillydance:['Silly Dancing'],
+ breakdance:['Breakdance 1990'],
+ flair:['Flair'],
+ pointforward:['Pointing Forward'],
+ wave2:['Waving-2'],
+ wave3:['Waving-3'],
  finish:['Stop Walking','Breathing Idle']
 });
 const SHOW_LIBRARY=Object.freeze([
@@ -1039,7 +1046,7 @@ window.addEventListener('atlas-action',e=>{
  if(!explicit&&(now<manualMotionUntil||travelPlan||speechActive))return;
  if(explicit){
    // Keep the instructed gesture intact through its animation cycle.
-   manualMotionUntil=now+(action==='dance'?6500:action==='walk'?4500:2900);
+   manualMotionUntil=now+(['dance','hiphop','sillydance','breakdance','flair'].includes(action)?6500:['walk','back'].includes(action)?4500:2900);
  }
  const token=++chatActionVersion;
  if(action==='walk'||action==='back'){
