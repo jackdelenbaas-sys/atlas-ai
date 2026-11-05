@@ -160,11 +160,18 @@ function attachmentPreview(){
  for(const [i,file] of files.entries()){const pill=document.createElement('button');pill.className='atlas-file-pill';pill.textContent='📎 '+file.name+' ×';pill.title='Remove '+file.name;pill.onclick=()=>{files.splice(i,1);attachmentPreview()};node.append(pill)}
 }
 function requestedMotion(text){
- if(!/\b(?:atlas|you|please|could you|would you)\b/i.test(text) && !/^\s*(?:wave|dance|point|greet|walk|think)\b/i.test(text))return null;
+ const command=/\b(?:atlas|you|please|could you|would you|do a|show me|perform|try to|can you)\b/i.test(text)
+     ||/^\s*(?:wave|dance|point|greet|walk|think|breakdance|moonwalk)\b/i.test(text);
+ if(!command)return null;
+ if(/\b(?:walk|walking|step|move)\s+(?:backwards?|back)\b/i.test(text))return 'back';
+ if(/\b(?:breakdance|breakdancing|break dance)\b/i.test(text))return 'breakdance';
+ if(/\b(?:hip.?hop)\b/i.test(text))return 'hiphop';
+ if(/\b(?:silly dance|dance silly)\b/i.test(text))return 'sillydance';
+ if(/\b(?:flair|flare move)\b/i.test(text))return 'flair';
  if(/\b(?:dance|dancing)\b/i.test(text))return 'dance';
  if(/\b(?:wave|waving)\b/i.test(text))return 'wave';
- if(/\b(?:point|pointing)\b/i.test(text))return 'point';
- if(/\b(?:walk|walking)\b/i.test(text))return 'walk';
+ if(/\b(?:point|pointing)\b/i.test(text))return /\bforward\b/i.test(text)?'pointforward':'point';
+ if(/\b(?:walk|walking|move forward)\b/i.test(text))return 'walk';
  if(/\b(?:think|thinking)\b/i.test(text))return 'think';
  if(/\b(?:hello|greet|greeting)\b/i.test(text))return 'greet';
  return null;
