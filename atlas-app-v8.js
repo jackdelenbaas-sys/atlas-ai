@@ -1,6 +1,6 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
-let BASE=localStorage.getItem('atlas-hosted-url')||'';
+let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
 let ACCESS=sessionStorage.getItem('atlas-access-token')||'';
 const STORE='atlas-v43-chat',MEM='atlas-v57-memory';
 const status=$('aiModeLabel'),feed=$('feed'),composer=$('input');
