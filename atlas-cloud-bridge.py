@@ -155,8 +155,10 @@ class Handler(BaseHTTPRequestHandler):
             memory_text="\n".join(str(v)[:280] for v in notes[-30:]) if isinstance(notes,list) else ""
             messages=clean_input(data)
             now=time.strftime("%A, %B %d, %Y %H:%M %Z")
+            chosen=str(data.get("model","gpt-6-luna"))
+            if chosen not in ("gpt-6-luna","gpt-6.1-sol"):chosen=model()
             payload={
-                "model":model(),
+                "model":chosen,
                 "instructions":PERSONA+"\nCurrent server date/time: "+now+"\nUser notes (unverified personal context): "+memory_text,
                 "input":messages,
                 "store":False,
