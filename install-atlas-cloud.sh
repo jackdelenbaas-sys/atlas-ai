@@ -63,5 +63,15 @@ if [ ! -s "$KEY" ]; then
 else
  echo "Atlas backend is installed. The API key is configured; live chat still needs a paid API account with credits."
 fi
-echo "Open https://jackdelenbaas-sys.github.io/atlas-ai/?v=80"
+if [ -s "$KEY" ]; then
+ echo ""
+ echo "===== LIVE OPENAI API TEST ====="
+ echo "This sends one tiny paid model request to confirm key access and billing."
+ if curl -fLsS --max-time 55 "http://127.0.0.1:11435/atlas/api/diagnose" | "$PYTHON" -c 'import sys,json; d=json.load(sys.stdin); print("AI:", d.get("model"), "Reply:", d.get("reply"), "Connected:", d.get("connected"))'; then
+  echo "Live AI test completed."
+ else
+  echo "AI was not verified. Check your API key, project permissions, available credits and Atlas Settings."
+ fi
+fi
+echo "Open https://jackdelenbaas-sys.github.io/atlas-ai/?v=84"
 echo "The old Ollama model is no longer used by Atlas. It has NOT been deleted from your Mac."
