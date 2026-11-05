@@ -83,11 +83,32 @@ async function api(path,body,timeout=140000){
   if(!r.ok)throw Error(j.error||'HTTP '+r.status);return j;
  }finally{clearTimeout(timer)}
 }
-async function check(){setStatus('ATLAS · CONNECTING');try{const r=await api('/atlas/api/status',null,8000);
- setStatus(r.configured?'ATLAS ONLINE · '+r.model:'ATLAS · API KEY REQUIRED');
- const info=$('atlasApiInfo');if(info)info.textContent=r.configured?'Connected to '+r.model+' · live web search available.':'Bridge is installed, but the private OpenAI API key is not configured yet.';
- return r.configured;
- }catch(e){setStatus('ATLAS · BRIDGE OFFLINE');const info=$('atlasApiInfo');if(info)info.textContent='Private bridge unavailable: '+e.message;return false}}
+async function check(verify=false){
+ setStatus(verify?'ATLAS · TESTING API':'ATLAS · CONNECTING');
+ const info=$('atlasApiInfo');
+ try{
+  const r=await api('/atlas/api/status',null,8000);
+  if(!r.configured){
+   setStatus('ATLAS · API KEY REQUIRED');
+   if(info)info.textContent='The bridge is installed, but no OpenAI API key was configured. Run the Atlas Cloud installer to add one privately.';
+   return false;
+  }
+  if(!verify){
+   setStatus('ATLAS · KEY INSTALLED');
+   if(info)info.textContent='API key detected for '+r.model+'. Click Test API connection to verify the model and billing are working.';
+   return true;
+  }
+  const live=await api('/atlas/api/diagnose',null,45000);
+  if(!live.connected)throw Error(live.error||'API test did not succeed');
+  setStatus('ATLAS ONLINE · '+live.model);
+  if(info)info.textContent='Verified live response from '+live.model+'. Atlas is ready.';
+  return true;
+ }catch(e){
+  setStatus('ATLAS · CONNECTION ERROR');
+  if(info)info.textContent='Connection test failed: '+e.message;
+  return false;
+ }
+}
 function imageData(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(Error('Unable to read '+file.name));r.readAsDataURL(file)})}
 function textData(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(Error('Unable to read '+file.name));r.readAsText(file)})}
 async function reduceImage(file){
@@ -181,7 +202,7 @@ $('newChat').onclick=()=>{const id=Date.now();data.threads.unshift({id,title:'Ne
 const open=id=>{$(id).classList.add('show');$('veil').classList.add('show')};
 const close=()=>{document.querySelectorAll('.sheet').forEach(x=>x.classList.remove('show'));$('veil').classList.remove('show')};
 $('historyBtn').onclick=()=>open('history');$('settingsBtn').onclick=()=>open('settings');$('veil').onclick=close;document.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);
-$('atlasCheckAPI').onclick=check;
+$('atlasCheckAPI').onclick=()=>check(true);
 $('atlasMemoryView').onclick=()=>{$('atlasMemoryInfo').textContent=memories().map(x=>'• '+x.text).join('\n')||'No saved notes yet.'};
 $('atlasMemoryClear').onclick=()=>{if(confirm('Clear saved memory notes?')){putMem([]);$('atlasMemoryInfo').textContent='Memories cleared'}};
 $('mic').title='Speak into Atlas';
