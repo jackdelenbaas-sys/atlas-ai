@@ -24,7 +24,7 @@ const memories=()=>{try{const m=JSON.parse(localStorage.getItem(MEM)||'[]');retu
 const putMem=m=>{try{localStorage.setItem(MEM,JSON.stringify(m.slice(-80)))}catch{}};
 const save=()=>{try{const lean={active:data.active,threads:data.threads.slice(0,70).map(t=>({id:t.id,title:t.title,msgs:t.msgs.slice(-160).map(m=>({role:m.role,text:m.text, sources:m.sources||[]}))}))};localStorage.setItem(STORE,JSON.stringify(lean))}catch(e){console.warn('Conversation storage full',e)}};
 const active=()=>data.threads.find(t=>t.id===data.active)||data.threads[0];
-let files=[],busy=false,queuedMode='chat',speaking=false,recognizer=null;
+let files=[],busy=false,speaking=false,recognizer=null;
 const modelSetting=$('atlasModelChoice');if(modelSetting){modelSetting.value=localStorage.getItem('atlas-model-choice')||'gpt-5.6-terra';modelSetting.onchange=()=>localStorage.setItem('atlas-model-choice',modelSetting.value)}
 function bottom(){feed.scrollTop=feed.scrollHeight;requestAnimationFrame(()=>feed.scrollTop=feed.scrollHeight)}
 function linkify(node,text){
@@ -170,9 +170,14 @@ function requestedMotion(text){
  return null;
 }
 function modeFromText(t){
- if(queuedMode!=='chat')return queuedMode;
- if(/\b(?:make|create|generate|draw|paint|design)\b[\s\S]{0,90}\b(?:video|movie|animation|clip)\b/i.test(t))return 'video';
- if(/\b(?:make|create|generate|draw|paint|design|edit|modify|change|transform|enhance|retouch|recolor)\b[\s\S]{0,110}\b(?:image|picture|photo|portrait|illustration|poster|attached image)\b/i.test(t))return 'image';
+ const q=(t||'').trim();
+ // The one chat box handles every task. Never inherit a mode from an earlier message.
+ const asks=/\b(?:make|create|generate|draw|paint|design|produce|render|animate|edit|modify|change|transform|enhance|retouch|recolor|turn|convert|show)\b/i.test(q);
+ const video=/\b(?:video|movie|film|animation|animated clip|short clip|footage|moving scene)\b/i.test(q);
+ const image=/\b(?:image|picture|photo|photograph|illustration|portrait|poster|drawing|artwork|graphic|logo|visual|rendering|art)\b/i.test(q);
+ if(asks&&video)return 'video';
+ if(asks&&image)return 'image';
+ // "make a picture of..." is unambiguous; vague requests remain a normal chat.
  return 'chat';
 }
 async function createVideo(text,m){
@@ -202,7 +207,7 @@ async function send(){
  if(/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text))$('walkToScreen')?.click();
  else if(/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text))$('walkHome')?.click();
  else if(action)dispatch('motion',action);
- busy=true;queuedMode='chat';render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':mode==='image'?'ATLAS · CREATING IMAGE':'ATLAS · RENDERING VIDEO');
+ busy=true;render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':mode==='image'?'ATLAS · CREATING IMAGE':'ATLAS · RENDERING VIDEO');
  const selection=files;files=[];attachmentPreview();
  let response;
  try{
@@ -227,8 +232,6 @@ async function send(){
 const input=document.createElement('input');input.type='file';input.multiple=true;input.accept='image/*,video/*,.pdf,.docx,.pptx,.xlsx,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.log';input.hidden=true;document.body.append(input);
 input.onchange=()=>{files=[...files,...input.files].slice(0,8);input.value='';attachmentPreview()};
 $('atlasAttach').onclick=()=>input.click();
-$('atlasImage').onclick=()=>{queuedMode='image';composer.placeholder='Describe the image to create…';composer.focus()};
-$('atlasVideo').onclick=()=>{queuedMode='video';composer.placeholder='Describe the video to create…';composer.focus()};
 $('send').onclick=send;
 composer.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
 $('newChat').onclick=()=>{const id=Date.now();data.threads.unshift({id,title:'New conversation',msgs:[]});data.active=id;save();render();close()};
