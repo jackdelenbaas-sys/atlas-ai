@@ -1080,7 +1080,7 @@ async function installGLB(buffer,label){
  root.traverse(o=>{
    if(o.isBone){
      const n=o.name.toLowerCase();
-     for(const [k,pattern] of Object.entries({head:/head$/,neck:/neck$/,larm:/leftupperarm|upperarm_l|leftarm|leftshoulder/,rarm:/rightupperarm|upperarm_r|rightarm|rightshoulder/,spine:/spine2|chest|upperchest/,lleg:/leftupleg|leftthigh|leftupperleg/,rleg:/rightupleg|rightthigh|rightupperleg/,lfoot:/leftfoot$/,rfoot:/rightfoot$/,leye:/lefteye|eye_l/,reye:/righteye|eye_r/})){
+     for(const [k,pattern] of Object.entries({head:/head$/,neck:/neck$/,larm:/leftupperarm|upperarm_l|leftarm|leftshoulder/,rarm:/rightupperarm|upperarm_r|rightarm|rightshoulder/,spine:/spine2|chest|upperchest/,lleg:/leftupleg|leftthigh|leftupperleg/,rleg:/rightupleg|rightthigh|rightupperleg/,lfoot:/leftfoot$/,rfoot:/rightfoot$/,jaw:/jaw$/,leye:/lefteye|eye_l/,reye:/righteye|eye_r/})){
        if(pattern.test(n)&&!rig[k])rig[k]=o
      }
    }
@@ -1228,15 +1228,29 @@ function animate(){
     if(rest)bone.quaternion.slerp(rest,blend);
    }
   }
-  // One generalized support-foot lock for all twenty moves and future clips.
-  footContact.update(dt);
+  // Contact correction helps gait foot slip, but stationary arm gestures must
+  // not slide the whole character around the room.
+  if(travelPlan||mixamoCurrent?.getClip()?.isLocomotion)footContact.update(dt);
+  else footContact.reset();
   footShadow.position.x=model.position.x;
   footShadow.position.z=model.position.z;
   footShadow.visible=studioObjects.visible;
   for(const [mesh,index] of blink){
    if(mesh.morphTargetInfluences)mesh.morphTargetInfluences[index]=Math.max(0,Math.sin(t*1.44)**42);
   }
-  for(const [mesh,index] of mouth){if(mesh.morphTargetInfluences)mesh.morphTargetInfluences[index]=0;}
+  // Browser speech does not expose phonemes; follow voice start/end and word
+  // boundary events with a damped opening envelope rather than random talking.
+  const targetMouth=speechActive?(0.20+0.38*Math.abs(Math.sin(t*12.6+speechPulseAt*.003))):0;
+  speechMouthLevel+=(targetMouth-speechMouthLevel)*Math.min(1,dt*(speechActive?14:18));
+  for(const [mesh,index] of mouth){
+    if(mesh.morphTargetInfluences)mesh.morphTargetInfluences[index]=speechMouthLevel;
+  }
+  // Some avatar rigs include a jaw but no mouth morph target.
+  if(!mouth.length&&rig.jaw&&avatarRestQuaternions.has(rig.jaw.name)){
+    const rest=avatarRestQuaternions.get(rig.jaw.name);
+    const openJaw=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),speechMouthLevel*.16);
+    rig.jaw.quaternion.copy(rest).multiply(openJaw);
+  }
  }
  renderer.render(scene,camera);
 }
