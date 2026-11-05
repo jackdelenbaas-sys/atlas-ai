@@ -1,0 +1,31 @@
+name: Atlas Cloud Quality Checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "atlas-app-v8.js"
+      - "atlas-cloud-bridge.py"
+      - "install-atlas-cloud.sh"
+      - "tests/**"
+      - ".github/workflows/atlas-cloud-checks.yml"
+  workflow_dispatch:
+jobs:
+  syntax-and-logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check frontend JavaScript
+        run: node --check atlas-app-v8.js
+      - name: Check backend Python syntax
+        run: python -m py_compile atlas-cloud-bridge.py
+      - name: Check installer shell syntax
+        run: bash -n install-atlas-cloud.sh
+      - name: Backend unit tests (no secrets or API calls)
+        run: python -m unittest discover -s tests -p "test_atlas_cloud.py" -v
