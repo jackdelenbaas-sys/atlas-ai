@@ -73,8 +73,8 @@ def office_text(data,limit=20000):
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             files=[f for f in archive.namelist() if
                    f=="word/document.xml" or f=="xl/sharedStrings.xml" or
-                   re.fullmatch(r"xl/worksheets/sheet[0-9]+\\.xml",f) or
-                   re.fullmatch(r"ppt/slides/slide[0-9]+\\.xml",f)]
+                   re.fullmatch(r"xl/worksheets/sheet[0-9]+\.xml",f) or
+                   re.fullmatch(r"ppt/slides/slide[0-9]+\.xml",f)]
             for name in files[:35]:
                 data_bytes=archive.read(name)
                 root=ET.fromstring(data_bytes)
