@@ -5,6 +5,7 @@ on:
     paths:
       - "index.html"
       - "atlas-app-v8.js"
+      - "atlas-motion.mjs"
       - "cloudflare-worker/**"
       - "atlas-hosted-worker.js"
       - "atlas-cloud-bridge.py"
@@ -33,7 +34,7 @@ jobs:
       - name: Check hosted Worker JavaScript syntax and permissions
         run: |
           node --check cloudflare-worker/index.js
-          node --test tests/atlas-hosted.test.mjs
+          node --test tests/*.test.mjs
       - name: Check backend Python syntax
         run: python3 -m py_compile atlas-cloud-bridge.py
       - name: Check installer shell syntax

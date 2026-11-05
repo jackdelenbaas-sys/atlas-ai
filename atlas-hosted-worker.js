@@ -5,18 +5,52 @@ const MODELS=new Set(['gpt-5.6-terra','gpt-5.6-sol']);
 const PERSONA='You are Atlas, an accurate, witty personal assistant with a 3D avatar. Be concise, clever, lightly sassy, occasionally dramatic, never annoying. Use live web search for changing facts and cite sources. Admit uncertainty. Respect chat history and memory notes. Optionally add one avatar tag: <atlas_action>wave</atlas_action>, <atlas_action>dance</atlas_action>, <atlas_action>point</atlas_action>, <atlas_action>think</atlas_action>, <atlas_action>greet</atlas_action>, <atlas_action>idle</atlas_action>. Never narrate the tag.';
 const json=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...headers}});
 const cors={'Access-Control-Allow-Origin':ORIGIN,'Vary':'Origin','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type,Authorization','Access-Control-Max-Age':'600'};
+function safeMessage(message,env){
+ let text=String(message||'Unknown API error');
+ for(const key of [env.OPENAI_API_KEY,env.ATLAS_ACCESS_TOKEN])if(key)text=text.split(key).join('[redacted]');
+ return text.replace(/sk-[A-Za-z0-9_-]+/g,'[redacted]').slice(0,350);
+}
 async function openai(env,path,body,options={}){
- const r=await fetch('https://api.openai.com/v1/'+path,{method:options.method||'POST',headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,...(options.headers||{'Content-Type':'application/json'})},body:options.body||JSON.stringify(body),signal:AbortSignal.timeout(options.timeout||110000)});
- if(options.raw){if(!r.ok)throw Error('OpenAI '+r.status+': '+(await r.text()).slice(0,250));return r}
+ let r;
+ try{r=await fetch('https://api.openai.com/v1/'+path,{method:options.method||'POST',headers:{Authorization:'Bearer '+env.OPENAI_API_KEY.trim(),...(options.headers||{'Content-Type':'application/json'})},body:options.body||JSON.stringify(body),signal:AbortSignal.timeout(options.timeout||110000)})}
+ catch(e){const err=Error(e.name==='TimeoutError'||e.name==='AbortError'?'OpenAI request timed out. Please try again.':'The Atlas server could not reach OpenAI. Please try again.');err.code='UPSTREAM_UNREACHABLE';throw err}
+ if(options.raw){if(!r.ok)throw Error('OpenAI request failed (HTTP '+r.status+')');return r}
  const result=await r.json().catch(()=>({error:{message:'Unreadable OpenAI response'}}));
- if(!r.ok)throw Error('OpenAI '+r.status+': '+String(result.error?.message||r.statusText).slice(0,350));
+ if(!r.ok){
+  const err=Error(safeMessage(result.error?.message||r.statusText,env));
+  err.upstreamStatus=r.status;err.upstreamCode=result.error?.code;
+  err.code=r.status===401?'OPENAI_KEY_INVALID':r.status===403?'OPENAI_ACCESS_DENIED':r.status===429?(result.error?.code==='insufficient_quota'?'OPENAI_QUOTA_EXHAUSTED':'OPENAI_RATE_LIMITED'):'OPENAI_REQUEST_FAILED';
+  throw err;
+ }
+ if(result.error){const err=Error(safeMessage(result.error.message,env));err.code='OPENAI_RESPONSE_FAILED';throw err}
  return result;
 }
+async function responseFor(env,payload,options={}){
+ try{return await openai(env,'responses',payload,options)}
+ catch(e){
+  // A key can have access to Sol but not Terra, or vice versa. Only retry
+  // unavailable models; never turn quota/auth failures into duplicate charges.
+  if(!['model_not_found','model_not_available'].includes(e.upstreamCode))throw e;
+  const alternate=payload.model==='gpt-5.6-terra'?'gpt-5.6-sol':'gpt-5.6-terra';
+  return openai(env,'responses',{...payload,model:alternate},options);
+ }
+}
+function visibleOutput(data){
+ const out=extract(data);
+ if(!out.text&&!out.images.length){
+  const truncated=data.status==='incomplete'&&data.incomplete_details?.reason==='max_output_tokens';
+  const err=Error(truncated?'The model reached its response limit before answering. Please try a shorter request.':'OpenAI returned no visible answer. Please try again.');
+  err.code=truncated?'OUTPUT_LIMIT':'EMPTY_OUTPUT';throw err;
+ }
+ return {...out,model:data.model};
+}
+
 function extract(data){
  const text=[],sources=[],images=[],seen=new Set();
  for(const item of data.output||[]){
   if(item.type==='image_generation_call'&&item.result)images.push('data:image/png;base64,'+item.result);
   if(item.type==='message')for(const p of item.content||[]){
+   if(p.type==='refusal')text.push(p.refusal||'I cannot help with that request.');
    if(p.type==='output_text'){text.push(p.text||'');for(const c of p.annotations||[])if(c.type==='url_citation'&&c.url&&!seen.has(c.url)){seen.add(c.url);sources.push({title:c.title||'Source',url:c.url})}}
   }
  }
@@ -44,7 +78,7 @@ function inputs(p){
 function promptPayload(p,mode){
  const selected=MODELS.has(p.model)?p.model:'gpt-5.6-terra';
  const notes=(Array.isArray(p.memories)?p.memories:[]).slice(-35).map(x=>String(x).slice(0,250)).join('\n');
- const data={model:selected,instructions:PERSONA+'\nCurrent UTC date/time: '+new Date().toISOString()+'\nUser memory notes (unverified):\n'+notes,input:inputs(p),store:false,max_output_tokens:mode==='chat'?1600:500};
+ const data={model:selected,instructions:PERSONA+'\nCurrent UTC date/time: '+new Date().toISOString()+'\nUser memory notes (unverified):\n'+notes,input:inputs(p),store:false,reasoning:{effort:'low'},max_output_tokens:4096};
  if(mode==='chat')data.tools=[{type:'web_search'}];
  else{data.tools=[{type:'image_generation'}];data.tool_choice={type:'image_generation'}}
  return data;
@@ -59,21 +93,28 @@ export default {async fetch(request,env){
  const origin=request.headers.get('Origin');
  if(origin&&origin!==ORIGIN)return json({error:'Origin not allowed'},403,cors);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
- if(!env.OPENAI_API_KEY||!env.ATLAS_ACCESS_TOKEN||env.ATLAS_ACCESS_TOKEN.length<24)return json({error:'Hosted AI requires private OPENAI_API_KEY and strong ATLAS_ACCESS_TOKEN secrets.'},503,cors);
+ // Runtime bindings, NOT Cloudflare's separate Build variables/secrets.
+ const missing=[];
+ if(!String(env.OPENAI_API_KEY||'').trim())missing.push('OPENAI_API_KEY');
+ if(!String(env.ATLAS_ACCESS_TOKEN||'').trim())missing.push('ATLAS_ACCESS_TOKEN');
+ if(missing.length)return json({error:'Missing Worker RUNTIME secrets: '+missing.join(', ')+'. Add them in Worker Settings → Variables and Secrets (runtime), not Settings → Builds → Variables and secrets.',code:'MISSING_RUNTIME_SECRETS',missing},503,cors);
+ if(env.ATLAS_ACCESS_TOKEN.length<24)return json({error:'ATLAS_ACCESS_TOKEN must be at least 24 characters in runtime Worker secrets.',code:'TOKEN_TOO_SHORT'},503,cors);
  if(request.headers.get('Authorization')!=='Bearer '+env.ATLAS_ACCESS_TOKEN)return json({error:'Atlas access token required. Configure it in Settings.'},401,cors);
- const path=new URL(request.url).pathname;
+ const requestURL=new URL(request.url),path=requestURL.pathname;
  try{
   if(path==='/atlas/api/status'&&request.method==='GET')return json({bridge:'atlas-hosted-v1',configured:true,model:'gpt-5.6-terra',web:true,images:true,video:'access-dependent'},200,cors);
   if(path==='/atlas/api/diagnose'&&request.method==='GET'){
-   const d=await openai(env,'responses',{model:'gpt-5.6-terra',input:'Reply READY in one word.',max_output_tokens:160,store:false},{timeout:45000});
-   const resp=extract(d);if(!resp.text)throw Error('API returned no text. Check model access and billing.');
-   return json({connected:true,model:'gpt-5.6-terra',reply:resp.text.slice(0,80)},200,cors)
+   const model=MODELS.has(requestURL.searchParams.get('model'))?requestURL.searchParams.get('model'):'gpt-5.6-terra';
+   const d=await responseFor(env,{model,input:'Reply READY in one word.',reasoning:{effort:'none'},max_output_tokens:1024,store:false},{timeout:45000});
+   const resp=visibleOutput(d);
+   return json({connected:true,model:d.model||model,reply:resp.text.slice(0,80)},200,cors)
+
   }
   if((path==='/atlas/api/chat'||path==='/atlas/api/image')&&request.method==='POST'){
    if(Number(request.headers.get('Content-Length')||0)>12*1024*1024)return json({error:'Request is over 12 MB'},413,cors);
    const p=await request.json(),mode=path.endsWith('/chat')?'chat':'image';
-   const d=await openai(env,'responses',promptPayload(p,mode),{timeout:mode==='chat'?100000:160000});
-   const output=extract(d);if(!output.text&&!output.images.length)throw Error('OpenAI returned no visible output.');
+   const d=await responseFor(env,promptPayload(p,mode),{timeout:mode==='chat'?100000:160000});
+   const output=visibleOutput(d);
    return json(output,200,cors);
   }
   if(path==='/atlas/api/video'&&request.method==='POST'){
@@ -89,5 +130,5 @@ export default {async fetch(request,env){
    return json(await r.json(),200,cors);
   }
   return json({error:'Not found'},404,cors);
- }catch(e){return json({error:String(e.message||e).slice(0,440)},502,cors)}
+ }catch(e){const status=e instanceof SyntaxError?400:e.upstreamStatus===429?429:502;return json({error:safeMessage(e.message||e,env),code:e.code||(status===400?'INVALID_JSON':'ATLAS_SERVER_ERROR'),...(e.upstreamStatus?{upstream_status:e.upstreamStatus}:{})},status,cors)}
 }};

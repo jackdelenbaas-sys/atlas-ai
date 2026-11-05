@@ -139,7 +139,7 @@ html,body{height:100%;overflow:hidden}
 #app .controls .inputglass{gap:5px}
 #app .controls .inputglass input{min-width:30px}
 </style></head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">10.0 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">10.1 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div id="atlasFiles" class="atlas-files"></div><div class="inputglass"><button id="atlasAttach" class="circle" title="Add images, videos, PDFs or files" aria-label="Attach files">＋</button><input id="input" autocomplete="off" placeholder="Ask anything, or tell Atlas to make an image or video…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">ATLAS AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
@@ -161,7 +161,7 @@ html,body{height:100%;overflow:hidden}
 <div class="section">Atlas showtime</div>
 <button class="btn wide" id="surpriseMe" style="text-align:center;font-weight:700;background:linear-gradient(110deg,#234d84,#1c365c);border-color:#8dc8ff70">✦ Surprise Me — play a random show</button>
 <p class="hint" id="showStatus">Atlas picks a short sequence: greeting, exploring, presenting, or dancing.</p>
-<label>Auto rotation <input id="auto" type="checkbox"></label><label>Idle breathing <input id="idle" type="checkbox" checked></label><label>Eye tracking <input id="eyes" type="checkbox" checked></label>
+<label>Auto rotation <input id="auto" type="checkbox"></label><label>Idle breathing <input id="idle" type="checkbox" checked></label><label>Natural blinking <input id="eyes" type="checkbox" checked></label>
 <div class="section">Virtual studio</div>
 <div class="grid"><button class="btn" id="roomToggle">◈ Room on/off</button><button class="btn" id="screenToggle">▣ Screen on/off</button><button class="btn" id="walkToScreen">↗ Walk to screen</button><button class="btn" id="walkToWall">↟ Walk to back wall</button><button class="btn" id="walkHome">⌂ Return to center</button></div>
 <label>Screen left / right <input class="range" id="screenX" type="range" min="-2.6" max="2.6" step=".05" value="1.65"></label>
@@ -183,10 +183,15 @@ html,body{height:100%;overflow:hidden}
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
 <p class="hint">Atlas's real motion clips control his limbs. The old manual joint sliders have been removed so they cannot interfere with natural animation.</p><div class="section">Model</div><label id="uploadModelBtn" class="btn wide">Replace Atlas body (optional)<input id="modelUpload" type="file" accept=".glb,model/gltf-binary"></label><p class="hint">The complete original Atlas model now loads automatically from the hosted library, even on a new device.</p><button id="repairAvatar" class="btn wide" style="margin:10px 0;text-align:center">↺ Reset Atlas body and animations</button>
 <p class="hint" id="modelDetails">Original full-body human model • securely hosted and cached</p></aside></div>
-<script src="atlas-app-v8.js?v=100" defer></script>
+<script src="atlas-app-v8.js?v=101" defer></script>
 <script type="module">
+import {clampPoint,stepTravel,stepGravity} from './atlas-motion.mjs?v=101';
 import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
-const $=id=>document.getElementById(id),canvas=$('canvas'),scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(35,1,.05,200),renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.35;scene.add(new THREE.HemisphereLight(0xeaf5ff,0x384b72,2.3));const a=new THREE.DirectionalLight(0xffffff,2.5);a.position.set(3,5,5);scene.add(a);const b=new THREE.DirectionalLight(0x7598ff,1.7);b.position.set(-3,3,-4);scene.add(b);
+function createAtlasRenderer(){
+ try{return new THREE.WebGLRenderer({canvas:document.getElementById('canvas'),antialias:true,alpha:true})}
+ catch(error){const label=document.getElementById('modelStatus');label.textContent='3D unavailable — WebGL is disabled in this browser';label.classList.add('error');throw error}
+}
+const $=id=>document.getElementById(id),canvas=$('canvas'),scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(35,1,.05,200),renderer=createAtlasRenderer();renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;scene.add(new THREE.HemisphereLight(0xeaf5ff,0x384b72,1.3));const a=new THREE.DirectionalLight(0xffffff,2.5);a.position.set(3,5,5);a.castShadow=true;a.shadow.mapSize.set(1024,1024);a.shadow.camera.left=-5;a.shadow.camera.right=5;a.shadow.camera.top=5;a.shadow.camera.bottom=-5;a.shadow.normalBias=.025;a.shadow.bias=-.0002;scene.add(a);const b=new THREE.DirectionalLight(0x7598ff,1.7);b.position.set(-3,3,-4);scene.add(b);
 let model,rig={},base={},mouth=[],blink=[],t0=performance.now(),gesture='',gestureStart=0,drag=false,px=0,py=0,yaw=0,pitch=0,distance=3.5,center=new THREE.Vector3(0,1,0),yOffset=0,auto=false,idle=true,eyes=true;
 let resizeFrame=0,renderW=0,renderH=0;
 function fit(){
@@ -348,7 +353,7 @@ canvas.addEventListener('dblclick',e=>{
  sliders();updateCam();
 });
 ['yaw','pitch','zoom'].forEach(id=>$(id).oninput=()=>{yaw=+$('yaw').value;pitch=+$('pitch').value;distance=+$('zoom').value;updateCam()});
-$('auto').onchange=e=>auto=e.target.checked;$('idle').onchange=e=>idle=e.target.checked;$('eyes').onchange=e=>eyes=e.target.checked;function centerAtlasView(returnPerson=false){
+$('auto').onchange=e=>auto=e.target.checked;$('idle').onchange=e=>{idle=e.target.checked;if(mixamoCurrent&&/idle/i.test(mixamoCurrent.getClip().name))mixamoCurrent.paused=!idle;};$('eyes').onchange=e=>eyes=e.target.checked;function centerAtlasView(returnPerson=false){
  yaw=0;pitch=0;distance=3.8;center.copy(defaultFocus());
  yOffset=0;auto=false;$('auto').checked=false;
  sliders();updateCam();
@@ -365,31 +370,28 @@ const status=(text,error=false)=>{const e=$('modelStatus');e.textContent=text;e.
 
 /* Atlas 4.9.5 open studio — human scale, camera-safe scenery, relocatable screen */
 const studio=new THREE.Group();scene.add(studio);
-const ROOM_LIMITS=Object.freeze({minX:-4.03,maxX:4.03,minZ:-4.05,maxZ:2.26});
-const clampToRoom=(x,z)=>({
- x:THREE.MathUtils.clamp(x,ROOM_LIMITS.minX,ROOM_LIMITS.maxX),
- z:THREE.MathUtils.clamp(z,ROOM_LIMITS.minZ,ROOM_LIMITS.maxZ)
-});
+const ROOM_LIMITS=Object.freeze({minX:-3.71,maxX:3.71,minZ:-3.72,maxZ:1.93});
+const clampToRoom=(x,z)=>clampPoint(x,z);
 
 const studioObjects=new THREE.Group();studio.add(studioObjects);
 const mat=(color,glow=0,strength=0)=>new THREE.MeshStandardMaterial({color,metalness:.23,roughness:.68,emissive:glow,emissiveIntensity:strength});
 function studioBox(w,h,d,x,y,z,m=mat(0x101b2c)){
  const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);
- // Background scenery does not obscure Atlas when the camera passes behind walls.
- o.material=o.material.clone();o.material.depthTest=false;o.material.depthWrite=false;
- o.renderOrder=-100;studioObjects.add(o);return o;
+ // All room surfaces participate in depth, including transparent grid lines.
+ o.receiveShadow=true;o.material=o.material.clone();
+ studioObjects.add(o);return o;
 }
-studioBox(8.8,.07,13.0,0,-.07,1.9,mat(0x0c1723));
-studioBox(8.8,4.0,.07,0,2.0,-4.38,mat(0x0a1322));
-studioBox(.06,4.0,7.0,-4.37,2.0,-.9,mat(0x14243b));
-studioBox(.06,4.0,7.0,4.37,2.0,-.9,mat(0x14243b));
+const roomFloor=studioBox(8.8,.07,13.0,0,-.035,1.9,mat(0x18202b));
+const backWall=studioBox(8.8,4.0,.07,0,2.0,-4.38,mat(0x0a1322));
+const leftWall=studioBox(.06,4.0,7.0,-4.37,2.0,-.9,mat(0x14243b));
+const rightWall=studioBox(.06,4.0,7.0,4.37,2.0,-.9,mat(0x14243b));
 for(const x of [-3.95,-2.45,2.45,3.95])studioBox(.035,3.32,.08,x,2.0,-4.26,mat(0x245487,0x539ee8,.42));
 for(const y of [.20,3.74])studioBox(8.60,.025,.08,0,y,-4.26,mat(0x3275a7,0x539ee8,.52));
 studioBox(8.55,.045,.06,0,3.84,-3.25,mat(0x1c4d7a,0x539ee8,.5));
 studioBox(8.55,.045,.06,0,3.84,1.42,mat(0x1c4d7a,0x539ee8,.5));
 const floorGrid=new THREE.GridHelper(8.5,20,0x396b9a,0x24415f);
 floorGrid.material.transparent=true;floorGrid.material.opacity=.22;
-floorGrid.material.depthTest=false;floorGrid.material.depthWrite=false;floorGrid.renderOrder=-99;
+floorGrid.material.depthTest=true;floorGrid.material.depthWrite=false;floorGrid.renderOrder=1;
 floorGrid.position.set(0,.013,-.65);studioObjects.add(floorGrid);
 /* Contact shadow makes the moving human read as grounded, not floating. */
 const shadowCanvas=document.createElement('canvas');shadowCanvas.width=128;shadowCanvas.height=128;
@@ -400,8 +402,8 @@ shadowGradient.addColorStop(1,'rgba(0,0,0,0)');
 shadowCtx.fillStyle=shadowGradient;shadowCtx.fillRect(0,0,128,128);
 const shadowTexture=new THREE.CanvasTexture(shadowCanvas);
 const footShadow=new THREE.Mesh(new THREE.PlaneGeometry(1.1,.70),
- new THREE.MeshBasicMaterial({map:shadowTexture,transparent:true,depthWrite:false,depthTest:false,side:THREE.DoubleSide}));
-footShadow.rotation.x=-Math.PI/2;footShadow.position.y=.026;footShadow.renderOrder=-75;
+ new THREE.MeshBasicMaterial({map:shadowTexture,transparent:true,depthWrite:false,depthTest:true,side:THREE.DoubleSide}));
+footShadow.rotation.x=-Math.PI/2;footShadow.position.y=.026;footShadow.renderOrder=2;
 studio.add(footShadow);
 
 const spotlight=new THREE.SpotLight(0xd4e9ff,22,12,.87,.49,.6);
@@ -409,12 +411,12 @@ spotlight.position.set(-2.7,3.5,2.6);spotlight.target.position.set(0,1.1,0);stud
 const rim=new THREE.PointLight(0x6d95f7,3.4,7);rim.position.set(2.1,2.6,-2);studio.add(rim);
 const screenRoot=new THREE.Group();studio.add(screenRoot);
 const frame=new THREE.Mesh(new THREE.BoxGeometry(1.50,1.06,.045),mat(0x162a44,0x24649a,.3));
-frame.material.depthTest=false;frame.material.depthWrite=false;frame.renderOrder=-20;screenRoot.add(frame);
+frame.material.depthTest=true;frame.material.depthWrite=true;screenRoot.add(frame);
 const screenSurface=document.createElement('canvas');screenSurface.width=1024;screenSurface.height=680;
 const sc=screenSurface.getContext('2d'),screenTex=new THREE.CanvasTexture(screenSurface);
 screenTex.colorSpace=THREE.SRGBColorSpace;
-const panel=new THREE.Mesh(new THREE.PlaneGeometry(1.40,.96),new THREE.MeshBasicMaterial({map:screenTex,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
-panel.position.z=.046;panel.renderOrder=-19;screenRoot.add(panel);
+const panel=new THREE.Mesh(new THREE.PlaneGeometry(1.40,.96),new THREE.MeshBasicMaterial({map:screenTex,side:THREE.DoubleSide,depthTest:true,depthWrite:true}));
+panel.position.z=.046;screenRoot.add(panel);
 function drawPresentation(image){
  sc.fillStyle='#091628';sc.fillRect(0,0,1024,680);
  if(image){
@@ -485,11 +487,12 @@ for(const ev of ['pointerup','pointercancel'])canvas.addEventListener(ev,e=>{
 },true);
 let studioTargetX=0,studioTargetZ=0;
 async function walkTo(x,z=0){
- showRun=null;$('showStatus').textContent='Atlas is preparing to walk…';
+ showRun=null;travelPlan=null;const request=++travelRequest;$('showStatus').textContent='Atlas is preparing to walk…';
  try{
   await ensureAction('walk');
+  if(request!==travelRequest)return;
   planTravel(x,z);
-  gesture='';playMixamo('walk',true);closeShowSidebar();
+  if(travelPlan){gesture='';playMixamo('walk',true);closeShowSidebar()}
  }catch(err){
   console.error('Walking error',err);
   $('showStatus').textContent='Walking unavailable: '+err.message;
@@ -686,7 +689,7 @@ $('playSelectedAction').onclick=async()=>{
    const target=wallDestination(model.rotation.y,backward);
    planTravel(target.x,target.z,null,name);
   }
-  playMixamo(name,true);closeShowSidebar();reportMotionStatus();
+  if(!clip?.isLocomotion||travelPlan)playMixamo(name,true);closeShowSidebar();reportMotionStatus();
  }catch(err){$('motionStatus').textContent='Could not play '+name+': '+err.message}
 };
 
@@ -735,7 +738,7 @@ function normBone(n){return n.toLowerCase().replace(/^mixamorig[:_]?/,'').replac
 
 /* Match root translation to the actual distance a Mixamo foot travels per gait cycle.
    The source rig is sampled once, on import, not every rendered frame. */
-function measureStrideFromFBX(source,sourceClip,sourceBones){
+function measureStrideFromFBX(source,sourceClip,sourceBones,motionScale=1){
  const left=sourceBones.get('leftfoot'),right=sourceBones.get('rightfoot');
  if(!left||!right||!sourceClip?.duration)return .85;
  const mixer=new THREE.AnimationMixer(source);
@@ -753,7 +756,7 @@ function measureStrideFromFBX(source,sourceClip,sourceBones){
  mixer.stopAllAction();mixer.uncacheRoot(source);
  const leftSpan=range.lMax-range.lMin,rightSpan=range.rMax-range.rMin;
  // Two feet alternate support each cycle: full step distance ≈ twice swing span.
- return THREE.MathUtils.clamp(2*Math.max(leftSpan,rightSpan),.45,1.65);
+ return THREE.MathUtils.clamp(2*Math.max(leftSpan,rightSpan)*motionScale,.45,1.65);
 }
 function strideSpeedFor(type='walk'){
  const clip=clipFor(type)||clipFor('walk');
@@ -761,51 +764,72 @@ function strideSpeedFor(type='walk'){
  return THREE.MathUtils.clamp(meters/Math.max(.35,clip?.duration||1),.5,1.55);
 }
 
-/* Reusable foot contact for EVERY clip, including future FBX uploads.
-   A stance foot is held briefly in world X/Z when close to the ground;
-   lifting or switching feet releases its anchor. Keeps gestures grounded. */
-const footContact={
- foot:null,anchor:new THREE.Vector3(),last:null,correctionMax:.026,
- reset(){this.foot=null;this.last=null;},
- update(dt){
-  if(!model||!rig.lfoot||!rig.rfoot||dt<=0)return;
-  model.updateMatrixWorld(true);
-  const lp=rig.lfoot.getWorldPosition(new THREE.Vector3());
-  const rp=rig.rfoot.getWorldPosition(new THREE.Vector3());
-  const pick=lp.y<rp.y?'left':'right',point=pick==='left'?lp:rp;
-  const onGround=point.y<.18;
-  if(!onGround){this.foot=null;this.last=point.clone();return}
-  const footVelocity=this.last?point.distanceTo(this.last)/Math.max(dt,.008):0;
-  this.last=point.clone();
-  if(this.foot!==pick||footVelocity>2.6){
-   this.foot=pick;this.anchor.copy(point);
-   return;
+// Sample extremal skinned vertices per joint: actual shoes, hands, clothes and head.
+// This avoids a full mesh bounding-box rebuild every frame on phones.
+let bodySamples=[],bodyFloorVelocity=0,bodyBounds=null;
+const vertexPoint=new THREE.Vector3();
+function prepareBodyContact(){
+ bodySamples=[];bodyFloorVelocity=0;
+ model.updateMatrixWorld(true);
+ model.traverse(mesh=>{
+  if(!mesh.isMesh||!mesh.geometry?.attributes.position)return;
+  const pos=mesh.geometry.attributes.position,skin=mesh.geometry.attributes.skinIndex;
+  const weights=mesh.geometry.attributes.skinWeight,bins=new Map();
+  for(let i=0;i<pos.count;i++){
+   let joint=0;
+   if(skin&&weights){let best=-1;for(let c=0;c<4;c++){const w=[weights.getX(i),weights.getY(i),weights.getZ(i),weights.getW(i)][c];if(w>best){best=w;joint=[skin.getX(i),skin.getY(i),skin.getZ(i),skin.getW(i)][c]}}}
+   let bin=bins.get(joint);if(!bin){bin=Array.from({length:6},()=>({value:Infinity,index:i}));bins.set(joint,bin)}
+   const values=[pos.getX(i),-pos.getX(i),pos.getY(i),-pos.getY(i),pos.getZ(i),-pos.getZ(i)];
+   for(let k=0;k<6;k++)if(values[k]<bin[k].value)bin[k]={value:values[k],index:i};
   }
-  // Correct small stance slip without freezing Atlas while he walks.
-  const correction=this.correctionMax*Math.min(1,dt*60);
-  const deltaX=THREE.MathUtils.clamp((this.anchor.x-point.x)*.26,-correction,correction);
-  const deltaZ=THREE.MathUtils.clamp((this.anchor.z-point.z)*.26,-correction,correction);
-  const proposed=clampToRoom(model.position.x+deltaX,model.position.z+deltaZ);
-  model.position.x=proposed.x;model.position.z=proposed.z;
-  // If the clip is stationary, cap accumulated offset rather than drifting away.
-  if(!travelPlan&&!showRun){
-   model.position.x=THREE.MathUtils.clamp(model.position.x,-4.03,4.03);
-   model.position.z=THREE.MathUtils.clamp(model.position.z,-4.05,2.26);
-  }
+  const indices=[...new Set([...bins.values()].flatMap(bin=>bin.map(v=>v.index)))];
+  bodySamples.push({mesh,indices});
+ });
+}
+function measureBody(){
+ model.updateMatrixWorld(true);
+ const box=new THREE.Box3();
+ for(const {mesh,indices} of bodySamples){
+  if(mesh.isSkinnedMesh)mesh.skeleton.update();
+  for(const index of indices){mesh.getVertexPosition(index,vertexPoint);vertexPoint.applyMatrix4(mesh.matrixWorld);box.expandByPoint(vertexPoint)}
  }
-};
+ return box;
+}
+function groundBody(dt){
+ if(!bodySamples.length)return;
+ bodyBounds=measureBody();
+ // Retain authored hip elevation for jumps. Correct penetration, then settle
+ // under gravity; never pull airborne limbs down or stretch the skeleton.
+ const minimum=Math.max(0,model.position.y+.006-bodyBounds.min.y);
+ const next=stepGravity(model.position.y,bodyFloorVelocity,minimum,dt);
+ const delta=next.height-model.position.y;
+ model.position.y=next.height;bodyFloorVelocity=next.velocity;
+ bodyBounds.translate(new THREE.Vector3(0,delta,0));
+}
+function keepBodyInsideRoom(){
+ if(!bodyBounds||bodyBounds.isEmpty())return;
+ const dx=Math.max(0,-4.28-bodyBounds.min.x)-Math.max(0,bodyBounds.max.x-4.28);
+ const dz=Math.max(0,-4.28-bodyBounds.min.z)-Math.max(0,bodyBounds.max.z-2.50);
+ model.position.x+=dx;model.position.z+=dz;
+ if(travelPlan&&(Math.abs(dx)>.015||Math.abs(dz)>.015)){
+  travelPlan=null;playMixamo('idle',true,.35);
+  if(!showRun)$('showStatus').textContent='Atlas stopped safely before the wall.';
+ }
+}
 const avatarRestQuaternions=new Map();
 const avatarRestPositions=new Map();
+const avatarRestWorld=new Map();
 function captureAvatarRestPose(){
- avatarRestQuaternions.clear();avatarRestPositions.clear();
+ avatarRestQuaternions.clear();avatarRestPositions.clear();avatarRestWorld.clear();
  const skin=findSkin(model);
  if(!skin)return;
  skin.skeleton.pose();model.updateMatrixWorld(true);
- for(const b of skin.skeleton.bones){avatarRestQuaternions.set(b.name,b.quaternion.clone());avatarRestPositions.set(b.name,b.position.clone())}
+ for(const b of skin.skeleton.bones){avatarRestQuaternions.set(b.name,b.quaternion.clone());avatarRestPositions.set(b.name,b.position.clone());avatarRestWorld.set(b.name,{bone:b.getWorldQuaternion(new THREE.Quaternion()),parent:b.parent.getWorldQuaternion(new THREE.Quaternion())})}
 }
 async function importMotion(name,buffer){
  if(!model)throw Error('Atlas model not ready');
  const source=new FBXLoader().parse(buffer,'');
+ source.updateMatrixWorld(true);
  const sourceClip=source.animations?.[0];
  if(!sourceClip||!sourceClip.tracks.length)throw Error('No FBX animation tracks found in '+name);
  const targetSkin=findSkin(model);
@@ -813,18 +837,33 @@ async function importMotion(name,buffer){
  const sourceBones=new Map();
  source.traverse(o=>{if(o.isBone&&!sourceBones.has(normBone(o.name)))sourceBones.set(normBone(o.name),o)});
  const targetBones=new Map(targetSkin.skeleton.bones.map(b=>[normBone(b.name),b]));
+ const boneDistance=(bones,a,b)=>{const x=bones.get(a),y=bones.get(b);return x&&y?x.getWorldPosition(new THREE.Vector3()).distanceTo(y.getWorldPosition(new THREE.Vector3())):0};
+ const legLength=bones=>boneDistance(bones,'leftupleg','leftleg')+boneDistance(bones,'leftleg','leftfoot');
+ const sourceLeg=legLength(sourceBones),targetLeg=legLength(targetBones);
+ // FBX coordinates may be centimetres even when its Object3D scale is 1.
+ // Anatomical lengths calibrate units and also accommodate different physiques.
+ const motionScale=sourceLeg>.0001&&targetLeg>.0001?targetLeg/sourceLeg:1;
+
  const tracks=[];const alreadyAdded=new Set();
  // Retain the vertical motion of Mixamo's hips for realistic crouches,
  // jumps and floor moves. Horizontal travel is separately controlled by Atlas.
  const hip=targetBones.get('hips'),fromHip=sourceBones.get('hips');
  const hipTranslation=sourceClip.tracks.find(t=>normBone(t.name.slice(0,t.name.lastIndexOf('.')))==='hips'&&t.name.endsWith('.position'));
+ const sourceUnits=(fromHip?Math.abs(fromHip.parent.getWorldScale(new THREE.Vector3()).y):1)*motionScale;
+ const hipMove=hipTranslation?Math.hypot(hipTranslation.values.at(-3)-hipTranslation.values[0],hipTranslation.values.at(-1)-hipTranslation.values[2])*sourceUnits:0;
+ const locomotion=(/walk|run|jog|sprint|crawl|sneak|stride|step|sidestep/i.test(name)||hipMove>.65)&&!/stop|idle|danc|flair|wav|point/i.test(name);
  if(hip&&fromHip&&hipTranslation&&avatarRestPositions.has(hip.name)){
   const baseY=avatarRestPositions.get(hip.name).y;
+  const sourceScale=fromHip.parent.getWorldScale(new THREE.Vector3()).y;
+  const targetScale=hip.parent.getWorldScale(new THREE.Vector3()).y;
+  const translationScale=Math.abs(sourceScale/targetScale)*motionScale;
+  // FBX hips are often centimetres; GLB hips are metres. Do not clamp
+  // unconverted centimetres into violent full-body jumps or squats.
   const values=new Float32Array(hipTranslation.values.length);
   for(let k=0;k<values.length;k+=3){
-   values[k]=avatarRestPositions.get(hip.name).x;
-   values[k+1]=THREE.MathUtils.clamp(baseY+(hipTranslation.values[k+1]-fromHip.position.y),.13,1.5);
-   values[k+2]=avatarRestPositions.get(hip.name).z;
+   values[k]=avatarRestPositions.get(hip.name).x+(locomotion?0:(hipTranslation.values[k]-fromHip.position.x)*translationScale);
+   values[k+1]=baseY+(hipTranslation.values[k+1]-fromHip.position.y)*translationScale;
+   values[k+2]=avatarRestPositions.get(hip.name).z+(locomotion?0:(hipTranslation.values[k+2]-fromHip.position.z)*translationScale);
   }
   tracks.push(new THREE.VectorKeyframeTrack('.bones['+hip.name+'].position',hipTranslation.times,values));
  }
@@ -835,14 +874,15 @@ async function importMotion(name,buffer){
   if(!from||!to||alreadyAdded.has(to.name))continue;
   const toRest=avatarRestQuaternions.get(to.name);
   if(!toRest)continue;
-  const sourceRestInverse=from.quaternion.clone().invert();
+  const targetWorld=avatarRestWorld.get(to.name);
+  const parentBasis=targetWorld.parent.clone().invert().multiply(from.parent.getWorldQuaternion(new THREE.Quaternion()));
+  const boneBasis=from.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(targetWorld.bone);
   const values=new Float32Array(fromTrack.values.length);
   const q=new THREE.Quaternion(),adjusted=new THREE.Quaternion();
   for(let i=0;i<values.length;i+=4){
    q.fromArray(fromTrack.values,i);
-   // TargetRest * SourceRestInverse * AnimatedSource = local-space motion
-   // relative to Atlas's OWN bone orientations. No altered bone lengths.
-   adjusted.copy(toRest).multiply(sourceRestInverse).multiply(q).normalize();
+   // Convert through source/target bind-pose world axes. Preserve bone lengths.
+   adjusted.copy(parentBasis).multiply(q).multiply(boneBasis).normalize();
    adjusted.toArray(values,i);
   }
   const track=new THREE.QuaternionKeyframeTrack(
@@ -853,14 +893,8 @@ async function importMotion(name,buffer){
  if(tracks.length<35)throw Error('Only '+tracks.length+' compatible joints in '+name+'; expected most of the full body');
  const duration=Math.max(.1,sourceClip.duration);
  const clip=new THREE.AnimationClip(name,duration,tracks);
- const forwardPattern=/walk|run|jog|sprint|crawl|sneak|stride|step|sidestep/i;
- // Source hip displacement indicates true root locomotion even if the filename
- // doesn't contain a conventional movement keyword.
- const hipMove=hipTranslation?Math.hypot(
-  hipTranslation.values.at(-3)-hipTranslation.values[0],
-  hipTranslation.values.at(-1)-hipTranslation.values[2]):0;
- clip.isLocomotion=(forwardPattern.test(name)&&!/stop|idle/i.test(name))||hipMove>.65;
- if(clip.isLocomotion)clip.strideMeters=measureStrideFromFBX(source,sourceClip,sourceBones);
+ clip.isLocomotion=locomotion;
+ if(clip.isLocomotion)clip.strideMeters=hipMove>.15?THREE.MathUtils.clamp(hipMove,.45,2.5):measureStrideFromFBX(source,sourceClip,sourceBones,motionScale);
  clip.optimize();
  const key=normActionName(name);
  const previous=motionClips.get(key);
@@ -896,14 +930,14 @@ function playMixamo(type,force=false,fadeSeconds=.30){
    ||/idle|danc(e|ing)|walk(ing)?|run(ning)?/i.test(normalized)&&!/stop/i.test(normalized);
  const loop=repeating?THREE.LoopRepeat:THREE.LoopOnce;
  const previous=mixamoCurrent;
- footContact.reset();
- next.reset().setLoop(loop).setEffectiveWeight(1).fadeIn(fadeSeconds).play();
+ next.reset().setEffectiveTimeScale(1).setLoop(loop).setEffectiveWeight(1).fadeIn(fadeSeconds).play();
  next.clampWhenFinished=loop!==THREE.LoopRepeat;
+ if(/idle/i.test(clip.name))next.paused=!idle;
  if(previous&&previous!==next)previous.fadeOut(fadeSeconds);
  mixamoCurrent=next;return true;
 }
 // Reusable actions and named show steps. No duplicate avatar meshes or motion buttons.
-let showRun=null,lastShowId=null,travelPlan=null;
+let showRun=null,lastShowId=null,travelPlan=null,travelRequest=0;
 function wallDestination(facing,backward=false){
  if(!model)return {x:0,z:0};
  const directionX=Math.sin(facing)*(backward?-1:1);
@@ -925,7 +959,7 @@ function planTravel(x,z,seconds=null,type='walk'){
  const d=Math.hypot(studioTargetX-fromX,studioTargetZ-fromZ);
  const speed=strideSpeedFor(type);
  travelPlan={
-  start:performance.now(),seconds:d/speed,speed,
+  start:performance.now(),seconds:d/speed+.7,speed,velocity:0,
   fromX,fromZ,toX:studioTargetX,toZ:studioTargetZ,
   totalDistance:d,kind:type,backward:/back/i.test(type),contactFoot:null,footAnchor:null
  };
@@ -937,10 +971,11 @@ function closeShowSidebar(){
 }
 
 function endShow(){
- showRun=null;travelPlan=null;studioTargetX=0;studioTargetZ=0;
+ ++travelRequest;showRun=null;travelPlan=null;studioTargetX=0;studioTargetZ=0;
  playMixamo('idle',true);$('showStatus').textContent='Atlas is standing by.';
 }
 function beginShow(){
+ ++travelRequest;travelPlan=null;
  if(!model||!findSkin(model)){
   $('showStatus').textContent='Atlas is still loading his body. Please try again.';return;
  }
@@ -977,14 +1012,15 @@ async function nextShowStep(){
  $('showStatus').textContent='Show complete — Atlas is returning to center.';
  if(model&&Math.hypot(model.position.x,model.position.z)>.08){
   try{
+   const request=travelRequest;
    await ensureAction('walk');
-   if(showRun)return;
+   if(showRun||request!==travelRequest)return;
    planTravel(0,0,2.5);playMixamo('walk',true);
   }catch(err){console.warn('Could not return to center',err);endShow()}
  }else{playMixamo('idle',true)}
 }
 function updateShow(now){
- if(showRun&&!showRun.loading&&now-showRun.at>=showRun.seconds*1000)void nextShowStep();
+ if(showRun&&!showRun.loading&&!travelPlan&&now-showRun.at>=showRun.seconds*1000)void nextShowStep();
 }
 $('surpriseMe').onclick=beginShow;
 async function motionDBPut(name,buffer){
@@ -1027,7 +1063,7 @@ let speechMouthLevel=0;
 window.addEventListener('atlas-action',e=>{
  const kind=e.detail?.type;
  if(kind==='speech'){
-   speechActive=Boolean(e.detail?.active);
+   speechActive=Boolean(e.detail?.active??e.detail?.action);
    speechPulseAt=performance.now();
    if(!speechActive)speechMouthLevel=0;
    return;
@@ -1036,13 +1072,15 @@ window.addEventListener('atlas-action',e=>{
    speechPulseAt=performance.now();
    return;
  }
- if(!model||showRun)return;
+ if(!model)return;
  const explicit=kind==='motion';
+ if(showRun&&!explicit)return;
+ if(explicit){++travelRequest;showRun=null;travelPlan=null;}
  const action=explicit?e.detail?.action:
     kind==='think'?'think':
     kind==='listen'?'nod':
     kind==='respond'?'nod':null;
- if(!action||!['wave','dance','point','think','greet','nod','idle','walk','back'].includes(action))return;
+ if(!action||!Object.hasOwn(ACTION_LIBRARY,action))return;
  const now=performance.now();
  if(!explicit&&(now<manualMotionUntil||travelPlan||speechActive))return;
  if(explicit){
@@ -1061,7 +1099,7 @@ window.addEventListener('atlas-action',e=>{
        const z=model.position.z+Math.cos(model.rotation.y)*dir*1.2;
        const dest=clampToRoom(x,z);
        planTravel(dest.x,dest.z,null,action);
-       playMixamo(action,true,.26);
+       if(travelPlan)playMixamo(action,true,.26);
      }catch(err){console.warn('Atlas walk motion not ready',err)}
    })();
    return;
@@ -1100,9 +1138,13 @@ async function installGLB(buffer,label){
        material.transparent=false;
        material.depthTest=true;
        material.depthWrite=true;
-       material.alphaTest=0;
+       const isCutout=/hair|eyelash|brow/i.test(o.name+' '+material.name)&&Boolean(material.map);
+       material.alphaTest=isCutout?.45:0;
+       if(isCutout)material.side=THREE.DoubleSide;
+       if(material.isMeshStandardMaterial){material.envMapIntensity=.7;material.metalness=Math.min(material.metalness,.12)}
        material.needsUpdate=true;
      }
+     o.castShadow=true;o.receiveShadow=true;o.frustumCulled=false;
      o.renderOrder=0;
    }
    if(o.isMesh&&o.morphTargetDictionary){
@@ -1112,7 +1154,7 @@ async function installGLB(buffer,label){
    }
  });
  for(const [k,v] of Object.entries(rig))base[k]=v.rotation.clone();
- captureAvatarRestPose();
+ captureAvatarRestPose();prepareBodyContact();
  center.set(0,Math.max(.8,size.y*.56),-.35);distance=mobileCanvas()?Math.max(4.8,size.y*2.60):Math.max(3.7,size.y*2.08);sliders();updateCam();
  status('Preparing Atlas animation skeleton…');
  $('modelDetails').textContent=label+' · '+(buffer.byteLength/1048576).toFixed(1)+' MB · '+findSkin(model).skeleton.bones.length+' joints';
@@ -1166,7 +1208,7 @@ async function load(){
 }
 load();
 
-let lastFrame=performance.now(),wasTravelling=false;
+let lastFrame=performance.now();
 let nextBlinkAt=performance.now()+1800+Math.random()*2300,blinkStartedAt=-1000;
 function animate(){
  requestAnimationFrame(animate);
@@ -1175,75 +1217,40 @@ function animate(){
  if(auto){yaw+=dt*12;updateCam();}
  updateShow(now);
  orientScreen();
+ backWall.visible=camera.position.z>-4.30;leftWall.visible=camera.position.x>-4.30;rightWall.visible=camera.position.x<4.30;
+ roomFloor.visible=floorGrid.visible=camera.position.y>=.02;
  if(model){
   if(mixamoMixer)mixamoMixer.update(dt);
-  const realAction=Boolean(mixamoCurrent&&mixamoCurrent.isRunning());
+  const realAction=Boolean(mixamoCurrent&&mixamoCurrent.enabled);
   // Animation clips own the body, not procedural poses. A calm bind-pose idle
   // remains visible if no Mixamo animations have been imported yet.
-  const breathe=idle&&!realAction?Math.sin(t*1.8)*.0025:0;
-  model.scale.y=1+breathe;
+  model.scale.y=1; // Breathing comes from the skeleton, never rubber-like body scaling.
   if(!realAction){
    for(const k of ['head','neck','spine','larm','rarm','lleg','rleg']){
     const joint=rig[k],neutral=base[k];
     if(joint&&neutral)joint.quaternion.slerp(new THREE.Quaternion().setFromEuler(neutral),Math.min(1,dt*4));
    }
   }
-  // Walk at a constant world speed measured from the actual foot swing.
-  // PerspectiveCamera does the size change naturally: back of room is smaller.
   if(travelPlan){
    const tr=travelPlan;
-   const dx=tr.toX-model.position.x,dz=tr.toZ-model.position.z;
-   const remaining=Math.hypot(dx,dz);
-   const shouldStop=remaining<=.025;
-   if(!shouldStop){
-    const heading=Math.atan2(dx,dz)+(tr.backward?Math.PI:0);
-    const turn=Math.atan2(Math.sin(heading-model.rotation.y),Math.cos(heading-model.rotation.y));
-    model.rotation.y+=turn*Math.min(1,dt*5.2);
-    const walkDistance=Math.min(tr.speed*dt,remaining);
-    model.position.x+=dx/remaining*walkDistance;
-    model.position.z+=dz/remaining*walkDistance;
-    // The universal footContact system runs once AFTER root travel.
-    // Never apply an independent walking-only correction here.
-    const bounded=clampToRoom(model.position.x,model.position.z);
-    const hitBoundary=Math.abs(bounded.x-model.position.x)>.0001||Math.abs(bounded.z-model.position.z)>.0001;
-    model.position.x=bounded.x;model.position.z=bounded.z;
-    if(hitBoundary){
-     travelPlan=null;
-     playMixamo('idle',true,.13); // Finish on the support foot at the boundary.
-     if(!showRun)$('showStatus').textContent='Atlas reached the edge of the room.';
-    }
-   }
-   if(travelPlan&&Math.hypot(tr.toX-model.position.x,tr.toZ-model.position.z)<=.04){
+   const next=stepTravel(tr,model.position.x,model.position.z,model.rotation.y,dt);
+   model.position.x=next.x;model.position.z=next.z;model.rotation.y=next.yaw;
+   tr.velocity=next.speed;
+   // Animation cadence follows actual travel, including acceleration and braking.
+   if(mixamoCurrent)mixamoCurrent.setEffectiveTimeScale(Math.max(.08,next.speed/tr.speed));
+   if(next.done){
     model.position.x=tr.toX;model.position.z=tr.toZ;
-    travelPlan=null;
-    playMixamo('idle',true,.13);
+    travelPlan=null;playMixamo('idle',true,.35);
+    if(!showRun)$('showStatus').textContent='Atlas reached his destination.';
    }
-   wasTravelling=true;
-  }else if(!showRun&&wasTravelling){
-   const turn=Math.atan2(Math.sin(-model.rotation.y),Math.cos(-model.rotation.y));
-   model.rotation.y+=turn*Math.min(1,dt*4.0);
-   if(Math.abs(turn)<.018){model.rotation.y=0;wasTravelling=false}
   }
-  // Hard guard even for a manually played action or an interrupted sequence.
   const safe=clampToRoom(model.position.x,model.position.z);
   model.position.x=safe.x;model.position.z=safe.z;
-  // Never lift or sink the entire character: Atlas stays on the floor.
-  model.position.y+=(0-model.position.y)*Math.min(1,dt*5);
-  if(travelPlan){
-   // Keep Atlas looking ahead while walking rather than lifting his chin
-   // from an incompatible Mixamo head rotation.
-   for(const [key,blend] of [['head',.72],['neck',.56]]){
-    const bone=rig[key],rest=bone&&avatarRestQuaternions.get(bone.name);
-    if(rest)bone.quaternion.slerp(rest,blend);
-   }
-  }
-  // Contact correction helps gait foot slip, but stationary arm gestures must
-  // not slide the whole character around the room.
-  if(travelPlan||mixamoCurrent?.getClip()?.isLocomotion)footContact.update(dt);
-  else footContact.reset();
-  footShadow.position.x=model.position.x;
-  footShadow.position.z=model.position.z;
-  footShadow.visible=studioObjects.visible;
+  groundBody(dt);
+  keepBodyInsideRoom();
+  footShadow.position.x=model.position.x;footShadow.position.z=model.position.z;
+  footShadow.material.opacity=THREE.MathUtils.clamp(1-Math.max(0,model.position.y)*1.8,.1,1);
+  footShadow.visible=studioObjects.visible&&camera.position.y>0;
   // Irregular, short natural blinks instead of visibly repeating sine-wave blinks.
   if(now>=nextBlinkAt){
     blinkStartedAt=now;

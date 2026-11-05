@@ -12,8 +12,7 @@ if(generateToken)generateToken.onclick=async()=>{
  if(!window.crypto?.getRandomValues){alert('Secure random generation is unavailable in this browser.');return}
  const bytes=new Uint8Array(36);crypto.getRandomValues(bytes);
  const token=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
- ACCESS=token;if(tokenField)tokenField.value=token;
- sessionStorage.setItem('atlas-access-token',token);
+ if(tokenField)tokenField.value=token; // Do not replace a working session until Save is pressed.
  const info=$('atlasTokenInstructions');
  if(info)info.textContent='Token generated locally. Copy it to Cloudflare → atlas-ai → Settings → Variables and Secrets → ATLAS_ACCESS_TOKEN (type: Secret). It is not stored in GitHub.';
  try{await navigator.clipboard.writeText(token);if(info)info.textContent='Secure token copied. Paste into Cloudflare as the ATLAS_ACCESS_TOKEN Secret, then save. Return here and press Save connection and test.'}
@@ -107,11 +106,11 @@ async function api(path,body,timeout=140000){
  const c=new AbortController(),timer=setTimeout(()=>c.abort(),timeout);
  try{const r=await fetch(BASE+path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+ACCESS,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:c.signal});
   let j;try{j=await r.json()}catch{throw Error('Unexpected response from private Atlas bridge (HTTP '+r.status+')')}
-  if(!r.ok)throw Error(j.error||'HTTP '+r.status);return j;
- }finally{clearTimeout(timer)}
+  if(!r.ok){const e=Error(j.error||'HTTP '+r.status);e.code=j.code;e.status=r.status;throw e}return j;
+ }catch(e){if(e.name==='AbortError')throw Error('Atlas took too long to respond. Your message is saved; please try again.');if(e instanceof TypeError)throw Error('Cannot reach the Atlas server. Check your connection and hosted server address.');throw e}finally{clearTimeout(timer)}
 }
 async function check(verify=false){
- if(!BASE||!ACCESS){setStatus('ATLAS · PRIVATE KEY SETUP NEEDED');const n=$('atlasApiInfo');if(n)n.textContent='Add the OpenAI key and Atlas token to Cloudflare Worker RUNTIME Settings → Variables and Secrets (not the Builds section). Then enter the Atlas token here. No Mac installation is needed.';return false}
+ if(!BASE||!ACCESS){setStatus('ATLAS · SIGN-IN TOKEN NEEDED');const n=$('atlasApiInfo');if(n)n.textContent='Enter your private Atlas access token and press Save connection and test. The OpenAI key belongs only in your hosted server settings.';return false}
  setStatus(verify?'ATLAS · TESTING API':'ATLAS · CONNECTING');
  const info=$('atlasApiInfo');
  try{
@@ -126,14 +125,14 @@ async function check(verify=false){
    if(info)info.textContent='API key detected for '+r.model+'. Click Test API connection to verify the model and billing are working.';
    return true;
   }
-  const live=await api('/atlas/api/diagnose',null,45000);
+  const live=await api('/atlas/api/diagnose?model='+encodeURIComponent(modelSetting?.value||'gpt-5.6-terra'),null,60000);
   if(!live.connected)throw Error(live.error||'API test did not succeed');
   setStatus('ATLAS ONLINE · '+live.model);
   if(info)info.textContent='Verified live response from '+live.model+'. Atlas is ready.';
   return true;
  }catch(e){
   setStatus('ATLAS · CONNECTION ERROR');
-  if(info)info.textContent='Connection test failed: '+e.message+(String(e.message).includes('MISSING_RUNTIME_SECRETS')||String(e.message).includes('Missing Worker RUNTIME secrets')||String(e.message).includes('Hosted AI requires private')?' You added BUILD secrets. Scroll to Settings → Variables and Secrets under the Worker runtime section (not Builds), add the same two secrets there, and Deploy.':' Verify the cloud server address, credentials, and API account access.');
+  if(info)info.textContent='Connection test failed: '+e.message+(e.code==='MISSING_RUNTIME_SECRETS'?' Open the Worker runtime Settings → Variables and Secrets, add the missing values, and Deploy. Build secrets alone do not configure the running server.':e.status===401?' Use the Atlas access token here, not your OpenAI API key.':'');
   return false;
  }
 }
@@ -173,8 +172,9 @@ function attachmentPreview(){
 }
 function requestedMotion(text){
  const command=/\b(?:atlas|you|please|could you|would you|do a|show me|perform|try to|can you)\b/i.test(text)
-     ||/^\s*(?:wave|dance|point|greet|walk|think|breakdance|moonwalk)\b/i.test(text);
+     ||/^\s*(?:stop|freeze|idle|wave|dance|point|greet|walk|think|breakdance|moonwalk)\b/i.test(text);
  if(!command)return null;
+ if(/\b(?:stop|stand still|freeze|idle)\b/i.test(text))return 'idle';
  if(/\b(?:walk|walking|step|move)\s+(?:backwards?|back)\b/i.test(text))return 'back';
  if(/\b(?:breakdance|breakdancing|break dance)\b/i.test(text))return 'breakdance';
  if(/\b(?:hip.?hop)\b/i.test(text))return 'hiphop';
@@ -263,7 +263,7 @@ async function send(){
     utterance.onerror=()=>dispatch('speech',false);
     speechSynthesis.speak(utterance);
   }
- }catch(e){if(current===data.active)push('atlas','That didn’t work: '+e.message+'. Check the API connection in Settings.');setStatus('ATLAS · ERROR');console.error('Atlas request',e)}
+ }catch(e){if(current===data.active)push('atlas','That didn’t work: '+e.message+(e.code==='MISSING_RUNTIME_SECRETS'?' Open Settings for the missing server configuration.':''));setStatus('ATLAS · ERROR');console.error('Atlas request',e)}
  finally{busy=false;render();if(status.textContent!=='ATLAS · ERROR')setStatus('ATLAS · READY')}
 }
 const input=document.createElement('input');input.type='file';input.multiple=true;input.accept='image/*,video/*,.pdf,.docx,.pptx,.xlsx,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.log';input.hidden=true;document.body.append(input);
