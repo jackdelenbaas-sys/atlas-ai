@@ -1,8 +1,22 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
-const BASE='https://erins-mac-mini.tail04f5e9.ts.net';
+let BASE=localStorage.getItem('atlas-hosted-url')||'';
+let ACCESS=sessionStorage.getItem('atlas-access-token')||'';
 const STORE='atlas-v43-chat',MEM='atlas-v57-memory';
 const status=$('aiModeLabel'),feed=$('feed'),composer=$('input');
+const serverField=$('atlasCloudURL'),tokenField=$('atlasCloudToken');
+if(serverField)serverField.value=BASE;
+if(tokenField)tokenField.value=ACCESS;
+const saveCloud=$('atlasSaveCloud');
+if(saveCloud)saveCloud.onclick=()=>{
+ let url=(serverField?.value||'').trim().replace(/\/+$/,'');
+ if(!/^https:\/\/[^/]+$/.test(url)){alert('Enter the full HTTPS URL of your hosted Atlas backend.');return}
+ BASE=url;ACCESS=(tokenField?.value||'').trim();
+ if(ACCESS.length<24){alert('Enter the private Atlas access token (at least 24 characters).');return}
+ localStorage.setItem('atlas-hosted-url',BASE);sessionStorage.setItem('atlas-access-token',ACCESS);
+ void check(true);
+};
+
 let data;try{data=JSON.parse(localStorage.getItem(STORE)||'null')}catch{}
 if(!data||!Array.isArray(data.threads))data={active:Date.now(),threads:[{id:Date.now(),title:'New conversation',msgs:[]}]};
 if(!data.threads.length)data.threads.push({id:Date.now(),title:'New conversation',msgs:[]});
@@ -11,7 +25,7 @@ const putMem=m=>{try{localStorage.setItem(MEM,JSON.stringify(m.slice(-80)))}catc
 const save=()=>{try{const lean={active:data.active,threads:data.threads.slice(0,70).map(t=>({id:t.id,title:t.title,msgs:t.msgs.slice(-160).map(m=>({role:m.role,text:m.text, sources:m.sources||[]}))}))};localStorage.setItem(STORE,JSON.stringify(lean))}catch(e){console.warn('Conversation storage full',e)}};
 const active=()=>data.threads.find(t=>t.id===data.active)||data.threads[0];
 let files=[],busy=false,queuedMode='chat',speaking=false,recognizer=null;
-const modelSetting=$('atlasModelChoice');if(modelSetting){modelSetting.value=localStorage.getItem('atlas-model-choice')||'gpt-6-luna';modelSetting.onchange=()=>localStorage.setItem('atlas-model-choice',modelSetting.value)}
+const modelSetting=$('atlasModelChoice');if(modelSetting){modelSetting.value=localStorage.getItem('atlas-model-choice')||'gpt-5.6-terra';modelSetting.onchange=()=>localStorage.setItem('atlas-model-choice',modelSetting.value)}
 function bottom(){feed.scrollTop=feed.scrollHeight;requestAnimationFrame(()=>feed.scrollTop=feed.scrollHeight)}
 function linkify(node,text){
  const re=/https:\/\/[^\s<>"]+/g;let i=0,m;
@@ -77,8 +91,9 @@ function memoryRequest(text){
  return false;
 }
 async function api(path,body,timeout=140000){
+ if(!BASE||!ACCESS)throw Error('Hosted AI needs the server URL and private access token in Atlas Settings.');
  const c=new AbortController(),timer=setTimeout(()=>c.abort(),timeout);
- try{const r=await fetch(BASE+path,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:c.signal});
+ try{const r=await fetch(BASE+path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+ACCESS,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:c.signal});
   let j;try{j=await r.json()}catch{throw Error('Unexpected response from private Atlas bridge (HTTP '+r.status+')')}
   if(!r.ok)throw Error(j.error||'HTTP '+r.status);return j;
  }finally{clearTimeout(timer)}
@@ -90,7 +105,7 @@ async function check(verify=false){
   const r=await api('/atlas/api/status',null,8000);
   if(!r.configured){
    setStatus('ATLAS · API KEY REQUIRED');
-   if(info)info.textContent='The bridge is installed, but no OpenAI API key was configured. Run the Atlas Cloud installer to add one privately.';
+   if(info)info.textContent='Hosted backend is connected, but its OpenAI API key has not been configured.';
    return false;
   }
   if(!verify){
@@ -105,7 +120,7 @@ async function check(verify=false){
   return true;
  }catch(e){
   setStatus('ATLAS · CONNECTION ERROR');
-  if(info)info.textContent='Connection test failed: '+e.message;
+  if(info)info.textContent='Connection test failed: '+e.message+'. Check your hosted server URL and private access token.';
   return false;
  }
 }
@@ -165,7 +180,7 @@ async function createVideo(text,m){
  m.text='Rendering your video. This can take a few minutes.';render();
  for(let i=0;i<55;i++){await new Promise(r=>setTimeout(r,9000));const state=await api('/atlas/api/video/'+encodeURIComponent(j.id),null,30000);
   if(state.status==='completed'){
-   const r=await fetch(BASE+'/atlas/api/video/'+encodeURIComponent(j.id)+'/content');if(!r.ok)throw Error('Video generated, but download failed');
+   const r=await fetch(BASE+'/atlas/api/video/'+encodeURIComponent(j.id)+'/content',{headers:{Authorization:'Bearer '+ACCESS}});if(!r.ok)throw Error('Video generated, but download failed');
    m.video=URL.createObjectURL(await r.blob());m.text='Your video is ready. Yes, I expect applause.';render();return;
   }
   if(state.status==='failed')throw Error(state.error?.message||'Video creation failed');
@@ -196,7 +211,7 @@ async function send(){
   if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);render()}
   const memory=memories().slice(-35).map(x=>x.text);
   const related=relevantHistory(text,t.id);
-  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],model:modelSetting?.value||'gpt-6-luna'};
+  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],model:modelSetting?.value||'gpt-5.6-terra'};
   response=await api('/atlas/api/'+mode,payload,mode==='image'?210000:150000);
   let txt=response.text||'Done. Consider the dramatic entrance complete.';
   const match=txt.match(/<atlas_action>(wave|dance|point|think|greet|idle)<\/atlas_action>/i);
