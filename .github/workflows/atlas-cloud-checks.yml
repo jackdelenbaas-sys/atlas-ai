@@ -15,17 +15,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Check Python availability
+        run: python3 --version
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
       - name: Check frontend JavaScript
         run: node --check atlas-app-v8.js
       - name: Check backend Python syntax
-        run: python -m py_compile atlas-cloud-bridge.py
+        run: python3 -m py_compile atlas-cloud-bridge.py
       - name: Check installer shell syntax
         run: bash -n install-atlas-cloud.sh
       - name: Backend unit tests (no secrets or API calls)
-        run: python -m unittest discover -s tests -p "test_atlas_cloud.py" -v
+        run: python3 -m unittest discover -s tests -p "test_atlas_cloud.py" -v
