@@ -99,6 +99,7 @@ async function api(path,body,timeout=140000){
  }finally{clearTimeout(timer)}
 }
 async function check(verify=false){
+ if(!BASE||!ACCESS){setStatus('ATLAS · CLOUD SETUP NEEDED');const n=$('atlasApiInfo');if(n)n.textContent='No Mac installation required. Deploy the hosted Worker, then enter its HTTPS URL and your private Atlas access token here.';return false}
  setStatus(verify?'ATLAS · TESTING API':'ATLAS · CONNECTING');
  const info=$('atlasApiInfo');
  try{
