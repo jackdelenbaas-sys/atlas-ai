@@ -169,14 +169,16 @@ function requestedMotion(text){
  if(/\b(?:hello|greet|greeting)\b/i.test(text))return 'greet';
  return null;
 }
-function modeFromText(t){
+function modeFromText(t,attachments=[]){
  const q=(t||'').trim();
  // The one chat box handles every task. Never inherit a mode from an earlier message.
  const asks=/\b(?:make|create|generate|draw|paint|design|produce|render|animate|edit|modify|change|transform|enhance|retouch|recolor|turn|convert|show)\b/i.test(q);
  const video=/\b(?:video|movie|film|animation|animated clip|short clip|footage|moving scene)\b/i.test(q);
  const image=/\b(?:image|picture|photo|photograph|illustration|portrait|poster|drawing|artwork|graphic|logo|visual|rendering|art)\b/i.test(q);
+ const hasImage=attachments.some(f=>f.type?.startsWith('image/'));
+ const editPicture=hasImage&&/\b(?:edit|change|transform|recolor|retouch|remove|replace|add|turn|make|stylize|restyle|enhance|erase)\b/i.test(q)&&!/\b(?:explain|describe|identify|what|why|how|analyze)\b/i.test(q);
  if(asks&&video)return 'video';
- if(asks&&image)return 'image';
+ if((asks&&image)||editPicture)return 'image';
  // "make a picture of..." is unambiguous; vague requests remain a normal chat.
  return 'chat';
 }
@@ -199,7 +201,7 @@ async function send(){
  composer.value='';if(text&&remember(text)){files=[];attachmentPreview();return}
  if(text&&memoryRequest(text)){files=[];attachmentPreview();return}
  summarizeMemory(text);
- const t=active(),mode=modeFromText(text);const current=t.id;
+ const t=active(),mode=modeFromText(text,files);const current=t.id;
  if(t.title==='New conversation')t.title=(text||'Attachments').slice(0,52);
  const filenames=files.map(x=>x.name);const history=t.msgs.slice(-35).filter(x=>x.role==='user'||x.role==='atlas').map(x=>({role:x.role==='atlas'?'assistant':'user',text:x.text}));
  push('user',(text||'Analyze these attachments')+(filenames.length?'\n📎 '+filenames.join(', '):''));
