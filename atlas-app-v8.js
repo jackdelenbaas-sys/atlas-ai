@@ -156,7 +156,7 @@ function requestedMotion(text){
 function modeFromText(t){
  if(queuedMode!=='chat')return queuedMode;
  if(/\b(?:make|create|generate|draw|paint|design)\b[\s\S]{0,90}\b(?:video|movie|animation|clip)\b/i.test(t))return 'video';
- if(/\b(?:make|create|generate|draw|paint|design)\b[\s\S]{0,90}\b(?:image|picture|photo|portrait|illustration|poster)\b/i.test(t))return 'image';
+ if(/\b(?:make|create|generate|draw|paint|design|edit|modify|change|transform|enhance|retouch|recolor)\b[\s\S]{0,110}\b(?:image|picture|photo|portrait|illustration|poster|attached image)\b/i.test(t))return 'image';
  return 'chat';
 }
 async function createVideo(text,m){
