@@ -237,7 +237,8 @@ async function send(){
   else {const thread=data.threads.find(x=>x.id===current);if(thread){thread.msgs.push({role:'atlas',text:txt,sources:response.sources||[]});save()}}
   // Explicit user motions or model-selected actions take precedence over
   // a generic reply nod, so the body follows the intended movement.
-  if(match)dispatch('motion',match[1]);
+  // The explicit user command always wins over an optional AI-selected gesture.
+  if(!action&&match)dispatch('motion',match[1]);
   else if(!action)dispatch('respond');
   if(speaking&&window.speechSynthesis&&current===data.active){
     speechSynthesis.cancel();
