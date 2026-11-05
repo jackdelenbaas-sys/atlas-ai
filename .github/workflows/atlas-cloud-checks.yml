@@ -10,6 +10,9 @@ on:
       - "tests/**"
       - ".github/workflows/atlas-cloud-checks.yml"
   workflow_dispatch:
+concurrency:
+  group: atlas-cloud-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   syntax-and-logic:
     runs-on: ubuntu-latest
@@ -22,6 +25,9 @@ jobs:
           node-version: "22"
       - name: Check frontend JavaScript
         run: node --check atlas-app-v8.js
+      - name: Check that Atlas loads its cloud frontend
+        run: |
+          node -e "const fs=require('fs'); const h=fs.readFileSync('index.html','utf8'); if (!h.includes('atlas-app-v8.js')) process.exit(1); if (h.includes('askAtlasLocalAI')) process.exit(1)"
       - name: Check backend Python syntax
         run: python3 -m py_compile atlas-cloud-bridge.py
       - name: Check installer shell syntax
