@@ -143,6 +143,16 @@ function attachmentPreview(){
  const node=$('atlasFiles');node.replaceChildren();
  for(const [i,file] of files.entries()){const pill=document.createElement('button');pill.className='atlas-file-pill';pill.textContent='📎 '+file.name+' ×';pill.title='Remove '+file.name;pill.onclick=()=>{files.splice(i,1);attachmentPreview()};node.append(pill)}
 }
+function requestedMotion(text){
+ if(!/\b(?:atlas|you|please|could you|would you)\b/i.test(text) && !/^\s*(?:wave|dance|point|greet|walk|think)\b/i.test(text))return null;
+ if(/\b(?:dance|dancing)\b/i.test(text))return 'dance';
+ if(/\b(?:wave|waving)\b/i.test(text))return 'wave';
+ if(/\b(?:point|pointing)\b/i.test(text))return 'point';
+ if(/\b(?:walk|walking)\b/i.test(text))return 'walk';
+ if(/\b(?:think|thinking)\b/i.test(text))return 'think';
+ if(/\b(?:hello|greet|greeting)\b/i.test(text))return 'greet';
+ return null;
+}
 function modeFromText(t){
  if(queuedMode!=='chat')return queuedMode;
  if(/\b(?:make|create|generate|draw|paint|design)\b[\s\S]{0,90}\b(?:video|movie|animation|clip)\b/i.test(t))return 'video';
@@ -172,12 +182,18 @@ async function send(){
  if(t.title==='New conversation')t.title=(text||'Attachments').slice(0,52);
  const filenames=files.map(x=>x.name);const history=t.msgs.slice(-35).filter(x=>x.role==='user'||x.role==='atlas').map(x=>({role:x.role==='atlas'?'assistant':'user',text:x.text}));
  push('user',(text||'Analyze these attachments')+(filenames.length?'\n📎 '+filenames.join(', '):''));
+ const action=requestedMotion(text);
+ if(/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text))$('walkToScreen')?.click();
+ else if(/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text))$('walkHome')?.click();
+ else if(action)dispatch('motion',action);
  busy=true;queuedMode='chat';render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':mode==='image'?'ATLAS · CREATING IMAGE':'ATLAS · RENDERING VIDEO');
  const selection=files;files=[];attachmentPreview();
  let response;
  try{
   if(mode==='video'){const m=push('atlas','Starting your video…');await createVideo(text,m);dispatch('respond');return}
   const attachments=await (async()=>{const prior=files;files=selection;try{return await processFiles()}finally{files=prior}})();
+  const sent=t.msgs.findLast? t.msgs.findLast(m=>m.role==='user'):[...t.msgs].reverse().find(m=>m.role==='user');
+  if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);render()}
   const memory=memories().slice(-35).map(x=>x.text);
   const related=relevantHistory(text,t.id);
   const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],model:modelSetting?.value||'gpt-6-luna'};
