@@ -5,7 +5,8 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from pathlib import Path
-import json, re, time, os
+import json, re, time, os, io, base64, zipfile
+from xml.etree import ElementTree as ET
 ORIGIN="https://jackdelenbaas-sys.github.io"
 HOME=Path.home()
 KEY_FILE=HOME/".atlas-openai-key"
@@ -63,6 +64,27 @@ PERSONA=("You are Atlas, a lively personal AI with a classy 3D human avatar. "
 "<atlas_action>think</atlas_action>, <atlas_action>greet</atlas_action>, <atlas_action>idle</atlas_action>. "
 "Choose a fitting action occasionally, especially when the user asks to move. "
 "These tags are instructions to the Atlas avatar and must never appear in the spoken answer.")
+def office_text(data,limit=20000):
+    try:
+        _,encoded=data.split(",",1)
+        raw=base64.b64decode(encoded,validate=True)
+        if len(raw)>10*1024*1024:return "[Office attachment exceeds 10MB]"
+        parts=[]
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            files=[f for f in archive.namelist() if
+                   f=="word/document.xml" or f=="xl/sharedStrings.xml" or
+                   re.fullmatch(r"xl/worksheets/sheet[0-9]+\\.xml",f) or
+                   re.fullmatch(r"ppt/slides/slide[0-9]+\\.xml",f)]
+            for name in files[:35]:
+                data_bytes=archive.read(name)
+                root=ET.fromstring(data_bytes)
+                for e in root.iter():
+                    if e.tag.split("}")[-1] in ("t","v") and e.text:
+                        parts.append(e.text.strip())
+                if sum(len(x) for x in parts)>limit:break
+        return " ".join(parts)[:limit] or "[No readable text found in Office document]"
+    except Exception as e:return "[Could not read Office document: "+str(e)[:100]+"]"
+
 def clean_input(payload):
     history=payload.get("history",[])
     if not isinstance(history,list):history=[]
@@ -84,6 +106,8 @@ def clean_input(payload):
                 parts.append({"type":"input_image","image_url":content})
             elif mime=="application/pdf" and content.startswith("data:application/pdf;base64,"):
                 parts.append({"type":"input_file","filename":name,"file_data":content})
+            elif "openxmlformats-officedocument" in mime or name.lower().endswith((".docx",".pptx",".xlsx")):
+                parts.append({"type":"input_text","text":"Office attachment "+name+":\n"+office_text(content)})
             elif mime.startswith("text/"):
                 parts.append({"type":"input_text","text":"Attachment "+name+":\n"+str(a.get("text",""))[:16000]})
             elif mime.startswith("video/"):
