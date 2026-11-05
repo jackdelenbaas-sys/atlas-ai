@@ -111,7 +111,7 @@ async function api(path,body,timeout=140000){
  }finally{clearTimeout(timer)}
 }
 async function check(verify=false){
- if(!BASE||!ACCESS){setStatus('ATLAS · PRIVATE KEY SETUP NEEDED');const n=$('atlasApiInfo');if(n)n.textContent='Your Cloudflare AI server is deployed. Add the two private secrets (OPENAI_API_KEY and ATLAS_ACCESS_TOKEN) in Cloudflare Settings → Variables and Secrets, then enter the same Atlas access token here. No Mac installation is needed.';return false}
+ if(!BASE||!ACCESS){setStatus('ATLAS · PRIVATE KEY SETUP NEEDED');const n=$('atlasApiInfo');if(n)n.textContent='Add the OpenAI key and Atlas token to Cloudflare Worker RUNTIME Settings → Variables and Secrets (not the Builds section). Then enter the Atlas token here. No Mac installation is needed.';return false}
  setStatus(verify?'ATLAS · TESTING API':'ATLAS · CONNECTING');
  const info=$('atlasApiInfo');
  try{
@@ -133,7 +133,7 @@ async function check(verify=false){
   return true;
  }catch(e){
   setStatus('ATLAS · CONNECTION ERROR');
-  if(info)info.textContent='Connection test failed: '+e.message+(String(e.message).includes('Hosted AI requires private')?' Cloudflare is missing your two secret values. Add OPENAI_API_KEY and ATLAS_ACCESS_TOKEN in the Worker Settings.':' Verify the cloud server address, credentials, and API account access.');
+  if(info)info.textContent='Connection test failed: '+e.message+(String(e.message).includes('MISSING_RUNTIME_SECRETS')||String(e.message).includes('Missing Worker RUNTIME secrets')||String(e.message).includes('Hosted AI requires private')?' You added BUILD secrets. Scroll to Settings → Variables and Secrets under the Worker runtime section (not Builds), add the same two secrets there, and Deploy.':' Verify the cloud server address, credentials, and API account access.');
   return false;
  }
 }
