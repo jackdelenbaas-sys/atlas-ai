@@ -1012,23 +1012,56 @@ $('animationsUpload').addEventListener('change',async e=>{
  $('motionStatus').textContent=successful+' new motions saved, '+duplicates+' exact duplicates skipped.'+(errors.length?' Issues: '+errors.slice(0,2).join(' | '):'');
  if(successful)playMixamo('idle');
 });
-let chatActionVersion=0;
-window.addEventListener('atlas-action',e=>{
- if(e.detail?.type!=='motion'||!model||showRun)return;
- const action=e.detail?.action;
- if(!['wave','dance','point','think','greet','idle','walk'].includes(action))return;
- const token=++chatActionVersion;
- void ensureAction(action).then(()=>{if(token===chatActionVersion&&!showRun&&model)playMixamo(action,true)}).catch(err=>console.warn('Atlas requested motion unavailable:',action,err));
-});
-
+// One movement coordinator: do not overwrite an intentionally requested action
+// with an unrelated "hello" every time Atlas replies.
+let chatActionVersion=0,manualMotionUntil=0,speechActive=false,speechPulseAt=0;
+let speechMouthLevel=0;
 window.addEventListener('atlas-action',e=>{
  const kind=e.detail?.type;
- const action=kind==='respond'?'greet':kind==='think'?'think':kind==='listen'?'nod':null;
- if(!action||showRun||!model)return;
+ if(kind==='speech'){
+   speechActive=Boolean(e.detail?.active);
+   speechPulseAt=performance.now();
+   if(!speechActive)speechMouthLevel=0;
+   return;
+ }
+ if(kind==='speech-boundary'){
+   speechPulseAt=performance.now();
+   return;
+ }
+ if(!model||showRun)return;
+ const explicit=kind==='motion';
+ const action=explicit?e.detail?.action:
+    kind==='think'?'think':
+    kind==='listen'?'nod':
+    kind==='respond'?'nod':null;
+ if(!action||!['wave','dance','point','think','greet','nod','idle','walk','back'].includes(action))return;
+ const now=performance.now();
+ if(!explicit&&(now<manualMotionUntil||travelPlan||speechActive))return;
+ if(explicit){
+   // Keep the instructed gesture intact through its animation cycle.
+   manualMotionUntil=now+(action==='dance'?6500:action==='walk'?4500:2900);
+ }
  const token=++chatActionVersion;
+ if(action==='walk'||action==='back'){
+   void (async()=>{
+     try{
+       await ensureAction(action);
+       if(token!==chatActionVersion||!model||showRun)return;
+       const backwards=action==='back';
+       const dir=backwards?-1:1;
+       const x=model.position.x+Math.sin(model.rotation.y)*dir*1.2;
+       const z=model.position.z+Math.cos(model.rotation.y)*dir*1.2;
+       const dest=clampToRoom(x,z);
+       planTravel(dest.x,dest.z,null,action);
+       playMixamo(action,true,.26);
+     }catch(err){console.warn('Atlas walk motion not ready',err)}
+   })();
+   return;
+ }
  void ensureAction(action).then(()=>{
-  if(token===chatActionVersion&&!showRun&&model)playMixamo(action,true);
- }).catch(err=>console.warn('Chat gesture unavailable',action,err));
+   if(token===chatActionVersion&&!showRun&&model&&!travelPlan)
+     playMixamo(action,true,action==='idle'?.45:.30);
+ }).catch(err=>console.warn('Atlas motion unavailable:',action,err));
 });
 
 async function installGLB(buffer,label){
