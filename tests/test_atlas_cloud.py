@@ -1,6 +1,9 @@
 import importlib.util
 import pathlib
 import unittest
+import zipfile
+import io
+import base64
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("atlas_cloud", ROOT / "atlas-cloud-bridge.py")
@@ -30,6 +33,13 @@ class AtlasCloudTests(unittest.TestCase):
         items = bridge.clean_input(payload)[-1]["content"]
         self.assertEqual(sum(x["type"] == "input_text" for x in items), 4)
         self.assertEqual(sum(x["type"] == "input_image" for x in items), 1)
+
+    def test_docx_extracts_readable_text(self):
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w") as z:
+            z.writestr("word/document.xml", '<w:document xmlns:w="urn:test"><w:body><w:p><w:t>Hello from the document</w:t></w:p></w:body></w:document>')
+        data = "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64," + base64.b64encode(output.getvalue()).decode()
+        self.assertIn("Hello from the document", bridge.office_text(data))
 
     def test_non_user_messages_are_ignored(self):
         payload = {"text": "Test", "history": [
