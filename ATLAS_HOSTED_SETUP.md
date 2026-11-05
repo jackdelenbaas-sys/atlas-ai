@@ -28,6 +28,10 @@ Never put either secret in GitHub code or chat. Atlas saves only its server URL 
 - API usage (including search, images, and video) is billed separately from ChatGPT subscriptions. Set spending limits on your API project.
 - Keep the strong access token private. The Worker is a private single-user gateway, not a full user-account and sign-in service.
 
+## IMPORTANT: Runtime secrets versus Build secrets
+
+Cloudflare shows two similarly named locations. **Settings → Builds → Variables and secrets** only exposes values while building, and the Worker cannot read them while answering chat. Open **Settings → Variables and Secrets** in the Worker runtime section instead (scroll UP past Builds; it is a separate section). Add the same `OPENAI_API_KEY` and `ATLAS_ACCESS_TOKEN` as **Secret**, and click **Deploy**. Then return to Atlas Settings and test. If the original token is no longer on the clipboard, generate a new Atlas access token and save exactly that new value in both places. You cannot read encrypted existing Cloudflare secrets back.
+
 ## Troubleshooting
 
 - HTTP 401: The Atlas access token is missing or incorrect.
