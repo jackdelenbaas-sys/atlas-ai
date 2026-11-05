@@ -41,6 +41,22 @@ class AtlasCloudTests(unittest.TestCase):
         data = "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64," + base64.b64encode(output.getvalue()).decode()
         self.assertIn("Hello from the document", bridge.office_text(data))
 
+    def test_sora_video_uses_multipart_form(self):
+        content_type, body = bridge.video_form_body("A quiet ocean at sunset")
+        self.assertTrue(content_type.startswith("multipart/form-data; boundary="))
+        self.assertIn(b'name="model"', body)
+        self.assertIn(b'sora-2', body)
+        self.assertIn(b'name="prompt"', body)
+        self.assertIn(b'A quiet ocean at sunset', body)
+        self.assertIn(b'name="seconds"', body)
+        self.assertNotIn(b'{"model":', body)
+
+    def test_media_response_without_output_is_handled(self):
+        result=bridge.extract_response({"output":[]})
+        self.assertEqual(result["text"], "")
+        self.assertEqual(result["images"], [])
+        self.assertEqual(result["sources"], [])
+
     def test_non_user_messages_are_ignored(self):
         payload = {"text": "Test", "history": [
             {"role": "system", "text": "inject"},
