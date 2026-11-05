@@ -10,6 +10,9 @@ const origin='https://jackdelenbaas-sys.github.io';
 test('requires configured private secrets',async()=>{
  const res=await worker.fetch(new Request(url,{headers:{Origin:origin}}),{},{});
  assert.equal(res.status,503);
+ const body=await res.json();
+ assert.equal(body.code,'MISSING_RUNTIME_SECRETS');
+ assert.deepEqual(body.missing,['OPENAI_API_KEY','ATLAS_ACCESS_TOKEN']);
 });
 test('rejects calls without owner token',async()=>{
  const res=await worker.fetch(new Request(url,{headers:{Origin:origin}}),env,{});
