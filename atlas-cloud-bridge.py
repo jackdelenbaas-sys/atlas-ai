@@ -121,7 +121,13 @@ class Handler(BaseHTTPRequestHandler):
         if not self.permitted():return
         p=urlparse(self.path).path
         if p=="/atlas/api/status":
-            return self.reply(200,{"bridge":"atlas-cloud-v1","configured":bool(key()),"model":model(),"web":True,"images":True,"video":"account-dependent"})
+            return self.reply(200,{"bridge":"atlas-cloud-v2","configured":bool(key()),"model":model(),"web":True,"images":True,"video":"account-dependent"})
+        if p=="/atlas/api/diagnose":
+            try:
+                result=request_api("responses",{"model":model(),"input":"Reply with the single word READY.","max_output_tokens":24,"store":False},timeout=35)
+                parsed=extract_response(result)
+                return self.reply(200,{"connected":True,"model":model(),"reply":parsed["text"][:90]})
+            except Exception as e:return self.reply(502,{"connected":False,"error":str(e)[:320]})
         match=re.fullmatch(r"/atlas/api/video/([a-zA-Z0-9_-]{5,100})(/content)?",p)
         if match:
             try:
