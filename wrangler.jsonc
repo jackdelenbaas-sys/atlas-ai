@@ -2,5 +2,6 @@
   "name": "atlas-ai",
   "main": "cloudflare-worker/index.js",
   "compatibility_date": "2026-11-05",
-  "workers_dev": true
+  "workers_dev": true,
+  "build": {"command": "node cloudflare-worker/sync-runtime-secrets.mjs wrangler.jsonc"}
 }

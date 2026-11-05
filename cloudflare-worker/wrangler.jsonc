@@ -2,5 +2,6 @@
   "name": "atlas-ai-private",
   "main": "index.js",
   "compatibility_date": "2026-11-05",
-  "workers_dev": true
+  "workers_dev": true,
+  "build": {"command": "node sync-runtime-secrets.mjs wrangler.jsonc"}
 }
