@@ -7,6 +7,18 @@ const status=$('aiModeLabel'),feed=$('feed'),composer=$('input');
 const serverField=$('atlasCloudURL'),tokenField=$('atlasCloudToken');
 if(serverField)serverField.value=BASE;
 if(tokenField)tokenField.value=ACCESS;
+const generateToken=$('atlasGenerateToken');
+if(generateToken)generateToken.onclick=async()=>{
+ if(!window.crypto?.getRandomValues){alert('Secure random generation is unavailable in this browser.');return}
+ const bytes=new Uint8Array(36);crypto.getRandomValues(bytes);
+ const token=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
+ ACCESS=token;if(tokenField)tokenField.value=token;
+ sessionStorage.setItem('atlas-access-token',token);
+ const info=$('atlasTokenInstructions');
+ if(info)info.textContent='Token generated locally. Copy it to Cloudflare → atlas-ai → Settings → Variables and Secrets → ATLAS_ACCESS_TOKEN (type: Secret). It is not stored in GitHub.';
+ try{await navigator.clipboard.writeText(token);if(info)info.textContent='Secure token copied. Paste into Cloudflare as the ATLAS_ACCESS_TOKEN Secret, then save. Return here and press Save connection and test.'}
+ catch{if(info)info.textContent='Token generated. Select the password field and copy its value to Cloudflare as ATLAS_ACCESS_TOKEN. It is not stored in GitHub.'}
+};
 const saveCloud=$('atlasSaveCloud');
 if(saveCloud)saveCloud.onclick=()=>{
  let url=(serverField?.value||'').trim().replace(/\/+$/,'');
