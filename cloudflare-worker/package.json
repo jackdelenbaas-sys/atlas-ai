@@ -1,0 +1,23 @@
+{
+  "name": "atlas-ai-private-worker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "check": "node --check index.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "OPENAI_API_KEY": {
+        "description": "Your OpenAI Platform API key. Add as Cloudflare secret, never in GitHub."
+      },
+      "ATLAS_ACCESS_TOKEN": {
+        "description": "A random private access token 32+ characters, add as Cloudflare secret."
+      }
+    }
+  }
+}
