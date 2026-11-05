@@ -5,7 +5,7 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from pathlib import Path
-import json, re, time, os, io, base64, zipfile
+import json, re, time, os, io, base64, zipfile, uuid
 from xml.etree import ElementTree as ET
 ORIGIN="https://jackdelenbaas-sys.github.io"
 HOME=Path.home()
@@ -29,7 +29,7 @@ def request_api(path,data=None,method=None,timeout=110,raw=False):
                 headers={"Authorization":"Bearer "+token,"Content-Type":"application/json"})
     try:
         with urlopen(req,timeout=timeout) as r:
-            res=r.read(22*1024*1024 if raw else 12*1024*1024)
+            res=r.read(30*1024*1024 if raw else 30*1024*1024)
             return res if raw else json.loads(res)
     except HTTPError as e:
         try:
@@ -37,6 +37,27 @@ def request_api(path,data=None,method=None,timeout=110,raw=False):
             msg=problem.get("message") or str(e)
         except Exception:msg=str(e)
         raise ValueError("OpenAI API "+str(e.code)+": "+str(msg)[:300])
+def video_form_body(prompt):
+    boundary="----atlas-"+uuid.uuid4().hex
+    fields={"model":"sora-2","prompt":prompt,"size":"1280x720","seconds":"8"}
+    body=b""
+    for name,value in fields.items():
+        body+=("--"+boundary+"\r\nContent-Disposition: form-data; name=\""+name+"\"\r\n\r\n"+value+"\r\n").encode()
+    body+=("--"+boundary+"--\r\n").encode()
+    return "multipart/form-data; boundary="+boundary,body
+
+def start_video(prompt):
+    if not key():raise ValueError("No OpenAI API key configured")
+    ctype,body=video_form_body(prompt)
+    req=Request("https://api.openai.com/v1/videos",data=body,method="POST",
+                headers={"Authorization":"Bearer "+key(),"Content-Type":ctype})
+    try:
+        with urlopen(req,timeout=55) as r:return json.loads(r.read(1_000_000))
+    except HTTPError as e:
+        try:message=json.loads(e.read(4096)).get("error",{}).get("message",str(e))
+        except Exception:message=str(e)
+        raise ValueError("Video API "+str(e.code)+": "+str(message)[:300])
+
 def extract_response(data):
     chunks=[];images=[];links=[];seen=set()
     for item in data.get("output",[]):
@@ -148,8 +169,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200,{"bridge":"atlas-cloud-v2","configured":bool(key()),"model":model(),"web":True,"images":True,"video":"account-dependent"})
         if p=="/atlas/api/diagnose":
             try:
-                result=request_api("responses",{"model":model(),"input":"Reply with the single word READY.","max_output_tokens":24,"store":False},timeout=35)
+                result=request_api("responses",{"model":model(),"input":"Reply with the single word READY.","max_output_tokens":180,"store":False},timeout=35)
                 parsed=extract_response(result)
+                if not parsed["text"].strip():raise ValueError("Model API returned no text. Please check model availability and billing.")
                 return self.reply(200,{"connected":True,"model":model(),"reply":parsed["text"][:90]})
             except Exception as e:return self.reply(502,{"connected":False,"error":str(e)[:320]})
         match=re.fullmatch(r"/atlas/api/video/([a-zA-Z0-9_-]{5,100})(/content)?",p)
@@ -178,7 +200,7 @@ class Handler(BaseHTTPRequestHandler):
             if p=="/atlas/api/video":
                 prompt=str(data.get("text","")).strip()[:1800]
                 if not prompt:raise ValueError("A video description is required")
-                result=request_api("videos",{"model":"sora-2","prompt":prompt,"size":"1280x720","seconds":"4"},timeout=45)
+                result=start_video(prompt)
                 return self.reply(200,{"id":result.get("id"),"status":result.get("status","queued")})
             mode=p.rsplit("/",1)[1]
             notes=data.get("memories",[])
