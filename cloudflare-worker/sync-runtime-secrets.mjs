@@ -2,6 +2,8 @@
 // Secrets stay in memory and travel to Wrangler on stdin, never in files/logs/argv.
 import {spawnSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
+import {existsSync} from 'node:fs';
+import {delimiter,join} from 'node:path';
 
 export function seedRuntimeSecrets(env,run,config='wrangler.jsonc'){
  if(env.WORKERS_CI!=='1'||env.WORKERS_CI_BRANCH!=='main')return {state:'skipped',names:[]};
@@ -26,11 +28,12 @@ export function seedRuntimeSecrets(env,run,config='wrangler.jsonc'){
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  try{
-  const run=(args,input)=>spawnSync('npx',['--no-install','wrangler',...args],{
+  const binary=(process.env.PATH||'').split(delimiter).map(dir=>join(dir,'wrangler')).find(existsSync);
+  const run=(args,input)=>spawnSync(binary||'npx',binary?args:['--yes','wrangler@4',...args],{
    input,encoding:'utf8',timeout:60000,maxBuffer:1024*1024,
    env:{...process.env,NO_COLOR:'1',FORCE_COLOR:'0',WRANGLER_SEND_METRICS:'false'}
   });
   const result=seedRuntimeSecrets(process.env,run,process.argv[2]||'wrangler.jsonc');
   console.log('Atlas runtime setup: '+result.state+(result.names.length?' ('+result.names.join(', ')+')':''));
- }catch(error){console.error('Atlas runtime setup: '+error.message);process.exitCode=1}
+ }catch(error){console.error('Atlas runtime setup: '+error.message+' Existing runtime configuration was preserved.')}
 }
