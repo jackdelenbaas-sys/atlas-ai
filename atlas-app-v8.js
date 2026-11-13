@@ -49,7 +49,7 @@ if(!data||!Array.isArray(data.threads))data={active:Date.now(),threads:[{id:Date
 if(!data.threads.length)data.threads.push({id:Date.now(),title:'New conversation',msgs:[]});
 const memories=()=>{try{const m=JSON.parse(localStorage.getItem(MEM)||'[]');return Array.isArray(m)?m:[]}catch{return []}};
 const putMem=m=>{try{localStorage.setItem(MEM,JSON.stringify(m.slice(-80)))}catch{}};
-const save=()=>{try{const lean={active:data.active,threads:data.threads.slice(0,70).map(t=>({id:t.id,title:t.title,msgs:t.msgs.slice(-160).map(m=>({role:m.role,text:m.text, sources:m.sources||[],imageIds:m.imageIds||[]}))}))};localStorage.setItem(STORE,JSON.stringify(lean))}catch(e){console.warn('Conversation storage full',e)}};
+const save=()=>{try{const lean={active:data.active,threads:data.threads.slice(0,70).map(t=>({id:t.id,title:t.title,msgs:t.msgs.slice(-160).map(m=>({role:m.role,text:m.text, sources:m.sources||[],imageIds:m.imageIds||[],webImages:m.webImages||[]}))}))};localStorage.setItem(STORE,JSON.stringify(lean))}catch(e){console.warn('Conversation storage full',e)}};
 const active=()=>data.threads.find(t=>t.id===data.active)||data.threads[0];
 let files=[],busy=false,speaking=false,recognizer=null,pendingAction=0,busyThread=null;
 const modelSetting=$('atlasModelChoice');if(modelSetting){modelSetting.value='cloudflare-free';modelSetting.onchange=()=>localStorage.setItem('atlas-model-choice',modelSetting.value)}
@@ -96,6 +96,29 @@ function studioImage(src){
  if(!/^data:image\/(jpeg|png|webp);base64,/.test(src||''))return;
  window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src}}));
 }
+function openImageEditor(src){
+ if(busy){push('atlas','Let me finish this request first, then I can edit the picture.');return}
+ const dialog=document.createElement('dialog');dialog.className='image-editor';
+ const form=document.createElement('form');form.method='dialog';
+ const title=document.createElement('h2');title.textContent='Edit this image';
+ const preview=document.createElement('img');preview.src=src;preview.alt='Image to edit';
+ const label=document.createElement('label');label.textContent='What should change?';
+ const field=document.createElement('textarea');field.required=true;field.placeholder='For example: make the house green, keeping everything else the same';label.append(field);
+ const hint=document.createElement('p');hint.className='hint';hint.textContent='Describe a change, then Apply edit. This uses the image AI allowance.';
+ const error=document.createElement('p');error.className='hint';error.setAttribute('role','status');
+ const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancel';cancel.onclick=()=>dialog.close();
+ const apply=document.createElement('button');apply.type='submit';apply.textContent='Apply edit';
+ form.append(title,preview,label,hint,error,cancel,apply);dialog.append(form);document.body.append(dialog);dialog.onclose=()=>dialog.remove();
+ form.onsubmit=async e=>{e.preventDefault();if(!field.value.trim()||busy)return;apply.disabled=true;apply.textContent='Preparing image…';try{
+  const blob=await (await fetch(src)).blob();files=[new File([blob],'edit-reference.jpg',{type:blob.type})];attachmentPreview();composer.value='Edit this image: '+field.value.trim();dialog.close();await send();
+ }catch(e){apply.disabled=false;apply.textContent='Apply edit';error.textContent='Could not prepare the image. Try downloading and uploading it again.'}};
+ dialog.showModal();field.focus();
+}
+async function loadWebImage(item,edit=false,button){
+ if(button){button.disabled=true;button.textContent='Loading…'}
+ try{const j=await api('/atlas/api/web-image',{url:item.url},25000);if(edit)openImageEditor(j.image);else studioImage(j.image)}
+ catch(e){push('atlas','Could not open that web photo: '+e.message)}finally{if(button){button.disabled=false;button.textContent=edit?'Edit image':'Show in studio'}}
+}
 function mediaBubble(el,m){
  for(const img of m.images||[]){if(!/^data:image\/(jpeg|png|webp);base64,/.test(img))continue;
   const card=document.createElement('div');card.className='atlas-image-card';
@@ -104,10 +127,23 @@ function mediaBubble(el,m){
   const actions=document.createElement('div');actions.className='atlas-image-actions';
   const show=document.createElement('button');show.textContent='▣ Show in studio';show.onclick=()=>studioImage(img);
   const download=document.createElement('a');download.href=img;download.download='atlas-image.jpg';download.textContent='↓ Save image';
-  const improve=document.createElement('button');improve.textContent='✎ Edit image';improve.onclick=async()=>{try{const blob=await (await fetch(img)).blob();await addFiles([new File([blob],'reference.jpg',{type:blob.type})]);composer.value='Edit this image: ';composer.focus()}catch{push('atlas','That image could not be prepared as a reference. Try uploading it again.')}};
+  const improve=document.createElement('button');improve.textContent='✎ Edit image';improve.onclick=()=>openImageEditor(img);
   actions.append(show,download,improve);card.append(preview,actions);el.append(card);
  }
 
+ const gallery=document.createElement('div');gallery.className='atlas-web-gallery';
+ for(const item of (m.webImages||[]).slice(0,6)){
+  if(!/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(item.url||''))continue;
+  const card=document.createElement('div');card.className='atlas-image-card';
+  const img=document.createElement('img');img.src=item.url;img.alt=item.title||'Web photo';img.loading='lazy';img.referrerPolicy='no-referrer';img.onerror=()=>{img.alt='Preview unavailable — open the source'};
+  const caption=document.createElement('p');caption.className='hint';caption.textContent=(item.title||'Web photo')+' · '+(item.license||'See source license')+(item.author?' · '+item.author.slice(0,120):'');
+  const actions=document.createElement('div');actions.className='atlas-image-actions';
+  const show=document.createElement('button');show.textContent='Show in studio';show.onclick=()=>loadWebImage(item,false,show);
+  const edit=document.createElement('button');edit.textContent='Edit image';edit.onclick=()=>loadWebImage(item,true,edit);
+  const source=document.createElement('a');if(/^https:\/\/commons\.wikimedia\.org\//.test(item.source||'')){source.href=item.source;source.target='_blank';source.rel='noopener noreferrer';source.textContent='Source & license';actions.append(source)}
+  actions.append(show,edit);card.append(img,caption,actions);gallery.append(card);
+ }
+ if(gallery.childNodes.length)el.append(gallery);
  if(m.video){const v=document.createElement('video');v.src=m.video;v.controls=true;v.playsInline=true;v.style.cssText='width:100%;max-height:300px;border-radius:12px;margin-top:10px';el.append(v);
   const a=document.createElement('a');a.href=m.video;a.download='atlas-video.mp4';a.textContent='Download video';a.style.cssText='display:block;color:#8be0ff;margin-top:8px';el.append(a);
  }
@@ -310,8 +346,13 @@ function responseActions(question,answer,proposed,mode,legacy){
  if(/\b(sorry|sad|worried|anxious|hurt)\b/i.test(question+' '+answer))return ['nod','idle'];
  return ['think','point','idle'];
 }
+function wantsWebImages(text){
+ const t=(text||'').trim();if(/\b(?:make|create|generate|draw|paint|edit|modify|recolor|retouch)\b/i.test(t))return false;
+ return /\b(?:find|show|get|pull|search|look for|give|send)\b.*\b(?:images?|pictures?|photos?|photographs?)\b/i.test(t)||/^(?:I want|I need|I'd like)\b.*\b(?:photos?|pictures?|images?)\b/i.test(t)||/^show me (?!how|why|what|your|my|the code|a list)[^?]{2,90}$/i.test(t);
+}
 function modeFromText(t,attachments=[]){
  const q=(t||'').trim();
+ if(wantsWebImages(q))return 'web-images';
  // The one chat box handles every task. Never inherit a mode from an earlier message.
  const asks=/\b(?:make|create|generate|draw|paint|design|produce|render|animate|edit|modify|change|transform|enhance|retouch|recolor|turn|convert)\b/i.test(q);
  const video=/\b(?:video|movie|film|animation|animated clip|short clip|footage|moving scene)\b/i.test(q);
@@ -321,7 +362,7 @@ function modeFromText(t,attachments=[]){
  if(asks&&video)return 'video';
  if((asks&&image)||editPicture)return 'image';
  // A short request to make a visual object means create the picture, not write instructions.
- if(/^\s*(?:please\s+)?(?:make|create|generate|draw|design)\s+(?:me\s+)?(?:an?\s+)?(?:[a-z-]+\s+){0,3}(?:car|truck|boat|house|castle|robot|character|person|dog|cat|pirate|spaceship|airplane|landscape|scene|monster|dragon|mascot|portrait|logo)\s*[.!?]*$/i.test(q))return 'image';
+ if(/^\s*(?:please\s+)?(?:make|create|generate|draw|design)\s+(?:me\s+)?(?:an?\s+)?(?:[a-z-]+\s+){0,3}(?:car|truck|boat|house|castle|robot|character|person|dog|cat|cow|pirate|spaceship|airplane|landscape|scene|monster|dragon|mascot|portrait|logo)\s*[.!?]*$/i.test(q))return 'image';
  // Other vague requests remain chat rather than starting an expensive generation.
  return 'chat';
 }
@@ -343,7 +384,7 @@ async function send(){
  if(action&&!files.length&&text.length<90&&!/\b(?:why|how|explain|what|image|picture|photo|create|generate|screen|presentation|center|home)\b/i.test(text)){performMotion(action);return}
  const destination=/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text)?'walkToScreen':/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text)?'walkHome':null;
  if(mode==='chat'&&destination&&!files.length&&text.length<110){push('atlas',destination==='walkHome'?'Back to center. My natural habitat.':'Heading to the screen. Presentation mode: mildly impressive.');void afterReply(()=>$(destination)?.click());return}
- busy=true;busyThread=current;render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':mode==='video'?'ATLAS · CHECKING VIDEO CONNECTION':'ATLAS · CREATING IMAGE');
+ busy=true;busyThread=current;render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':mode==='video'?'ATLAS · CHECKING VIDEO CONNECTION':mode==='web-images'?'ATLAS · FINDING WEB PHOTOS':'ATLAS · CREATING IMAGE');
  const requestActionVersion=pendingAction;
  const selection=files;files=[];attachmentPreview();
  let response;
@@ -351,6 +392,9 @@ async function send(){
   const attachments=await processFiles(selection,mode==='image');
   if(mode==='image'&&followup&&!attachments.some(a=>a.type.startsWith('image/'))){
    const blob=await (await fetch(latest)).blob();attachments.push({name:'previous-image.jpg',type:'image/jpeg',data:await reduceImage(new File([blob],'previous-image.jpg',{type:blob.type}),504)});
+  }
+  if(mode==='chat'&&latest&&recentVisual&&!attachments.length&&/\b(?:this|that|these|it|image|picture|photo)\b/i.test(text)){
+   const blob=await (await fetch(latest)).blob();attachments.push({name:'conversation-image.jpg',type:'image/jpeg',data:await reduceImage(new File([blob],'conversation-image.jpg',{type:blob.type}))});
   }
   const sent=t.msgs.findLast? t.msgs.findLast(m=>m.role==='user'):[...t.msgs].reverse().find(m=>m.role==='user');
   if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);cacheImages(sent);if(sent.images[0])studioImage(sent.images[0]);render()}
@@ -361,8 +405,8 @@ async function send(){
   const cleaned=cleanReply(response.text||'Done. Consider the dramatic entrance complete.');
   const txt=cleaned.text||'Done.';
   if(!response.actions?.length)response.actions=cleaned.actions;
-  if(current===data.active){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[]});cacheImages(m);if(m.images[0])studioImage(m.images[0])}
-  else {const thread=data.threads.find(x=>x.id===current);if(thread){const m={role:'atlas',text:txt,images:response.images||[],sources:response.sources||[]};thread.msgs.push(m);cacheImages(m);save()}}
+  if(current===data.active){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]});cacheImages(m);if(m.images[0])studioImage(m.images[0])}
+  else {const thread=data.threads.find(x=>x.id===current);if(thread){const m={role:'atlas',text:txt,images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]};thread.msgs.push(m);cacheImages(m);save()}}
   // Explicit user motions or model-selected actions take precedence over
   // a generic reply nod, so the body follows the intended movement.
   // The explicit user command always wins over an optional AI-selected gesture.
@@ -389,7 +433,7 @@ $('studioUpload').onclick=()=>input.click();
 for(const b of document.querySelectorAll('[data-motion]'))b.onclick=()=>performMotion(b.dataset.motion);
 document.addEventListener('pointerdown',e=>{const menu=$('stageActions');if(menu.open&&!menu.contains(e.target))menu.open=false});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')$('stageActions').open=false});
-$('studioPresent').onclick=()=>{const imgs=active().msgs.flatMap(m=>m.images||[]);if(imgs.length)studioImage(imgs.at(-1));else input.click()};
+$('studioPresent').onclick=()=>{const imgs=active().msgs.flatMap(m=>m.images||[]);if(imgs.length)studioImage(imgs.at(-1));else{const found=active().msgs.flatMap(m=>m.webImages||[]);if(found.length)void loadWebImage(found[0]);else input.click()}};
 $('app').addEventListener('dragover',e=>{e.preventDefault();document.body.classList.add('atlas-dropping')});
 $('app').addEventListener('dragleave',e=>{if(!e.currentTarget.contains(e.relatedTarget))document.body.classList.remove('atlas-dropping')});
 $('app').addEventListener('drop',e=>{e.preventDefault();document.body.classList.remove('atlas-dropping');void addFiles(e.dataTransfer.files)});

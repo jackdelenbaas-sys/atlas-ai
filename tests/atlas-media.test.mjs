@@ -86,3 +86,10 @@ test('reply paints before action and newer commands cancel pending motion',async
  const second=c.afterReply(()=>events.push('new'));frames.shift()();frames.shift()();await Promise.resolve();
  timers.shift()();timers.shift()();await Promise.all([first,second]);assert.equal(events.join(),'new');
 });
+test('web image finding is separate from generation and editing',()=>{
+ assert.equal(ctx.modeFromText('Show me a cow'),'web-images');
+ assert.equal(ctx.modeFromText('Find multiple photos of cows from the web'),'web-images');
+ assert.equal(ctx.modeFromText('Create an image of a cow'),'image');
+ assert.equal(ctx.modeFromText('make a cow'),'image');
+ assert.equal(ctx.modeFromText('What is in this image?',[{type:'image/jpeg'}]),'chat');
+});

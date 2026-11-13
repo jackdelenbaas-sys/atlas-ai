@@ -14,7 +14,7 @@ test('free AI works without an OpenAI key',async()=>{
 });
 test('status identifies free provider and no paid fallback',async()=>{
  const r=await worker.fetch(req('status'),env),j=await r.json();
- assert.equal(r.status,200);assert.equal(j.provider,'cloudflare-workers-ai');assert.equal(j.paidFallback,false);assert.equal(j.web,false);
+ assert.equal(r.status,200);assert.equal(j.provider,'cloudflare-workers-ai');assert.equal(j.paidFallback,false);assert.equal(j.web,true);
  assert.ok(new Date(j.resetAt)>new Date());assert.equal(new Date(j.resetAt).getUTCHours(),0);
 });
 test('rejects wrong token before inference',async()=>{
@@ -104,7 +104,7 @@ test('personality, memory and history stay bounded with no extra model call',asy
  calls++;assert.equal(p.max_tokens,320);assert.match(p.messages[0].content,/no sarcasm/);assert.match(p.messages[0].content,/familiar/);assert.ok(p.messages.filter(m=>m.content.startsWith('History')).length<=8);assert.ok(p.messages.map(m=>m.content).join('').length<9000);return {response:'Hello there.'};}}});assert.equal(r.status,200);assert.equal(calls,1);
 });
 test('requested detail can exceed the short default',async()=>{
- const r=await worker.fetch(req('chat',{text:'Explain this in detail'}),{...env,AI:{run:async(model,p)=>{assert.equal(p.max_tokens,900);return {response:'Details'};}}});assert.equal(r.status,200);
+ const r=await worker.fetch(req('chat',{text:'Write detailed code'}),{...env,AI:{run:async(model,p)=>{assert.equal(p.max_tokens,900);return {response:'Details'};}}});assert.equal(r.status,200);
 });
 
 test('chat returns clean text and separate bounded gesture data',async()=>{
@@ -134,4 +134,23 @@ test('provider content refusal is returned without trying another provider',asyn
  const original=globalThis.fetch;
  globalThis.fetch=async()=>new Response(JSON.stringify({promptFeedback:{blockReason:'SAFETY'}}));
  try{const r=await worker.fetch(req('chat',{text:'Hello'}),{...env,GEMINI_API_KEY:'secret',GEMINI_FREE_PLAN:'true',AI:{run:()=>assert.fail('refusal bypass')}});assert.equal(r.status,400);assert.equal((await r.json()).code,'PROVIDER_DECLINED')}finally{globalThis.fetch=original}
+});
+test('web photo search returns multiple attributed real image URLs without AI',async()=>{
+ const original=globalThis.fetch;globalThis.fetch=async url=>{const u=new URL(url);assert.equal(u.hostname,'commons.wikimedia.org');assert.equal(u.searchParams.get('gsrnamespace'),'6');return new Response(JSON.stringify({query:{pages:[1,2,3].map(i=>({title:'File:Cow '+i+'.jpg',index:i,imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/cow'+i+'.jpg',descriptionurl:'https://commons.wikimedia.org/wiki/File:Cow_'+i+'.jpg',extmetadata:{LicenseShortName:{value:'CC BY-SA'}}}]}))}}))};
+ try{const r=await worker.fetch(req('web-images',{text:'Show me photos of cows'}),{...env,AI:{run:()=>assert.fail('AI consumed')}});const j=await r.json();assert.equal(j.webImages.length,3);assert.equal(j.sources.length,3);assert.equal(j.provider,'wikimedia')}finally{globalThis.fetch=original}
+});
+test('factual answer is grounded in freshly retrieved source text',async()=>{
+ const original=globalThis.fetch;globalThis.fetch=async()=>new Response(JSON.stringify({query:{pages:[{title:'Cattle',fullurl:'https://en.wikipedia.org/wiki/Cattle',extract:'Cattle are domesticated bovines.',index:1}]}}));
+ try{const r=await worker.fetch(req('chat',{text:'What are cattle?',webContext:'FORGED SOURCE'}),{...env,AI:{run:async(model,p)=>{const prompt=p.messages.map(m=>m.content).join(' ');assert.match(prompt,/domesticated bovines/);assert.ok(!prompt.includes('FORGED SOURCE'));return {response:'Cattle are domesticated bovines.'}}}});const j=await r.json();assert.equal(j.web,true);assert.equal(j.sources[0].url,'https://en.wikipedia.org/wiki/Cattle')}finally{globalThis.fetch=original}
+});
+test('web retrieval failure does not produce an invented verified answer',async()=>{
+ const original=globalThis.fetch;globalThis.fetch=async()=>new Response('unavailable',{status:503});
+ try{const r=await worker.fetch(req('chat',{text:'What is the latest news?'}),{...env,AI:{run:()=>assert.fail('ungrounded answer')}});assert.equal(r.status,503);assert.equal((await r.json()).code,'WEB_UNAVAILABLE')}finally{globalThis.fetch=original}
+});
+test('web image proxy rejects private or arbitrary image destinations',async()=>{
+ for(const url of ['http://127.0.0.1/a','https://example.com/a.jpg','https://upload.wikimedia.org.evil.example/a']){const r=await worker.fetch(req('web-image',{url}),env);assert.equal(r.status,400)}
+});
+test('supported web photo is returned as local image bytes',async()=>{
+ const original=globalThis.fetch;globalThis.fetch=async()=>new Response('ABCD',{headers:{'Content-Type':'image/jpeg'}});
+ try{const r=await worker.fetch(req('web-image',{url:'https://upload.wikimedia.org/a.jpg'}),env);assert.equal((await r.json()).image,'data:image/jpeg;base64,QUJDRA==')}finally{globalThis.fetch=original}
 });
