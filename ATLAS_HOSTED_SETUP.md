@@ -1,15 +1,15 @@
-# Atlas — Free daily chat
+# Atlas — Free daily chat and images
 
-Atlas uses Cloudflare Workers AI directly through the AI binding declared in wrangler.jsonc. No OpenAI key, API credits, external provider account or paid-provider fallback is used.
+Atlas uses Cloudflare Workers AI through the AI binding in wrangler.jsonc. No OpenAI key or paid-provider fallback is used.
 
-Keep the Cloudflare Workers account on the Free plan. Cloudflare's free daily allocation is account-wide and stops when exhausted, resetting at midnight UTC. On a Workers Paid account Cloudflare can bill overage; do not upgrade for this setup.
+Keep the Cloudflare Workers account on the Free plan. The free allocation is account-wide, shared by chat, image understanding and image generation, and resets at midnight UTC. Image requests consume more of that allowance. Workers Paid accounts can bill overage.
 
-Required runtime binding: AI (Workers AI). Required private runtime secret: ATLAS_ACCESS_TOKEN (at least 24 characters), matching Atlas's Settings token. Existing configured owner tokens are preserved on deployment. The OpenAI key is ignored and can be removed from runtime settings.
+Required runtime binding: AI (Workers AI). Required runtime secret: ATLAS_ACCESS_TOKEN, matching Atlas Settings. Existing configured tokens are preserved on deployment.
 
-Supported: text chat, saved browser history and memory notes, text attachments, avatar commands, browser microphone input where available, browser speech output.
+Supported: text chat, text attachments, JPEG/PNG/WebP image understanding with Llama 4 Scout, and new images with FLUX.1 Schnell. Uploaded images are resized in the browser; up to three attachments per message. Images can be displayed in the studio, downloaded, pasted or dropped, and retained in this browser through IndexedDB.
 
-Not enabled in this free text setup: live web search, image/PDF/video understanding, image/video generation. Unsupported attachments are rejected before inference; Atlas must not claim to have read them.
+Create polished version makes a new rendering based on a visual description of the reference. It is not an exact photo edit and cannot preserve text, faces or details precisely. No live web image search, PDF understanding or video generation is enabled.
 
-The connection test uses a small inference request from the same daily allocation. A daily-limit message includes the next UTC reset. There is no sticky lockout: requests can succeed again after the provider resets its quota.
+Studio buttons control gestures and walking without using AI quota. Natural movement adds occasional idle variations and respects reduced-motion preferences. Uploaded and generated images appear on the studio screen automatically.
 
-If a deployment reports a missing AI binding, redeploy the checked-in Wrangler configuration. There is no need to create or copy a new provider API key.
+Daily-limit errors include the next UTC reset; requests work again when the provider resets its quota. The connection test also consumes a small amount of the same allowance.

@@ -46,11 +46,11 @@ test('chat sends bounded history, memory and text files to fixed free model',asy
  assert.equal((await r.json()).text,'Useful answer');
 });
 test('unsupported attachment is rejected before inference',async()=>{
- const r=await worker.fetch(req('chat',{text:'Read',attachments:[{type:'image/png',data:'data:image/png;base64,AAA'}]}),{...env,AI:{run:()=>assert.fail('unread attachment')}});
+ const r=await worker.fetch(req('chat',{text:'Read',attachments:[{type:'application/pdf',data:'data:application/pdf;base64,AAA'}]}),{...env,AI:{run:()=>assert.fail('unread attachment')}});
  assert.equal(r.status,400);assert.equal((await r.json()).code,'UNSUPPORTED_ATTACHMENT');
 });
-test('image and video never call paid services',async()=>{
- for(const path of ['image','video','video/example/content']){
+test('video is disabled and no external paid services are present',async()=>{
+ for(const path of ['video','video/example/content']){
   const r=await worker.fetch(req(path,{text:'Create'}),{...env,AI:{run:()=>assert.fail('media inference')}});
   assert.equal(r.status,400);assert.equal((await r.json()).code,'FREE_CHAT_ONLY');
  }
@@ -68,3 +68,26 @@ test('health reveals readiness without revealing credentials',async()=>{
  const r=await worker.fetch(new Request(base+'health'),env);const text=await r.text();
  assert.ok(!text.includes(token));assert.equal(JSON.parse(text).ready,true);
 });
+
+
+const image='data:image/jpeg;base64,QUJDRA==';
+test('uploaded image uses vision model and exact multimodal schema',async()=>{
+ const r=await worker.fetch(req('chat',{text:'What is here?',attachments:[{type:'image/jpeg',data:image}]}),{...env,AI:{run:async(model,p)=>{
+ assert.equal(model,'@cf/meta/llama-4-scout-17b-16e-instruct');assert.deepEqual(p.messages.at(-1).content,[{type:'text',text:'What is here?'},{type:'image_url',image_url:{url:image}}]);return {response:'A picture'};
+ }}});assert.equal(r.status,200);assert.equal((await r.json()).text,'A picture');
+});
+test('generation returns a displayable JPEG from the free binding',async()=>{
+ const r=await worker.fetch(req('image',{text:'A castle'}),{...env,AI:{run:async(model,p)=>{assert.equal(model,'@cf/black-forest-labs/flux-1-schnell');assert.equal(p.steps,4);assert.equal(p.prompt,'A castle');return {image:'QUJDRA=='};}}});
+ assert.equal(r.status,200);assert.deepEqual((await r.json()).images,[image]);
+});
+test('reference image is understood before new image generation',async()=>{
+ const calls=[];const r=await worker.fetch(req('image',{text:'Create a polished image',attachments:[{type:'image/jpeg',data:image}]}),{...env,AI:{run:async(model,p)=>{calls.push(model);if(calls.length===1)return {response:'A blue boat'};assert.match(p.prompt,/A blue boat/);assert.match(p.prompt,/Create a polished image/);return {image:'QUJDRA=='};}}});
+ assert.equal(r.status,200);assert.match((await r.json()).text,/not an exact edit/);assert.equal(calls.length,2);assert.match(calls[0],/scout/);assert.match(calls[1],/flux/);
+});
+test('remote image URL and malformed image are rejected before inference',async()=>{
+ for(const data of ['https://example.com/private.jpg','data:image/svg+xml;base64,QUJDRA==']){const r=await worker.fetch(req('chat',{attachments:[{type:'image/jpeg',data}]}),{...env,AI:{run:()=>assert.fail('invalid image inference')}});assert.equal(r.status,400);assert.equal((await r.json()).code,'INVALID_IMAGE');}
+});
+test('image daily limit stops after one call with no fallback',async()=>{
+ let calls=0;const r=await worker.fetch(req('image',{text:'A castle'}),{...env,AI:{run:async()=>{calls++;throw Error('daily free allocation exhausted')}}});assert.equal(r.status,429);assert.equal((await r.json()).code,'DAILY_LIMIT_REACHED');assert.equal(calls,1);
+});
+test('missing generation output is a handled failure',async()=>{const r=await worker.fetch(req('image',{text:'A castle'}),env);assert.equal(r.status,502);assert.equal((await r.json()).images,undefined)});

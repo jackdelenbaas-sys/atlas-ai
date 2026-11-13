@@ -49,10 +49,21 @@ if(!data||!Array.isArray(data.threads))data={active:Date.now(),threads:[{id:Date
 if(!data.threads.length)data.threads.push({id:Date.now(),title:'New conversation',msgs:[]});
 const memories=()=>{try{const m=JSON.parse(localStorage.getItem(MEM)||'[]');return Array.isArray(m)?m:[]}catch{return []}};
 const putMem=m=>{try{localStorage.setItem(MEM,JSON.stringify(m.slice(-80)))}catch{}};
-const save=()=>{try{const lean={active:data.active,threads:data.threads.slice(0,70).map(t=>({id:t.id,title:t.title,msgs:t.msgs.slice(-160).map(m=>({role:m.role,text:m.text, sources:m.sources||[]}))}))};localStorage.setItem(STORE,JSON.stringify(lean))}catch(e){console.warn('Conversation storage full',e)}};
+const save=()=>{try{const lean={active:data.active,threads:data.threads.slice(0,70).map(t=>({id:t.id,title:t.title,msgs:t.msgs.slice(-160).map(m=>({role:m.role,text:m.text, sources:m.sources||[],imageIds:m.imageIds||[]}))}))};localStorage.setItem(STORE,JSON.stringify(lean))}catch(e){console.warn('Conversation storage full',e)}};
 const active=()=>data.threads.find(t=>t.id===data.active)||data.threads[0];
 let files=[],busy=false,speaking=false,recognizer=null;
 const modelSetting=$('atlasModelChoice');if(modelSetting){modelSetting.value='cloudflare-free';modelSetting.onchange=()=>localStorage.setItem('atlas-model-choice',modelSetting.value)}
+let mediaDBPromise;
+function mediaDB(){
+ return mediaDBPromise||(mediaDBPromise=new Promise((resolve,reject)=>{const r=indexedDB.open('atlas-image-library',1);r.onupgradeneeded=()=>r.result.createObjectStore('images');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)}));
+}
+async function cacheImages(message){
+ if(!message.images?.length)return;
+ try{const db=await mediaDB();message.imageIds=message.images.map(()=>crypto.randomUUID());await new Promise((resolve,reject)=>{const tx=db.transaction('images','readwrite'),store=tx.objectStore('images');message.images.forEach((image,i)=>store.put(image,message.imageIds[i]));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});save()}catch{console.warn('Image remains available for this session; browser image storage is unavailable.')}
+}
+async function restoreImages(){
+ try{const db=await mediaDB();for(const thread of data.threads)for(const m of thread.msgs)if(m.imageIds?.length){m.images=(await Promise.all(m.imageIds.map(id=>new Promise(resolve=>{const r=db.transaction('images').objectStore('images').get(id);r.onsuccess=()=>resolve(r.result);r.onerror=()=>resolve(null)})))).filter(Boolean)}render()}catch{}
+}
 function bottom(){feed.scrollTop=feed.scrollHeight;requestAnimationFrame(()=>feed.scrollTop=feed.scrollHeight)}
 function linkify(node,text){
  const re=/https:\/\/[^\s<>"]+/g;let i=0,m;
@@ -62,11 +73,22 @@ function linkify(node,text){
  }
  node.append(document.createTextNode(text.slice(i)));
 }
+function studioImage(src){
+ if(!/^data:image\/(jpeg|png|webp);base64,/.test(src||''))return;
+ window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src}}));
+}
 function mediaBubble(el,m){
- for(const img of m.images||[]){if(!img.startsWith('data:image/'))continue;
-  const a=document.createElement('a');a.href=img;a.download='atlas-image.png';a.title='Download image';
-  const pic=document.createElement('img');pic.src=img;pic.alt='Atlas generated image';pic.style.cssText='max-width:100%;border-radius:13px;display:block;margin-top:10px';a.append(pic);el.append(a);
+ for(const img of m.images||[]){if(!/^data:image\/(jpeg|png|webp);base64,/.test(img))continue;
+  const card=document.createElement('div');card.className='atlas-image-card';
+  const preview=document.createElement('button');preview.className='atlas-image-preview';preview.title='Show on Atlas studio screen';
+  const pic=document.createElement('img');pic.src=img;pic.alt=m.role==='user'?'Uploaded image':'Atlas created image';pic.loading='lazy';preview.append(pic);preview.onclick=()=>studioImage(img);
+  const actions=document.createElement('div');actions.className='atlas-image-actions';
+  const show=document.createElement('button');show.textContent='▣ Show in studio';show.onclick=()=>studioImage(img);
+  const download=document.createElement('a');download.href=img;download.download='atlas-image.jpg';download.textContent='↓ Save image';
+  const improve=document.createElement('button');improve.textContent='✦ Create polished version';improve.onclick=async()=>{try{const blob=await (await fetch(img)).blob();await addFiles([new File([blob],'reference.jpg',{type:blob.type})]);composer.value='Create a polished new version of this image with balanced lighting, sharper details and a clean composition.';composer.focus()}catch{push('atlas','That image could not be prepared as a reference. Try uploading it again.')}};
+  actions.append(show,download,improve);card.append(preview,actions);el.append(card);
  }
+
  if(m.video){const v=document.createElement('video');v.src=m.video;v.controls=true;v.playsInline=true;v.style.cssText='width:100%;max-height:300px;border-radius:12px;margin-top:10px';el.append(v);
   const a=document.createElement('a');a.href=m.video;a.download='atlas-video.mp4';a.textContent='Download video';a.style.cssText='display:block;color:#8be0ff;margin-top:8px';el.append(a);
  }
@@ -81,7 +103,7 @@ function bubble(m){
  linkify(el,m.text||'');mediaBubble(el,m);return el;
 }
 function render(){
- const t=active();feed.replaceChildren();for(const m of t.msgs)feed.append(bubble(m));
+ const t=active();$('send').disabled=busy;$('send').setAttribute('aria-busy',String(busy));feed.replaceChildren();for(const m of t.msgs)feed.append(bubble(m));
  if(busy&&t.id===data.active){const el=document.createElement('div');el.className='bubble atlas typing';el.id='atlasTyping';el.innerHTML='<i></i><i></i><i></i>';feed.append(el)}
  const threads=$('threads');threads.replaceChildren();
  for(const thread of data.threads){const b=document.createElement('button');b.className='btn entry '+(thread.id===data.active?'active':'');b.textContent=thread.title||'Conversation';b.onclick=()=>{data.active=thread.id;save();render();close()};threads.append(b)}
@@ -126,7 +148,7 @@ async function api(path,body,timeout=140000){
  }catch(e){if(e.name==='AbortError')throw Error('Atlas took too long to respond. Your message is saved; please try again.');if(e instanceof TypeError)throw Error('Cannot reach the Atlas server. Check your connection and hosted server address.');throw e}finally{clearTimeout(timer)}
 }
 async function check(verify=false){
- if(!BASE||!ACCESS){setStatus('ATLAS · SIGN-IN TOKEN NEEDED');const n=$('atlasApiInfo');if(n)n.textContent='Enter your private Atlas access token and press Save connection and test. The OpenAI key belongs only in your hosted server settings.';return false}
+ if(!BASE||!ACCESS){setStatus('ATLAS · SIGN-IN TOKEN NEEDED');const n=$('atlasApiInfo');if(n)n.textContent='Enter your private Atlas access token and press Save connection and test. No OpenAI key is needed for this free Cloudflare connection.';return false}
  setStatus(verify?'ATLAS · TESTING API':'ATLAS · CONNECTING');
  const info=$('atlasApiInfo');
  try{
@@ -156,7 +178,7 @@ function imageData(file){return new Promise((res,rej)=>{const r=new FileReader()
 function textData(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(Error('Unable to read '+file.name));r.readAsText(file)})}
 async function reduceImage(file){
  const data=await imageData(file);const img=new Image();img.src=data;await img.decode();
- const ratio=Math.min(1,1350/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*ratio));c.height=Math.max(1,Math.round(img.height*ratio));
+ const ratio=Math.min(1,1280/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*ratio));c.height=Math.max(1,Math.round(img.height*ratio));
  c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.76);
 }
 async function videoFrames(file){
@@ -171,21 +193,38 @@ async function videoFrames(file){
   }return shots;
  }finally{URL.revokeObjectURL(u);video.removeAttribute('src');video.load()}
 }
-async function processFiles(){
- const out=[];for(const file of files.slice(0,8)){
+async function processFiles(selection=files){
+ const out=[];for(const file of selection.slice(0,3)){
   if(file.size>9*1024*1024)throw Error(file.name+' is over the 9 MB attachment limit.');
   if(file.type.startsWith('image/'))out.push({name:file.name,type:'image/jpeg',data:await reduceImage(file)});
   else if(file.type.startsWith('video/'))out.push({name:file.name,type:file.type,frames:await videoFrames(file)});
   else if(file.type==='application/pdf')out.push({name:file.name,type:file.type,data:await imageData(file)});
   else if(/\.(docx|pptx|xlsx)$/i.test(file.name))out.push({name:file.name,type:file.type||'application/vnd.openxmlformats-officedocument',data:await imageData(file)});
   else if(file.type.startsWith('text/')||/\.(md|txt|csv|json|js|ts|py|html|css|xml|log)$/i.test(file.name))out.push({name:file.name,type:'text/plain',text:(await textData(file)).slice(0,16000)});
-  else throw Error('Unsupported attachment: '+file.name+'. Use images, videos, PDF, Office, or text files.');
+  else throw Error('Unsupported attachment: '+file.name+'. Use an image or text file.');
  }return out;
 }
+const previewURLs=new Map();
 function attachmentPreview(){
  const node=$('atlasFiles');node.replaceChildren();
- for(const [i,file] of files.entries()){const pill=document.createElement('button');pill.className='atlas-file-pill';pill.textContent='📎 '+file.name+' ×';pill.title='Remove '+file.name;pill.onclick=()=>{files.splice(i,1);attachmentPreview()};node.append(pill)}
+ for(const [file,url] of previewURLs)if(!files.includes(file)){URL.revokeObjectURL(url);previewURLs.delete(file)}
+ for(const [i,file] of files.entries()){
+  const card=document.createElement('div');card.className='atlas-upload-card';
+  if(file.type.startsWith('image/')){let url=previewURLs.get(file);if(!url){url=URL.createObjectURL(file);previewURLs.set(file,url)}const im=document.createElement('img');im.src=url;im.alt=file.name;card.append(im)}
+  const caption=document.createElement('span');caption.textContent=file.name;caption.title=file.name;card.append(caption);
+  const remove=document.createElement('button');remove.textContent='×';remove.title='Remove '+file.name;remove.onclick=()=>{files.splice(i,1);attachmentPreview()};card.append(remove);node.append(card);
+ }
 }
+async function addFiles(incoming){
+ const accepted=[...incoming].filter(f=>f.type.startsWith('image/')||f.type.startsWith('text/')||/\.(md|txt|csv|json|js|ts|py|html|css)$/i.test(f.name));
+ const tooLarge=accepted.find(f=>f.size>9*1024*1024);
+ if(tooLarge){push('atlas',tooLarge.name+' is too large. Choose an image under 9 MB.');return}
+ files=[...files,...accepted].slice(0,3);attachmentPreview();
+ const image=accepted.find(f=>f.type.startsWith('image/'));
+ if(image)try{studioImage(await reduceImage(image))}catch{setStatus('ATLAS · IMAGE COULD NOT LOAD')}
+ if(!accepted.length)push('atlas','Upload an image or text file. You can also paste or drop a picture here.');
+}
+
 function requestedMotion(text){
  const command=/\b(?:atlas|you|please|could you|would you|do a|show me|perform|try to|can you)\b/i.test(text)
      ||/^\s*(?:stop|freeze|idle|wave|dance|point|greet|walk|think|breakdance|moonwalk)\b/i.test(text);
@@ -238,11 +277,12 @@ async function send(){
  composer.value='';if(text&&remember(text)){files=[];attachmentPreview();return}
  if(text&&memoryRequest(text)){files=[];attachmentPreview();return}
  summarizeMemory(text);
- const t=active(),mode='chat';const current=t.id;
+ const t=active(),mode=modeFromText(text,files)==='image'?'image':'chat';const current=t.id;
  if(t.title==='New conversation')t.title=(text||'Attachments').slice(0,52);
  const filenames=files.map(x=>x.name);const history=t.msgs.slice(-35).filter(x=>x.role==='user'||x.role==='atlas').map(x=>({role:x.role==='atlas'?'assistant':'user',text:x.text}));
  push('user',(text||'Analyze these attachments')+(filenames.length?'\n📎 '+filenames.join(', '):''));
  const action=requestedMotion(text);
+ if(action&&!files.length&&text.length<90&&!/\b(?:why|how|explain|what|image|picture|photo|create|generate|screen|presentation|center|home)\b/i.test(text)){dispatch('motion',action);push('atlas',action==='idle'?'Standing by.':'On it.');return}
  if(/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text))$('walkToScreen')?.click();
  else if(/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text))$('walkHome')?.click();
  else if(action)dispatch('motion',action);
@@ -251,18 +291,18 @@ async function send(){
  let response;
  try{
   if(mode==='video'){const m=push('atlas','Starting your video…');await createVideo(text,m);dispatch('respond');return}
-  const attachments=await (async()=>{const prior=files;files=selection;try{return await processFiles()}finally{files=prior}})();
+  const attachments=await processFiles(selection);
   const sent=t.msgs.findLast? t.msgs.findLast(m=>m.role==='user'):[...t.msgs].reverse().find(m=>m.role==='user');
-  if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);render()}
+  if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);cacheImages(sent);if(sent.images[0])studioImage(sent.images[0]);render()}
   const memory=memories().slice(-35).map(x=>x.text);
   const related=relevantHistory(text,t.id);
   const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],model:modelSetting?.value||'cloudflare-free'};
   response=await api('/atlas/api/'+mode,payload,mode==='image'?210000:150000);
   let txt=response.text||'Done. Consider the dramatic entrance complete.';
-  const match=txt.match(/<atlas_action>(wave|dance|point|think|greet|idle)<\/atlas_action>/i);
+  const match=txt.match(/<atlas_action>(wave|dance|point|think|greet|idle|walk|back)<\/atlas_action>/i);
   txt=txt.replace(/<atlas_action>[\s\S]*?<\/atlas_action>/gi,'').trim();
-  if(current===data.active)push('atlas',txt,{images:response.images||[],sources:response.sources||[]});
-  else {const thread=data.threads.find(x=>x.id===current);if(thread){thread.msgs.push({role:'atlas',text:txt,sources:response.sources||[]});save()}}
+  if(current===data.active){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[]});cacheImages(m);if(m.images[0])studioImage(m.images[0])}
+  else {const thread=data.threads.find(x=>x.id===current);if(thread){const m={role:'atlas',text:txt,images:response.images||[],sources:response.sources||[]};thread.msgs.push(m);cacheImages(m);save()}}
   // Explicit user motions or model-selected actions take precedence over
   // a generic reply nod, so the body follows the intended movement.
   // The explicit user command always wins over an optional AI-selected gesture.
@@ -282,9 +322,18 @@ async function send(){
  }catch(e){if(current===data.active)push('atlas','That didn’t work: '+e.message+(e.code==='MISSING_RUNTIME_SECRETS'?' Open Settings for the missing server configuration.':''));setStatus(e.code==='DAILY_LIMIT_REACHED'?'ATLAS · FREE LIMIT RESETS DAILY':'ATLAS · ERROR');console.error('Atlas request',e)}
  finally{busy=false;render();if(!['ATLAS · ERROR','ATLAS · FREE LIMIT RESETS DAILY'].includes(status.textContent))setStatus('ATLAS · FREE AI READY')}
 }
-const input=document.createElement('input');input.type='file';input.multiple=true;input.accept='image/*,video/*,.pdf,.docx,.pptx,.xlsx,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.log';input.hidden=true;document.body.append(input);
-input.onchange=()=>{files=[...files,...input.files].slice(0,8);input.value='';attachmentPreview()};
+const input=document.createElement('input');input.type='file';input.multiple=true;input.accept='image/*,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css';input.hidden=true;document.body.append(input);
+input.onchange=()=>{void addFiles(input.files);input.value=''};
 $('atlasAttach').onclick=()=>input.click();
+$('createImage').onclick=()=>{composer.value='Create an image of ';composer.focus()};
+$('studioUpload').onclick=()=>input.click();
+for(const b of document.querySelectorAll('[data-motion]'))b.onclick=()=>dispatch('motion',b.dataset.motion);
+$('studioPresent').onclick=()=>{const imgs=active().msgs.flatMap(m=>m.images||[]);if(imgs.length)studioImage(imgs.at(-1));else input.click()};
+$('app').addEventListener('dragover',e=>{e.preventDefault();document.body.classList.add('atlas-dropping')});
+$('app').addEventListener('dragleave',e=>{if(!e.currentTarget.contains(e.relatedTarget))document.body.classList.remove('atlas-dropping')});
+$('app').addEventListener('drop',e=>{e.preventDefault();document.body.classList.remove('atlas-dropping');void addFiles(e.dataTransfer.files)});
+composer.addEventListener('paste',e=>{const images=[...e.clipboardData.items].filter(i=>i.type.startsWith('image/')).map(i=>i.getAsFile()).filter(Boolean);if(images.length){e.preventDefault();void addFiles(images)}});
+
 $('send').onclick=send;
 composer.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
 $('newChat').onclick=()=>{const id=Date.now();data.threads.unshift({id,title:'New conversation',msgs:[]});data.active=id;save();render();close()};
@@ -309,6 +358,7 @@ const saved=Number(localStorage.getItem('atlas-split'));if(saved>20&&saved<80)ap
 const savedMobile=Number(localStorage.getItem('atlas-mobile-split'));if(savedMobile>24&&savedMobile<70)app.style.setProperty('--mobile-split',savedMobile+'%');
 composer.addEventListener('focus',()=>document.body.classList.add('atlas-typing'));
 composer.addEventListener('blur',()=>document.body.classList.remove('atlas-typing'));
-render();void check();
+render();void check();void restoreImages();
 if(new URLSearchParams(location.search).has('setup'))open('settings');
 })();
+
