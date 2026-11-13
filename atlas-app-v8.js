@@ -52,7 +52,7 @@ const putMem=m=>{try{localStorage.setItem(MEM,JSON.stringify(m.slice(-80)))}catc
 const save=()=>{try{const lean={active:data.active,threads:data.threads.slice(0,70).map(t=>({id:t.id,title:t.title,msgs:t.msgs.slice(-160).map(m=>({role:m.role,text:m.text, sources:m.sources||[]}))}))};localStorage.setItem(STORE,JSON.stringify(lean))}catch(e){console.warn('Conversation storage full',e)}};
 const active=()=>data.threads.find(t=>t.id===data.active)||data.threads[0];
 let files=[],busy=false,speaking=false,recognizer=null;
-const modelSetting=$('atlasModelChoice');if(modelSetting){modelSetting.value=localStorage.getItem('atlas-model-choice')||'gpt-5.6-terra';modelSetting.onchange=()=>localStorage.setItem('atlas-model-choice',modelSetting.value)}
+const modelSetting=$('atlasModelChoice');if(modelSetting){modelSetting.value='cloudflare-free';modelSetting.onchange=()=>localStorage.setItem('atlas-model-choice',modelSetting.value)}
 function bottom(){feed.scrollTop=feed.scrollHeight;requestAnimationFrame(()=>feed.scrollTop=feed.scrollHeight)}
 function linkify(node,text){
  const re=/https:\/\/[^\s<>"]+/g;let i=0,m;
@@ -122,7 +122,7 @@ async function api(path,body,timeout=140000){
  const c=new AbortController(),timer=setTimeout(()=>c.abort(),timeout);
  try{const r=await fetch(BASE+path,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+ACCESS,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:c.signal});
   let j;try{j=await r.json()}catch{throw Error('Unexpected response from private Atlas bridge (HTTP '+r.status+')')}
-  if(!r.ok){const e=Error(j.error||'HTTP '+r.status);e.code=j.code;e.status=r.status;throw e}return j;
+  if(!r.ok){const e=Error(j.error||'HTTP '+r.status);e.code=j.code;e.status=r.status;e.resetAt=j.resetAt;throw e}return j;
  }catch(e){if(e.name==='AbortError')throw Error('Atlas took too long to respond. Your message is saved; please try again.');if(e instanceof TypeError)throw Error('Cannot reach the Atlas server. Check your connection and hosted server address.');throw e}finally{clearTimeout(timer)}
 }
 async function check(verify=false){
@@ -137,17 +137,17 @@ async function check(verify=false){
    return false;
   }
   if(!verify){
-   setStatus('ATLAS · KEY INSTALLED');
-   if(info)info.textContent='API key detected for '+r.model+'. Click Test API connection to verify the model and billing are working.';
+   setStatus('ATLAS · FREE AI CONFIGURED');
+   if(info)info.textContent='Free Cloudflare AI is configured. The daily allowance resets automatically at '+new Date(r.resetAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+'. No paid fallback.';
    return true;
   }
-  const live=await api('/atlas/api/diagnose?model='+encodeURIComponent(modelSetting?.value||'gpt-5.6-terra'),null,60000);
+  const live=await api('/atlas/api/diagnose?model='+encodeURIComponent(modelSetting?.value||'cloudflare-free'),null,60000);
   if(!live.connected)throw Error(live.error||'API test did not succeed');
   setStatus('ATLAS ONLINE · '+live.model);
-  if(info)info.textContent='Verified live response from '+live.model+'. Atlas is ready.';
+  if(info)info.textContent='Free AI verified. Atlas is ready. Daily limits reset automatically; there is no paid fallback.';
   return true;
  }catch(e){
-  setStatus('ATLAS · CONNECTION ERROR');
+  setStatus(e.code==='DAILY_LIMIT_REACHED'?'ATLAS · FREE LIMIT RESETS DAILY':'ATLAS · CONNECTION ERROR');
   if(info)info.textContent='Connection test failed: '+e.message+(e.code==='MISSING_RUNTIME_SECRETS'?' Open the Worker runtime Settings → Variables and Secrets, add the missing values, and Deploy. Build secrets alone do not configure the running server.':e.status===401?' Use the Atlas access token here, not your OpenAI API key.':'');
   return false;
  }
@@ -238,7 +238,7 @@ async function send(){
  composer.value='';if(text&&remember(text)){files=[];attachmentPreview();return}
  if(text&&memoryRequest(text)){files=[];attachmentPreview();return}
  summarizeMemory(text);
- const t=active(),mode=modeFromText(text,files);const current=t.id;
+ const t=active(),mode='chat';const current=t.id;
  if(t.title==='New conversation')t.title=(text||'Attachments').slice(0,52);
  const filenames=files.map(x=>x.name);const history=t.msgs.slice(-35).filter(x=>x.role==='user'||x.role==='atlas').map(x=>({role:x.role==='atlas'?'assistant':'user',text:x.text}));
  push('user',(text||'Analyze these attachments')+(filenames.length?'\n📎 '+filenames.join(', '):''));
@@ -256,7 +256,7 @@ async function send(){
   if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);render()}
   const memory=memories().slice(-35).map(x=>x.text);
   const related=relevantHistory(text,t.id);
-  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],model:modelSetting?.value||'gpt-5.6-terra'};
+  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],model:modelSetting?.value||'cloudflare-free'};
   response=await api('/atlas/api/'+mode,payload,mode==='image'?210000:150000);
   let txt=response.text||'Done. Consider the dramatic entrance complete.';
   const match=txt.match(/<atlas_action>(wave|dance|point|think|greet|idle)<\/atlas_action>/i);
@@ -279,8 +279,8 @@ async function send(){
     utterance.onerror=()=>dispatch('speech',false);
     speechSynthesis.speak(utterance);
   }
- }catch(e){if(current===data.active)push('atlas','That didn’t work: '+e.message+(e.code==='MISSING_RUNTIME_SECRETS'?' Open Settings for the missing server configuration.':''));setStatus('ATLAS · ERROR');console.error('Atlas request',e)}
- finally{busy=false;render();if(status.textContent!=='ATLAS · ERROR')setStatus('ATLAS · READY')}
+ }catch(e){if(current===data.active)push('atlas','That didn’t work: '+e.message+(e.code==='MISSING_RUNTIME_SECRETS'?' Open Settings for the missing server configuration.':''));setStatus(e.code==='DAILY_LIMIT_REACHED'?'ATLAS · FREE LIMIT RESETS DAILY':'ATLAS · ERROR');console.error('Atlas request',e)}
+ finally{busy=false;render();if(!['ATLAS · ERROR','ATLAS · FREE LIMIT RESETS DAILY'].includes(status.textContent))setStatus('ATLAS · FREE AI READY')}
 }
 const input=document.createElement('input');input.type='file';input.multiple=true;input.accept='image/*,video/*,.pdf,.docx,.pptx,.xlsx,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css,.xml,.log';input.hidden=true;document.body.append(input);
 input.onchange=()=>{files=[...files,...input.files].slice(0,8);input.value='';attachmentPreview()};

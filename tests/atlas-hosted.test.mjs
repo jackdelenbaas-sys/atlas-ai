@@ -1,94 +1,70 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import worker from '../cloudflare-worker/index.js';
-
-const url='https://atlas.test.workers.dev/atlas/api/status';
-const token='test-token-0123456789012345678901234567';
-const env={OPENAI_API_KEY:'placeholder-api-key',ATLAS_ACCESS_TOKEN:token};
-const origin='https://jackdelenbaas-sys.github.io';
-
-test('requires configured private secrets',async()=>{
- const res=await worker.fetch(new Request(url,{headers:{Origin:origin}}),{},{});
- assert.equal(res.status,503);
- const body=await res.json();
- assert.equal(body.code,'MISSING_RUNTIME_SECRETS');
- assert.deepEqual(body.missing,['OPENAI_API_KEY','ATLAS_ACCESS_TOKEN']);
+import {readFileSync} from 'node:fs';
+const source=readFileSync(new URL('../cloudflare-worker/index.js',import.meta.url),'utf8');
+const worker=(await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))).default;
+const token='test-token-with-at-least-32-characters';
+const base='https://atlas.test/atlas/api/';
+const headers={Origin:'https://jackdelenbaas-sys.github.io',Authorization:'Bearer '+token};
+const env={ATLAS_ACCESS_TOKEN:token,AI:{run:async()=>({response:'READY'})}};
+const req=(path,body,extra={})=>new Request(base+path,{headers:{...headers,...extra},...(body!==undefined?{method:'POST',body:JSON.stringify(body)}:{})});
+test('free AI works without an OpenAI key',async()=>{
+ const r=await worker.fetch(req('diagnose'),env);assert.equal(r.status,200);
+ const j=await r.json();assert.equal(j.connected,true);assert.equal(j.free,true);
 });
-test('rejects calls without owner token',async()=>{
- const res=await worker.fetch(new Request(url,{headers:{Origin:origin}}),env,{});
- assert.equal(res.status,401);
+test('status identifies free provider and no paid fallback',async()=>{
+ const r=await worker.fetch(req('status'),env),j=await r.json();
+ assert.equal(r.status,200);assert.equal(j.provider,'cloudflare-workers-ai');assert.equal(j.paidFallback,false);assert.equal(j.web,false);
+ assert.ok(new Date(j.resetAt)>new Date());assert.equal(new Date(j.resetAt).getUTCHours(),0);
 });
-test('rejects unapproved browser origins',async()=>{
- const res=await worker.fetch(new Request(url,{headers:{Origin:'https://evil.example',Authorization:'Bearer '+token}}),env,{});
- assert.equal(res.status,403);
+test('rejects wrong token before inference',async()=>{
+ const r=await worker.fetch(req('chat',{text:'hello'},{Authorization:'Bearer wrong'}),{...env,AI:{run:()=>assert.fail('unauthorized inference')}});
+ assert.equal(r.status,401);
 });
-test('authorizes a valid owner session without revealing API key',async()=>{
- const res=await worker.fetch(new Request(url,{headers:{Origin:origin,Authorization:'Bearer '+token}}),env,{});
- const obj=await res.json();
- assert.equal(res.status,200);
- assert.equal(obj.bridge,'atlas-hosted-v1');
- assert.equal(res.headers.get('Access-Control-Allow-Origin'),origin);
- assert.equal(JSON.stringify(obj).includes(env.OPENAI_API_KEY),false);
+test('rejects unapproved origin',async()=>assert.equal((await worker.fetch(req('status',undefined,{Origin:'https://other.example'}),env)).status,403));
+test('preflight works without credentials',async()=>assert.equal((await worker.fetch(new Request(base+'chat',{method:'OPTIONS',headers:{Origin:headers.Origin}}),{})).status,204));
+test('missing binding gives setup error without using OpenAI',async()=>{
+ const r=await worker.fetch(req('chat',{text:'hello'}),{ATLAS_ACCESS_TOKEN:token,OPENAI_API_KEY:'ignored'});
+ assert.equal(r.status,503);assert.equal((await r.json()).code,'MISSING_AI_BINDING');
 });
-test('preflight allows only the Atlas website',async()=>{
- const res=await worker.fetch(new Request(url,{method:'OPTIONS',headers:{Origin:origin,'Access-Control-Request-Method':'POST','Access-Control-Request-Headers':'authorization,content-type'}}),env,{});
- assert.equal(res.status,204);
- assert.ok(res.headers.get('Access-Control-Allow-Headers').includes('Authorization'));
-});
-
-const headers={Origin:origin,Authorization:'Bearer '+token,'Content-Type':'application/json'};
-const reply=(text='READY',model='gpt-5.6-terra')=>({model,status:'completed',output:[{type:'message',content:[{type:'output_text',text}]}]});
-async function withOpenAI(mock,run){const previous=globalThis.fetch;globalThis.fetch=mock;try{await run()}finally{globalThis.fetch=previous}}
-test('diagnoses the selected model with enough room for visible text',async()=>{
- await withOpenAI(async(_,options)=>{
-  const p=JSON.parse(options.body);assert.equal(p.model,'gpt-5.6-sol');
-  assert.equal(p.reasoning.effort,'none');assert.ok(p.max_output_tokens>=1024);
-  return Response.json(reply('READY','gpt-5.6-sol'));
- },async()=>{
-  const res=await worker.fetch(new Request(url.replace('/status','/diagnose?model=gpt-5.6-sol'),{headers}),env);
-  assert.equal(res.status,200);assert.equal((await res.json()).model,'gpt-5.6-sol');
- });
-});
-test('model access fallback is limited to unavailable models and reports actual model',async()=>{
+test('daily exhaustion stops and gives next reset',async()=>{
  let calls=0;
- await withOpenAI(async(_,options)=>{
-  const p=JSON.parse(options.body);calls++;
-  if(calls===1)return Response.json({error:{code:'model_not_found',message:'Unavailable model'}},{status:404});
-  assert.equal(p.model,'gpt-5.6-sol');return Response.json(reply('Hello','gpt-5.6-sol'));
- },async()=>{
-  const res=await worker.fetch(new Request(url.replace('/status','/chat'),{method:'POST',headers,body:JSON.stringify({text:'Hello'})}),env);
-  const body=await res.json();assert.equal(res.status,200);assert.equal(body.text,'Hello');assert.equal(body.model,'gpt-5.6-sol');assert.equal(calls,2);
- });
+ const r=await worker.fetch(req('chat',{text:'hello'}),{...env,AI:{run:async()=>{calls++;throw Error('4006 daily free allocation of 10000 neurons exhausted')}}});
+ const j=await r.json();assert.equal(r.status,429);assert.equal(j.code,'DAILY_LIMIT_REACHED');assert.equal(j.paidFallback,false);assert.ok(j.resetAt);assert.equal(calls,1);
 });
-test('quota failure is reported once and never leaks a secret echoed by upstream',async()=>{
- let calls=0;
- await withOpenAI(async()=>{calls++;return Response.json({error:{code:'insufficient_quota',message:'Quota for '+env.OPENAI_API_KEY}},{status:429})},async()=>{
-  const res=await worker.fetch(new Request(url.replace('/status','/diagnose'),{headers}),env);
-  const body=await res.json();assert.equal(res.status,429);assert.equal(body.code,'OPENAI_QUOTA_EXHAUSTED');assert.ok(!JSON.stringify(body).includes(env.OPENAI_API_KEY));assert.equal(calls,1);
- });
+test('a later request can work after provider quota resets',async()=>{
+ let exhausted=true;const e={...env,AI:{run:async()=>{if(exhausted)throw Error('daily free allocation exhausted');return {response:'Back online'}}}};
+ assert.equal((await worker.fetch(req('chat',{text:'Hi'}),e)).status,429);exhausted=false;
+ const r=await worker.fetch(req('chat',{text:'Hi'}),e);assert.equal((await r.json()).text,'Back online');
 });
-test('an invalid OpenAI key is distinguished from an invalid Atlas token',async()=>{
- await withOpenAI(async()=>Response.json({error:{message:'Incorrect API key'}},{status:401}),async()=>{
-  const res=await worker.fetch(new Request(url.replace('/status','/diagnose'),{headers}),env);
-  assert.equal(res.status,502);assert.equal((await res.json()).code,'OPENAI_KEY_INVALID');
- });
+test('chat sends bounded history, memory and text files to fixed free model',async()=>{
+ const r=await worker.fetch(req('chat',{text:'Help',model:'paid-model',history:[{role:'assistant',text:'Earlier'}],memories:['A note'],attachments:[{name:'note.txt',type:'text/plain',text:'Document'}]}),{...env,AI:{run:async(model,p)=>{
+  assert.equal(model,'@cf/meta/llama-3.3-70b-instruct-fp8-fast');assert.equal(p.max_tokens,700);
+  assert.ok(p.messages.some(x=>x.content==='Earlier'));assert.ok(p.messages.at(-1).content.includes('Document'));
+  return {response:'Useful answer'};
+ }}});
+ assert.equal((await r.json()).text,'Useful answer');
 });
-test('reasoning-only incomplete responses never become a false success',async()=>{
- await withOpenAI(async()=>Response.json({status:'incomplete',incomplete_details:{reason:'max_output_tokens'},output:[{type:'reasoning'}]}),async()=>{
-  const res=await worker.fetch(new Request(url.replace('/status','/chat'),{method:'POST',headers,body:'{"text":"hello"}'}),env);
-  assert.equal(res.status,502);assert.equal((await res.json()).code,'OUTPUT_LIMIT');
- });
+test('unsupported attachment is rejected before inference',async()=>{
+ const r=await worker.fetch(req('chat',{text:'Read',attachments:[{type:'image/png',data:'data:image/png;base64,AAA'}]}),{...env,AI:{run:()=>assert.fail('unread attachment')}});
+ assert.equal(r.status,400);assert.equal((await r.json()).code,'UNSUPPORTED_ATTACHMENT');
 });
-test('chat keeps history, uses bounded reasoning and extracts sources',async()=>{
- await withOpenAI(async(_,options)=>{
-  const p=JSON.parse(options.body);assert.equal(p.input[0].role,'assistant');assert.equal(p.input.at(-1).role,'user');assert.equal(p.reasoning.effort,'low');assert.ok(p.max_output_tokens>=4096);
-  const data=reply('See source');data.output[0].content[0].annotations=[{type:'url_citation',url:'https://example.org',title:'Source'}];return Response.json(data);
- },async()=>{
-  const res=await worker.fetch(new Request(url.replace('/status','/chat'),{method:'POST',headers,body:JSON.stringify({text:'Continue',history:[{role:'assistant',text:'Earlier answer'}]})}),env);
-  const body=await res.json();assert.equal(res.status,200);assert.equal(body.sources[0].url,'https://example.org');
- });
+test('image and video never call paid services',async()=>{
+ for(const path of ['image','video','video/example/content']){
+  const r=await worker.fetch(req(path,{text:'Create'}),{...env,AI:{run:()=>assert.fail('media inference')}});
+  assert.equal(r.status,400);assert.equal((await r.json()).code,'FREE_CHAT_ONLY');
+ }
+ assert.ok(!source.includes('api.openai.com'));assert.ok(!source.includes('fetch('+'\''+'https://'));
 });
-test('bad request JSON is a client error',async()=>{
- const res=await worker.fetch(new Request(url.replace('/status','/chat'),{method:'POST',headers,body:'{'}),env);
- assert.equal(res.status,400);assert.equal((await res.json()).code,'INVALID_JSON');
+test('temporary capacity limit is not misreported as daily exhaustion',async()=>{
+ const r=await worker.fetch(req('chat',{text:'Hi'}),{...env,AI:{run:async()=>{throw Error('service busy')}}});
+ assert.equal((await r.json()).code,'TEMPORARY_LIMIT');
+});
+test('empty output and malformed request are handled',async()=>{
+ const r=await worker.fetch(req('chat',{text:'Hi'}),{...env,AI:{run:async()=>({})}});assert.equal(r.status,502);
+ const bad=await worker.fetch(new Request(base+'chat',{method:'POST',headers,body:'{'}),env);assert.equal(bad.status,400);
+});
+test('health reveals readiness without revealing credentials',async()=>{
+ const r=await worker.fetch(new Request(base+'health'),env);const text=await r.text();
+ assert.ok(!text.includes(token));assert.equal(JSON.parse(text).ready,true);
 });
