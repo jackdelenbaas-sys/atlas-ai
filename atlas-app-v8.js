@@ -92,7 +92,28 @@ function formatAnswer(node,text){
   else{list=null;const p=document.createElement('p');answerInline(p,line.replace(/^\s*#{1,6}\s+/,''));node.append(p)}
  }if(pre)node.append(pre);
 }
+let studioSlides=null,slideTimer=null,slideVersion=0;
+function stopStudioSlides(){++slideVersion;clearInterval(slideTimer);slideTimer=null;studioSlides=null}
+async function startStudioSlideshow(items,start=0){
+ stopStudioSlides();
+ const photos=items.filter(i=>/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(i.url||'')).slice(0,6);
+ if(!photos.length)return;
+ const version=slideVersion,state={items:photos,index:start%photos.length,busy:false,cache:new Map(),shown:0};studioSlides=state;
+ const credits=$('photoCredits');if(credits){credits.replaceChildren();for(const item of photos){const p=document.createElement('p');p.textContent=(item.author||item.title||'Photo')+' · '+(item.license||'See source license')+' ';if(/^https:\/\/commons\.wikimedia\.org\//.test(item.source||'')){const a=document.createElement('a');a.href=item.source;a.textContent='Original';a.target='_blank';a.rel='noopener noreferrer';p.append(a)}credits.append(p)}}
+ async function next(){
+  if(state.busy||document.hidden||version!==slideVersion)return;state.busy=true;
+  const item=photos[state.index];state.index=(state.index+1)%photos.length;
+  try{let src=state.cache.get(item.url);if(!src){src=(await api('/atlas/api/web-image',{url:item.url},25000)).image;state.cache.set(item.url,src)}
+   if(version!==slideVersion)return;
+   window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src,reframe:state.shown++===0}}));
+  }catch{if(version===slideVersion)setStatus('ATLAS · PHOTO COULD NOT LOAD')}
+  finally{state.busy=false}
+ }
+ void next();if(photos.length>1)slideTimer=setInterval(()=>void next(),5500);
+}
+window.addEventListener('pagehide',stopStudioSlides);
 function studioImage(src){
+ stopStudioSlides();
  if(!/^data:image\/(jpeg|png|webp);base64,/.test(src||''))return;
  window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src}}));
 }
@@ -128,40 +149,35 @@ function mediaBubble(el,m){
   const show=document.createElement('button');show.textContent='▣ Show in studio';show.onclick=()=>studioImage(img);
   const download=document.createElement('a');download.href=img;download.download='atlas-image.jpg';download.textContent='↓ Save image';
   const improve=document.createElement('button');improve.textContent='✎ Edit image';improve.onclick=()=>openImageEditor(img);
-  actions.append(show,download,improve);card.append(preview,actions);el.append(card);
+  actions.append(show,download,improve);const options=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Image options';options.append(summary,actions);card.append(preview,options);el.append(card);
  }
 
  const gallery=document.createElement('div');gallery.className='atlas-web-gallery';
- for(const item of (m.webImages||[]).slice(0,6)){
+ for(const [index,item] of (m.webImages||[]).slice(0,6).entries()){
   if(!/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(item.url||''))continue;
-  const card=document.createElement('div');card.className='atlas-image-card';
-  const img=document.createElement('img');img.src=item.url;img.alt=item.title||'Web photo';img.loading='lazy';img.referrerPolicy='no-referrer';img.onerror=()=>{img.alt='Preview unavailable — open the source'};
-  const caption=document.createElement('p');caption.className='hint';caption.textContent=(item.title||'Web photo')+' · '+(item.license||'See source license')+(item.author?' · '+item.author.slice(0,120):'');
-  const actions=document.createElement('div');actions.className='atlas-image-actions';
-  const show=document.createElement('button');show.textContent='Show in studio';show.onclick=()=>loadWebImage(item,false,show);
-  const edit=document.createElement('button');edit.textContent='Edit image';edit.onclick=()=>loadWebImage(item,true,edit);
-  const source=document.createElement('a');if(/^https:\/\/commons\.wikimedia\.org\//.test(item.source||'')){source.href=item.source;source.target='_blank';source.rel='noopener noreferrer';source.textContent='Source & license';actions.append(source)}
-  actions.append(show,edit);card.append(img,caption,actions);gallery.append(card);
+  const thumb=document.createElement('button');thumb.className='photo-thumb';thumb.title='Show photo '+(index+1)+' in slideshow';
+  const img=document.createElement('img');img.src=item.url;img.alt=item.title||'Web photo';img.loading='lazy';img.referrerPolicy='no-referrer';
+  thumb.append(img);thumb.onclick=()=>void startStudioSlideshow(m.webImages,index);gallery.append(thumb);
  }
  if(gallery.childNodes.length)el.append(gallery);
  if(m.video){const v=document.createElement('video');v.src=m.video;v.controls=true;v.playsInline=true;v.style.cssText='width:100%;max-height:300px;border-radius:12px;margin-top:10px';el.append(v);
   const a=document.createElement('a');a.href=m.video;a.download='atlas-video.mp4';a.textContent='Download video';a.style.cssText='display:block;color:#8be0ff;margin-top:8px';el.append(a);
  }
- if(m.sources?.length){
+ if(m.sources?.length&&!m.webImages?.length){
   const box=document.createElement('div');box.style.cssText='margin-top:10px;border-top:1px solid #ffffff22;padding-top:8px;display:flex;flex-wrap:wrap;gap:8px';
   for(const item of m.sources.slice(0,5)){if(!/^https:\/\//.test(item.url||''))continue;const a=document.createElement('a');a.href=item.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=item.title||new URL(item.url).hostname;a.style.cssText='color:#9edbff;font-size:11px;max-width:100%;overflow:hidden;text-overflow:ellipsis';box.append(a)}
   el.append(box);
  }
 }
 function bubble(m){
- const el=document.createElement('div');el.className='bubble '+(m.role==='user'?'user':'atlas');
+ const el=document.createElement('div');el.className='bubble '+(m.role==='user'?'user':'atlas')+((m.images?.length||m.webImages?.length)?' photo-reply':'');
  if(m.role==='user')linkify(el,m.text||'');else formatAnswer(el,cleanReply(m.text||'').text);mediaBubble(el,m);return el;
 }
 function render(){
  const t=active();$('send').disabled=busy;$('send').setAttribute('aria-busy',String(busy));feed.replaceChildren();for(const m of t.msgs)feed.append(bubble(m));
  if(busy&&t.id===busyThread){const el=document.createElement('div');el.className='bubble atlas typing';el.id='atlasTyping';el.innerHTML='<i></i><i></i><i></i>';feed.append(el)}
  const threads=$('threads');threads.replaceChildren();
- for(const thread of data.threads){const b=document.createElement('button');b.className='btn entry '+(thread.id===data.active?'active':'');b.textContent=thread.title||'Conversation';b.onclick=()=>{data.active=thread.id;save();render();close()};threads.append(b)}
+ for(const thread of data.threads){const b=document.createElement('button');b.className='btn entry '+(thread.id===data.active?'active':'');b.textContent=thread.title||'Conversation';b.onclick=()=>{stopStudioSlides();data.active=thread.id;save();render();close()};threads.append(b)}
  bottom();
 }
 function push(role,text,extras={}){const t=active();const m={role,text,...extras};t.msgs.push(m);save();render();return m}
@@ -405,7 +421,7 @@ async function send(){
   const cleaned=cleanReply(response.text||'Done. Consider the dramatic entrance complete.');
   const txt=cleaned.text||'Done.';
   if(!response.actions?.length)response.actions=cleaned.actions;
-  if(current===data.active){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]});cacheImages(m);if(m.images[0])studioImage(m.images[0])}
+  if(current===data.active){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]});cacheImages(m);if(m.images[0])studioImage(m.images[0]);else if(m.webImages?.length)void startStudioSlideshow(m.webImages)}
   else {const thread=data.threads.find(x=>x.id===current);if(thread){const m={role:'atlas',text:txt,images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]};thread.msgs.push(m);cacheImages(m);save()}}
   // Explicit user motions or model-selected actions take precedence over
   // a generic reply nod, so the body follows the intended movement.
@@ -433,7 +449,7 @@ $('studioUpload').onclick=()=>input.click();
 for(const b of document.querySelectorAll('[data-motion]'))b.onclick=()=>performMotion(b.dataset.motion);
 document.addEventListener('pointerdown',e=>{const menu=$('stageActions');if(menu.open&&!menu.contains(e.target))menu.open=false});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')$('stageActions').open=false});
-$('studioPresent').onclick=()=>{const imgs=active().msgs.flatMap(m=>m.images||[]);if(imgs.length)studioImage(imgs.at(-1));else{const found=active().msgs.flatMap(m=>m.webImages||[]);if(found.length)void loadWebImage(found[0]);else input.click()}};
+$('studioPresent').onclick=()=>{const imgs=active().msgs.flatMap(m=>m.images||[]);if(imgs.length)studioImage(imgs.at(-1));else{const found=active().msgs.flatMap(m=>m.webImages||[]);if(found.length)void startStudioSlideshow(found.slice(-6));else input.click()}};
 $('app').addEventListener('dragover',e=>{e.preventDefault();document.body.classList.add('atlas-dropping')});
 $('app').addEventListener('dragleave',e=>{if(!e.currentTarget.contains(e.relatedTarget))document.body.classList.remove('atlas-dropping')});
 $('app').addEventListener('drop',e=>{e.preventDefault();document.body.classList.remove('atlas-dropping');void addFiles(e.dataTransfer.files)});
@@ -441,7 +457,7 @@ composer.addEventListener('paste',e=>{const images=[...e.clipboardData.items].fi
 
 $('send').onclick=send;
 composer.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
-$('newChat').onclick=()=>{const id=Date.now();data.threads.unshift({id,title:'New conversation',msgs:[]});data.active=id;save();render();close()};
+$('newChat').onclick=()=>{stopStudioSlides();const id=Date.now();data.threads.unshift({id,title:'New conversation',msgs:[]});data.active=id;save();render();close()};
 const open=id=>{$(id).classList.add('show');$('veil').classList.add('show')};
 const close=()=>{document.querySelectorAll('.sheet').forEach(x=>x.classList.remove('show'));$('veil').classList.remove('show')};
 $('historyBtn').onclick=()=>open('history');$('settingsBtn').onclick=()=>open('settings');$('veil').onclick=close;document.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);

@@ -20,7 +20,7 @@ test('movement commands retain explicit intent',()=>{
  assert.equal(ctx.requestedMotion('Please dance'),'dance');assert.equal(ctx.requestedMotion('What is gravity?'),null);
 });
 test('only local image data reaches the studio image event',()=>{
- const events=[];const c=vm.createContext({window:{dispatchEvent:e=>events.push(e)},CustomEvent:class{constructor(type,o){this.type=type;this.detail=o.detail}}});
+ const events=[];const c=vm.createContext({stopStudioSlides:()=>{},window:{dispatchEvent:e=>events.push(e)},CustomEvent:class{constructor(type,o){this.type=type;this.detail=o.detail}}});
  const fn=source.slice(source.indexOf('function studioImage('),source.indexOf('function mediaBubble('));vm.runInContext(fn,c);
  c.studioImage('https://example.com/image.jpg');c.studioImage('data:text/html;base64,AAA');assert.equal(events.length,0);
  c.studioImage('data:image/jpeg;base64,QUJDRA==');assert.equal(events.length,1);assert.equal(events[0].type,'atlas-studio-image');
@@ -59,7 +59,7 @@ test('relevant memories are selected within a small prompt budget',()=>{
 test('answer formatting renders emphasis and lists without raw markdown or HTML execution',()=>{
  class Node{constructor(tag='text',text=''){this.tag=tag;this.textContent=text;this.children=[]}append(...children){this.children.push(...children)}}
  const c=vm.createContext({document:{createElement:t=>new Node(t),createTextNode:t=>new Node('text',t)}});
- vm.runInContext(source.slice(source.indexOf('function linkify('),source.indexOf('function studioImage(')),c);
+ vm.runInContext(source.slice(source.indexOf('function linkify('),source.indexOf('let studioSlides=')),c);
  const root=new Node('div');c.formatAnswer(root,'## Quick answer\n**Bold** text\n\n* First\n* Second\n<script>alert(1)</script>');
  const flatten=n=>n.textContent+n.children.map(flatten).join('');const result=flatten(root);
  assert.ok(!result.includes('**'));assert.ok(!result.includes('##'));assert.ok(result.includes('<script>alert(1)</script>'));
@@ -92,4 +92,14 @@ test('web image finding is separate from generation and editing',()=>{
  assert.equal(ctx.modeFromText('Create an image of a cow'),'image');
  assert.equal(ctx.modeFromText('make a cow'),'image');
  assert.equal(ctx.modeFromText('What is in this image?',[{type:'image/jpeg'}]),'chat');
+});
+test('slideshow rotates, caches photos and only reframes the camera once',async()=>{
+ const events=[];let tick,calls=0;
+ const c=vm.createContext({Map,CustomEvent:class{constructor(type,o){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>events.push(e),addEventListener:()=>{}},document:{hidden:false},$:()=>null,api:async()=>{calls++;return {image:'data:image/jpeg;base64,QUJDRA==' }},setStatus:()=>{},setInterval:f=>{tick=f;return 1},clearInterval:()=>{}});
+ vm.runInContext(source.slice(source.indexOf('let studioSlides='),source.indexOf('function studioImage(')),c);
+ await c.startStudioSlideshow([{url:'https://upload.wikimedia.org/a.jpg'},{url:'https://thumb.wikimedia.org/b.jpg'}]);await new Promise(setImmediate);
+ tick();await new Promise(setImmediate);
+ assert.equal(events.length,2);assert.equal(events[0].detail.reframe,true);assert.equal(events[1].detail.reframe,false);
+ tick();await new Promise(setImmediate);assert.equal(calls,2);
+ c.stopStudioSlides();tick();await Promise.resolve();assert.equal(events.length,3);
 });

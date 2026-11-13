@@ -140,7 +140,7 @@ export default {async fetch(request,env){
    if(Number(request.headers.get('Content-Length')||0)>6500000)return json({error:'This message is too large for image chat.'},413);
    const raw=await request.text();if(raw.length>6500000)return json({error:'This message is too large for image chat.'},413);
    const p=JSON.parse(raw);if(!p||typeof p!=='object'||Array.isArray(p))return json({error:'Invalid message.'},400);
-   if(path.endsWith('/web-images')){const images=await webImages(p.text);return json({text:images.length?'Found '+images.length+' web photos. Pick one to show in the studio or edit.':'No matching Wikimedia photos found. Try a simpler description.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),actions:['point','idle'],web:true,provider:'wikimedia',free:true})}
+   if(path.endsWith('/web-images')){const images=await webImages(p.text);return json({text:images.length?'Here are the photos.':'No matching Wikimedia photos found. Try a simpler description.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),actions:['point','idle'],web:true,provider:'wikimedia',free:true})}
    if(path.endsWith('/web-image'))return json({image:await remoteImage(p.url)});
    if(path.endsWith('/image')){
     let prompt=String(p.text||'').trim().slice(0,1500);
