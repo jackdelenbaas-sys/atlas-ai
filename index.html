@@ -147,7 +147,7 @@ html,body{height:100%;overflow:hidden}
 <p class="hint" id="atlasApiInfo">Connect Atlas to your hosted AI server. No Mac installation or Tailscale required.</p>
 <label>Hosted server HTTPS address <input id="atlasCloudURL" type="url" placeholder="https://atlas-ai.your-subdomain.workers.dev" autocomplete="url" style="width:100%"></label>
 <label>Private Atlas access token <input id="atlasCloudToken" type="password" placeholder="Private token from your hosted server" autocomplete="off" style="width:100%"></label>
-<button class="btn wide" id="atlasGenerateToken">Generate and copy a secure Atlas access token</button><p class="hint" id="atlasTokenInstructions">Paste that generated token into Cloudflare as the ATLAS_ACCESS_TOKEN secret, then return here and test.</p>
+<button class="btn wide" id="atlasGenerateToken">Copy Cloudflare token</button><p class="hint" id="atlasTokenInstructions">Copy the token, paste it into Cloudflare’s ATLAS_ACCESS_TOKEN Value, and deploy. Atlas checks automatically when you return.</p>
 <a class="btn wide" href="https://deploy.workers.cloudflare.com/?url=https://github.com/jackdelenbaas-sys/atlas-ai/tree/main/cloudflare-worker" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;margin:8px 0">Set up hosted Atlas AI ↗</a>
 <button class="btn wide" id="atlasSaveCloud">Save connection and test live AI</button>
 <button class="btn wide" id="atlasCheckAPI">↻ Test API connection</button>
@@ -183,7 +183,7 @@ html,body{height:100%;overflow:hidden}
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
 <p class="hint">Atlas's real motion clips control his limbs. The old manual joint sliders have been removed so they cannot interfere with natural animation.</p><div class="section">Model</div><label id="uploadModelBtn" class="btn wide">Replace Atlas body (optional)<input id="modelUpload" type="file" accept=".glb,model/gltf-binary"></label><p class="hint">The complete original Atlas model now loads automatically from the hosted library, even on a new device.</p><button id="repairAvatar" class="btn wide" style="margin:10px 0;text-align:center">↺ Reset Atlas body and animations</button>
 <p class="hint" id="modelDetails">Original full-body human model • securely hosted and cached</p></aside></div>
-<script src="atlas-app-v8.js?v=101" defer></script>
+<script src="atlas-app-v8.js?v=102" defer></script>
 <script type="module">
 import {clampPoint,stepTravel,stepGravity} from './atlas-motion.mjs?v=101';
 import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
