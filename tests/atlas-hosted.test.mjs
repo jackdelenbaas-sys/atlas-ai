@@ -76,13 +76,20 @@ test('uploaded image uses vision model and exact multimodal schema',async()=>{
  assert.equal(model,'@cf/meta/llama-4-scout-17b-16e-instruct');assert.deepEqual(p.messages.at(-1).content,[{type:'text',text:'What is here?'},{type:'image_url',image_url:{url:image}}]);return {response:'A picture'};
  }}});assert.equal(r.status,200);assert.equal((await r.json()).text,'A picture');
 });
-test('generation returns a displayable JPEG from the free binding',async()=>{
- const r=await worker.fetch(req('image',{text:'A castle'}),{...env,AI:{run:async(model,p)=>{assert.equal(model,'@cf/black-forest-labs/flux-1-schnell');assert.equal(p.steps,4);assert.equal(p.prompt,'A castle');return {image:'QUJDRA=='};}}});
- assert.equal(r.status,200);assert.deepEqual((await r.json()).images,[image]);
+test('generation sends precise named objects in multipart format',async()=>{
+ const prompt='Create a big Tesla Cybertruck ruling over the other cars';
+ const r=await worker.fetch(req('image',{text:prompt}),{...env,AI:{run:async(model,p)=>{
+ assert.equal(model,'@cf/black-forest-labs/flux-2-klein-4b');
+ const form=await new Response(p.multipart.body,{headers:{'Content-Type':p.multipart.contentType}}).formData();
+ assert.ok(form.get('prompt').includes(prompt));assert.equal(form.get('width'),'1024');assert.equal(form.get('input_image_0'),null);return {image:'QUJDRA=='};
+ }}});assert.equal(r.status,200);assert.deepEqual((await r.json()).images,[image]);
 });
-test('reference image is understood before new image generation',async()=>{
- const calls=[];const r=await worker.fetch(req('image',{text:'Create a polished image',attachments:[{type:'image/jpeg',data:image}]}),{...env,AI:{run:async(model,p)=>{calls.push(model);if(calls.length===1)return {response:'A blue boat'};assert.match(p.prompt,/A blue boat/);assert.match(p.prompt,/Create a polished image/);return {image:'QUJDRA=='};}}});
- assert.equal(r.status,200);assert.match((await r.json()).text,/not an exact edit/);assert.equal(calls.length,2);assert.match(calls[0],/scout/);assert.match(calls[1],/flux/);
+test('edit passes original reference bytes directly to the image model',async()=>{
+ let calls=0;const r=await worker.fetch(req('image',{text:'Make the house green',attachments:[{type:'image/jpeg',data:image}]}),{...env,AI:{run:async(model,p)=>{
+ calls++;assert.match(model,/klein-4b/);const form=await new Response(p.multipart.body,{headers:{'Content-Type':p.multipart.contentType}}).formData();
+ assert.match(form.get('prompt'),/Make the house green/);assert.match(form.get('prompt'),/Preserve/);
+ assert.equal(await form.get('input_image_0').text(),'ABCD');return {image:'QUJDRA=='};
+ }}});assert.equal(r.status,200);assert.equal(calls,1);const j=await r.json();assert.match(j.text,/edited image/);assert.deepEqual(j.actions,['point','nod','idle']);
 });
 test('remote image URL and malformed image are rejected before inference',async()=>{
  for(const data of ['https://example.com/private.jpg','data:image/svg+xml;base64,QUJDRA==']){const r=await worker.fetch(req('chat',{attachments:[{type:'image/jpeg',data}]}),{...env,AI:{run:()=>assert.fail('invalid image inference')}});assert.equal(r.status,400);assert.equal((await r.json()).code,'INVALID_IMAGE');}

@@ -25,3 +25,14 @@ test('only local image data reaches the studio image event',()=>{
  c.studioImage('https://example.com/image.jpg');c.studioImage('data:text/html;base64,AAA');assert.equal(events.length,0);
  c.studioImage('data:image/jpeg;base64,QUJDRA==');assert.equal(events.length,1);assert.equal(events[0].type,'atlas-studio-image');
 });
+
+test('follow-up edits target an existing image and questions remain chat',()=>{
+ for(const text of ['Make it green','Change the truck to a Cybertruck','Remove the background','Make the house green','Edit this image: sharpen it'])assert.equal(ctx.isImageEdit(text),true,text);
+ for(const text of ['What color is it?','Explain the image','Create a new image of a cat','How can I make it green?'])assert.equal(ctx.isImageEdit(text),false,text);
+});
+test('response sequences match images, greetings and empathy and reject unsafe actions',()=>{
+ assert.equal(ctx.responseActions('Create an image','Done',null,'image').join(','),'point,nod,idle');
+ assert.equal(ctx.responseActions('hello','Hi',null,'chat').join(','),'greet,nod,idle');
+ assert.equal(ctx.responseActions('I am worried','',null,'chat').join(','),'nod,idle');
+ assert.equal(ctx.responseActions('Explain','', ['walk','dance','point'],'chat').join(','),'point,idle');
+});

@@ -141,7 +141,7 @@ html,body{height:100%;overflow:hidden}
 
 #stageActions.studio-dock{bottom:auto;position:absolute;z-index:4;top:72px;left:18px;right:18px;display:flex;gap:6px;flex-wrap:wrap;pointer-events:none}
 .studio-chip,.atlas-image-actions button,.atlas-image-actions a{border:1px solid #afd5ff38;border-radius:999px;background:#173149aa;color:#c5e8ff;padding:7px 12px;font-size:11px;text-decoration:none;cursor:pointer}
-.atlas-files{display:flex;gap:9px;overflow-x:auto;padding:0 3px 10px;max-height:125px}
+.atlas-files{pointer-events:auto;display:flex;gap:9px;overflow-x:auto;padding:0 3px 10px;max-height:125px}
 .atlas-upload-card{display:flex;align-items:center;gap:9px;flex:0 0 200px;max-width:240px;padding:8px;background:#10243ce8;border:1px solid #a7d7ff45;border-radius:15px;box-shadow:0 8px 30px #0004}
 .atlas-upload-card img{width:58px;height:58px;border-radius:10px;object-fit:cover}.atlas-upload-card span{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.atlas-upload-card button{border:0;color:#d6eaff;background:#ffffff12;border-radius:50%;width:25px;height:25px;flex:none}
 .atlas-image-card{margin-top:10px;border:1px solid #afdbff38;border-radius:16px;overflow:hidden;background:#071320}.atlas-image-preview{display:block;width:100%;padding:0;border:0;background:transparent}.atlas-image-preview img{display:block;width:100%;max-height:390px;object-fit:contain}.atlas-image-actions{display:flex;gap:8px;padding:10px;flex-wrap:wrap}
@@ -150,8 +150,8 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 @media(max-width:760px){.studio-dock{top:58px;left:10px;right:48px}.atlas-upload-card{flex-basis:160px}.voicebar .studio-chip{font-size:10px}.atlas-upload-card img{width:44px;height:44px}}
 
 </style></head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">10.2 STUDIO</span></header><div id="feed" class="feed"></div></div>
-<div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div id="stageActions" class="studio-dock" aria-label="Atlas studio controls"><button id="studioUpload" title="Upload a picture">＋ Picture</button><button id="studioPresent" title="Show the latest image on the studio screen">▣ Screen</button><button data-motion="wave">Wave</button><button data-motion="walk">Walk</button><button data-motion="dance">Dance</button><button data-motion="idle">Stop</button></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div id="atlasFiles" class="atlas-files"></div><div class="inputglass"><button id="atlasAttach" class="circle" title="Upload an image or text file" aria-label="Attach files">＋</button><input id="input" autocomplete="off" placeholder="Ask anything, upload a photo, or create an image…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><button id="createImage" class="studio-chip" title="Create an image with the free daily allowance">✦ Create image</button><small id="aiModeLabel">ATLAS AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">10.3 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div class="right"><div class="stage"><canvas id="canvas"></canvas></div><div id="stageActions" class="studio-dock" aria-label="Atlas studio controls"><button id="studioUpload" title="Upload a picture">＋ Picture</button><button id="studioPresent" title="Show the latest image on the studio screen">▣ Screen</button><button data-motion="wave">Wave</button><button data-motion="walk">Walk</button><button data-motion="dance">Dance</button><button data-motion="idle">Stop</button></div><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div id="atlasFiles" class="atlas-files"></div><div class="inputglass"><button id="atlasAttach" class="circle" title="Upload an image or text file" aria-label="Attach files">＋</button><input id="input" autocomplete="off" placeholder="Ask anything, upload a photo, or create an image…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">ATLAS AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
 <div class="section">Atlas Cloud AI</div>
@@ -194,7 +194,7 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
 <p class="hint">Atlas's real motion clips control his limbs. The old manual joint sliders have been removed so they cannot interfere with natural animation.</p><div class="section">Model</div><label id="uploadModelBtn" class="btn wide">Replace Atlas body (optional)<input id="modelUpload" type="file" accept=".glb,model/gltf-binary"></label><p class="hint">The complete original Atlas model now loads automatically from the hosted library, even on a new device.</p><button id="repairAvatar" class="btn wide" style="margin:10px 0;text-align:center">↺ Reset Atlas body and animations</button>
 <p class="hint" id="modelDetails">Original full-body human model • securely hosted and cached</p></aside></div>
-<script src="atlas-app-v8.js?v=104" defer></script>
+<script src="atlas-app-v8.js?v=105" defer></script>
 <script type="module">
 import {clampPoint,stepTravel,stepGravity} from './atlas-motion.mjs?v=101';
 import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -1107,6 +1107,15 @@ window.addEventListener('atlas-action',e=>{
    return;
  }
  if(!model)return;
+ if(kind==='sequence'){
+  ++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;
+  const actions=(e.detail?.action||[]).filter(x=>Object.hasOwn(ACTION_LIBRARY,x)).slice(0,4);
+  if(!actions.length)return;
+  manualMotionUntil=0;nextNaturalAt=performance.now()+30000;
+  showRun={show:{title:'Atlas response',steps:actions.map(a=>[a,a==='idle'?1.5:2.8])},index:-1,at:0,seconds:0,loading:false};
+  void nextShowStep();return;
+ }
+ if(kind==='think'){++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;manualMotionUntil=0;}
  const explicit=kind==='motion';
  if(showRun&&!explicit)return;
  if(explicit){++travelRequest;showRun=null;travelPlan=null;nextNaturalAt=performance.now()+25000;}

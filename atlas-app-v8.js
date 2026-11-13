@@ -85,7 +85,7 @@ function mediaBubble(el,m){
   const actions=document.createElement('div');actions.className='atlas-image-actions';
   const show=document.createElement('button');show.textContent='▣ Show in studio';show.onclick=()=>studioImage(img);
   const download=document.createElement('a');download.href=img;download.download='atlas-image.jpg';download.textContent='↓ Save image';
-  const improve=document.createElement('button');improve.textContent='✦ Create polished version';improve.onclick=async()=>{try{const blob=await (await fetch(img)).blob();await addFiles([new File([blob],'reference.jpg',{type:blob.type})]);composer.value='Create a polished new version of this image with balanced lighting, sharper details and a clean composition.';composer.focus()}catch{push('atlas','That image could not be prepared as a reference. Try uploading it again.')}};
+  const improve=document.createElement('button');improve.textContent='✎ Edit image';improve.onclick=async()=>{try{const blob=await (await fetch(img)).blob();await addFiles([new File([blob],'reference.jpg',{type:blob.type})]);composer.value='Edit this image: ';composer.focus()}catch{push('atlas','That image could not be prepared as a reference. Try uploading it again.')}};
   actions.append(show,download,improve);card.append(preview,actions);el.append(card);
  }
 
@@ -176,9 +176,9 @@ async function check(verify=false){
 }
 function imageData(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(Error('Unable to read '+file.name));r.readAsDataURL(file)})}
 function textData(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(Error('Unable to read '+file.name));r.readAsText(file)})}
-async function reduceImage(file){
+async function reduceImage(file,maxSize=1280){
  const data=await imageData(file);const img=new Image();img.src=data;await img.decode();
- const ratio=Math.min(1,1280/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*ratio));c.height=Math.max(1,Math.round(img.height*ratio));
+ const ratio=Math.min(1,maxSize/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*ratio));c.height=Math.max(1,Math.round(img.height*ratio));
  c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.76);
 }
 async function videoFrames(file){
@@ -193,10 +193,10 @@ async function videoFrames(file){
   }return shots;
  }finally{URL.revokeObjectURL(u);video.removeAttribute('src');video.load()}
 }
-async function processFiles(selection=files){
+async function processFiles(selection=files,forEdit=false){
  const out=[];for(const file of selection.slice(0,3)){
   if(file.size>9*1024*1024)throw Error(file.name+' is over the 9 MB attachment limit.');
-  if(file.type.startsWith('image/'))out.push({name:file.name,type:'image/jpeg',data:await reduceImage(file)});
+  if(file.type.startsWith('image/'))out.push({name:file.name,type:'image/jpeg',data:await reduceImage(file,forEdit?504:1280)});
   else if(file.type.startsWith('video/'))out.push({name:file.name,type:file.type,frames:await videoFrames(file)});
   else if(file.type==='application/pdf')out.push({name:file.name,type:file.type,data:await imageData(file)});
   else if(/\.(docx|pptx|xlsx)$/i.test(file.name))out.push({name:file.name,type:file.type||'application/vnd.openxmlformats-officedocument',data:await imageData(file)});
@@ -212,7 +212,7 @@ function attachmentPreview(){
   const card=document.createElement('div');card.className='atlas-upload-card';
   if(file.type.startsWith('image/')){let url=previewURLs.get(file);if(!url){url=URL.createObjectURL(file);previewURLs.set(file,url)}const im=document.createElement('img');im.src=url;im.alt=file.name;card.append(im)}
   const caption=document.createElement('span');caption.textContent=file.name;caption.title=file.name;card.append(caption);
-  const remove=document.createElement('button');remove.textContent='×';remove.title='Remove '+file.name;remove.onclick=()=>{files.splice(i,1);attachmentPreview()};card.append(remove);node.append(card);
+  const remove=document.createElement('button');remove.textContent='×';remove.type='button';remove.title='Remove '+file.name;remove.setAttribute('aria-label','Remove '+file.name);remove.onclick=e=>{e.preventDefault();e.stopPropagation();files=files.filter(f=>f!==file);attachmentPreview()};card.append(remove);node.append(card);
  }
 }
 async function addFiles(incoming){
@@ -243,14 +243,30 @@ function requestedMotion(text){
  if(/\b(?:hello|greet|greeting)\b/i.test(text))return 'greet';
  return null;
 }
+function isImageEdit(text){
+ const q=(text||'').trim();
+ if(/\b(?:explain|describe|identify|what|why|how|analyze)\b/i.test(q))return false;
+ return /^(?:please\s+)?(?:edit|change|modify|recolor|retouch|enhance|improve|remove|replace|add|erase|crop|brighten|darken|sharpen)\b/i.test(q)||/^(?:please\s+)?(?:make|turn)\s+(?:it|this|that|the\s+\w+)\b/i.test(q)||/\b(?:more realistic|less blurry|better lighting)\b/i.test(q);
+}
+function responseActions(question,answer,proposed,mode,legacy){
+ const allowed=['wave','greet','point','pointforward','think','nod','idle'];
+ const valid=Array.isArray(proposed)?proposed.filter(a=>allowed.includes(a)).slice(0,3):[];
+ if(mode==='image')return ['point','nod','idle'];
+ if(valid.length)return [...valid.filter(a=>a!=='idle'),'idle'].slice(0,4);
+ if(legacy&&allowed.includes(legacy))return [legacy,'nod','idle'];
+ if(/\b(hi|hello|hey|good morning)\b/i.test(question))return ['greet','nod','idle'];
+ if(/\b(image|picture|photo|screen|look)\b/i.test(question))return ['point','nod','idle'];
+ if(/\b(sorry|sad|worried|anxious|hurt)\b/i.test(question+' '+answer))return ['nod','idle'];
+ return ['think','point','idle'];
+}
 function modeFromText(t,attachments=[]){
  const q=(t||'').trim();
  // The one chat box handles every task. Never inherit a mode from an earlier message.
- const asks=/\b(?:make|create|generate|draw|paint|design|produce|render|animate|edit|modify|change|transform|enhance|retouch|recolor|turn|convert|show)\b/i.test(q);
+ const asks=/\b(?:make|create|generate|draw|paint|design|produce|render|animate|edit|modify|change|transform|enhance|retouch|recolor|turn|convert)\b/i.test(q);
  const video=/\b(?:video|movie|film|animation|animated clip|short clip|footage|moving scene)\b/i.test(q);
  const image=/\b(?:image|picture|photo|photograph|illustration|portrait|poster|drawing|artwork|graphic|logo|visual|rendering|art)\b/i.test(q);
  const hasImage=attachments.some(f=>f.type?.startsWith('image/'));
- const editPicture=hasImage&&/\b(?:edit|change|transform|recolor|retouch|remove|replace|add|turn|make|stylize|restyle|enhance|erase)\b/i.test(q)&&!/\b(?:explain|describe|identify|what|why|how|analyze)\b/i.test(q);
+ const editPicture=hasImage&&isImageEdit(q)||hasImage&&/\b(?:edit|change|transform|recolor|retouch|remove|replace|add|turn|make|stylize|restyle|enhance|erase)\b/i.test(q)&&!/\b(?:explain|describe|identify|what|why|how|analyze)\b/i.test(q);
  if(asks&&video)return 'video';
  if((asks&&image)||editPicture)return 'image';
  // A short request to make a visual object means create the picture, not write instructions.
@@ -277,7 +293,10 @@ async function send(){
  composer.value='';if(text&&remember(text)){files=[];attachmentPreview();return}
  if(text&&memoryRequest(text)){files=[];attachmentPreview();return}
  summarizeMemory(text);
- const t=active(),mode=modeFromText(text,files)==='image'?'image':'chat';const current=t.id;
+ const t=active();
+ const latest=[...t.msgs].reverse().find(m=>m.images?.length)?.images?.at(-1);
+ const followup=Boolean(latest&&isImageEdit(text));
+ const mode=modeFromText(text,files)==='image'||followup?'image':'chat';const current=t.id;
  if(t.title==='New conversation')t.title=(text||'Attachments').slice(0,52);
  const filenames=files.map(x=>x.name);const history=t.msgs.slice(-35).filter(x=>x.role==='user'||x.role==='atlas').map(x=>({role:x.role==='atlas'?'assistant':'user',text:x.text}));
  push('user',(text||'Analyze these attachments')+(filenames.length?'\n📎 '+filenames.join(', '):''));
@@ -291,7 +310,10 @@ async function send(){
  let response;
  try{
   if(mode==='video'){const m=push('atlas','Starting your video…');await createVideo(text,m);dispatch('respond');return}
-  const attachments=await processFiles(selection);
+  const attachments=await processFiles(selection,mode==='image');
+  if(mode==='image'&&followup&&!attachments.some(a=>a.type.startsWith('image/'))){
+   const blob=await (await fetch(latest)).blob();attachments.push({name:'previous-image.jpg',type:'image/jpeg',data:await reduceImage(new File([blob],'previous-image.jpg',{type:blob.type}),504)});
+  }
   const sent=t.msgs.findLast? t.msgs.findLast(m=>m.role==='user'):[...t.msgs].reverse().find(m=>m.role==='user');
   if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);cacheImages(sent);if(sent.images[0])studioImage(sent.images[0]);render()}
   const memory=memories().slice(-35).map(x=>x.text);
@@ -300,14 +322,15 @@ async function send(){
   response=await api('/atlas/api/'+mode,payload,mode==='image'?210000:150000);
   let txt=response.text||'Done. Consider the dramatic entrance complete.';
   const match=txt.match(/<atlas_action>(wave|dance|point|think|greet|idle|walk|back)<\/atlas_action>/i);
-  txt=txt.replace(/<atlas_action>[\s\S]*?<\/atlas_action>/gi,'').trim();
+  const seqTag=txt.match(/<atlas_actions>([\s\S]*?)<\/atlas_actions>/i);
+  if(seqTag&&!response.actions)response.actions=seqTag[1].split(',').map(x=>x.trim());
+  txt=txt.replace(/<atlas_actions?>[\s\S]*?<\/atlas_actions?>/gi,'').trim();
   if(current===data.active){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[]});cacheImages(m);if(m.images[0])studioImage(m.images[0])}
   else {const thread=data.threads.find(x=>x.id===current);if(thread){const m={role:'atlas',text:txt,images:response.images||[],sources:response.sources||[]};thread.msgs.push(m);cacheImages(m);save()}}
   // Explicit user motions or model-selected actions take precedence over
   // a generic reply nod, so the body follows the intended movement.
   // The explicit user command always wins over an optional AI-selected gesture.
-  if(!action&&match)dispatch('motion',match[1]);
-  else if(!action)dispatch('respond');
+  if(!action)dispatch('sequence',responseActions(text,txt,response.actions,mode,match?.[1]));
   if(speaking&&window.speechSynthesis&&current===data.active){
     speechSynthesis.cancel();
     dispatch('speech',false);
@@ -325,7 +348,7 @@ async function send(){
 const input=document.createElement('input');input.type='file';input.multiple=true;input.accept='image/*,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css';input.hidden=true;document.body.append(input);
 input.onchange=()=>{void addFiles(input.files);input.value=''};
 $('atlasAttach').onclick=()=>input.click();
-$('createImage').onclick=()=>{composer.value='Create an image of ';composer.focus()};
+
 $('studioUpload').onclick=()=>input.click();
 for(const b of document.querySelectorAll('[data-motion]'))b.onclick=()=>dispatch('motion',b.dataset.motion);
 $('studioPresent').onclick=()=>{const imgs=active().msgs.flatMap(m=>m.images||[]);if(imgs.length)studioImage(imgs.at(-1));else input.click()};
