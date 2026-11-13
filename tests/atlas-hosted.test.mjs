@@ -106,3 +106,8 @@ test('personality, memory and history stay bounded with no extra model call',asy
 test('requested detail can exceed the short default',async()=>{
  const r=await worker.fetch(req('chat',{text:'Explain this in detail'}),{...env,AI:{run:async(model,p)=>{assert.equal(p.max_tokens,900);return {response:'Details'};}}});assert.equal(r.status,200);
 });
+
+test('chat returns clean text and separate bounded gesture data',async()=>{
+ const e={...env,AI:{run:async()=>({response:'Operational. <atlas_actions>greet,nod,idle</atlas_actions>'})}};
+ const r=await worker.fetch(req('chat',{text:'How are you?'}),e);const j=await r.json();assert.equal(j.text,'Operational.');assert.deepEqual(j.actions,['greet','nod','idle']);
+});

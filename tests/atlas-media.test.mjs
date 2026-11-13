@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 const source=readFileSync(new URL('../atlas-app-v8.js',import.meta.url),'utf8');
-const start=source.indexOf('function requestedMotion('),end=source.indexOf('async function createVideo(',start);
+const start=source.indexOf('function requestedMotion('),end=source.indexOf('async function send(',start);
 const ctx=vm.createContext({});vm.runInContext(source.slice(start,end),ctx);
 test('image requests route to generation, picture questions route to vision chat',()=>{
  const attachments=[{type:'image/jpeg'}];
@@ -64,4 +64,25 @@ test('answer formatting renders emphasis and lists without raw markdown or HTML 
  const flatten=n=>n.textContent+n.children.map(flatten).join('');const result=flatten(root);
  assert.ok(!result.includes('**'));assert.ok(!result.includes('##'));assert.ok(result.includes('<script>alert(1)</script>'));
  assert.equal(root.children.find(x=>x.tag==='ul').children.length,2);assert.ok(root.children.some(x=>x.children.some(y=>y.tag==='strong')));
+});
+
+test('animation metadata never leaks into visible answers',()=>{
+ const c=vm.createContext({});vm.runInContext(source.slice(source.indexOf('function cleanReply('),source.indexOf('function actionReply(')),c);
+ assert.equal(c.cleanReply('Hello. <atlas_actions>greet,nod,idle</atlas_actions>').text,'Hello.');
+ assert.equal(c.cleanReply('Ready to help. think, idle.').text,'Ready to help.');
+ assert.equal(c.cleanReply('Ready. <atlas_actions>think,idle').text,'Ready.');
+ assert.equal(c.cleanReply('I think, therefore I am.').text,'I think, therefore I am.');
+});
+test('dance picker varies routines, avoids immediate repeats and preserves fallbacks',()=>{
+ const html=readFileSync(new URL('../index.html',import.meta.url),'utf8'),c=vm.createContext({});
+ vm.runInContext(html.slice(html.indexOf('function danceChoices('),html.indexOf('const clipFor=')),c);
+ const choices=['Hip Hop','Silly','Flair','Breakdance'];const a=c.danceChoices(choices,'Silly',()=>0);const b=c.danceChoices(choices,'Silly',()=>.99);
+ assert.equal(a.length,4);assert.notEqual(a[0],'Silly');assert.equal(a.at(-1),'Silly');assert.notEqual(a.join(),b.join());assert.equal(new Set(a).size,4);
+});
+test('reply paints before action and newer commands cancel pending motion',async()=>{
+ const events=[],frames=[],timers=[];const c=vm.createContext({pendingAction:0,requestAnimationFrame:f=>frames.push(f),setTimeout:f=>timers.push(f)});
+ vm.runInContext(source.slice(source.indexOf('async function afterReply('),source.indexOf('function performMotion(')),c);
+ const first=c.afterReply(()=>events.push('old'));frames.shift()();frames.shift()();await Promise.resolve();assert.equal(events.length,0);
+ const second=c.afterReply(()=>events.push('new'));frames.shift()();frames.shift()();await Promise.resolve();
+ timers.shift()();timers.shift()();await Promise.all([first,second]);assert.equal(events.join(),'new');
 });

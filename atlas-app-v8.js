@@ -51,7 +51,7 @@ const memories=()=>{try{const m=JSON.parse(localStorage.getItem(MEM)||'[]');retu
 const putMem=m=>{try{localStorage.setItem(MEM,JSON.stringify(m.slice(-80)))}catch{}};
 const save=()=>{try{const lean={active:data.active,threads:data.threads.slice(0,70).map(t=>({id:t.id,title:t.title,msgs:t.msgs.slice(-160).map(m=>({role:m.role,text:m.text, sources:m.sources||[],imageIds:m.imageIds||[]}))}))};localStorage.setItem(STORE,JSON.stringify(lean))}catch(e){console.warn('Conversation storage full',e)}};
 const active=()=>data.threads.find(t=>t.id===data.active)||data.threads[0];
-let files=[],busy=false,speaking=false,recognizer=null;
+let files=[],busy=false,speaking=false,recognizer=null,pendingAction=0,busyThread=null;
 const modelSetting=$('atlasModelChoice');if(modelSetting){modelSetting.value='cloudflare-free';modelSetting.onchange=()=>localStorage.setItem('atlas-model-choice',modelSetting.value)}
 let mediaDBPromise;
 function mediaDB(){
@@ -119,11 +119,11 @@ function mediaBubble(el,m){
 }
 function bubble(m){
  const el=document.createElement('div');el.className='bubble '+(m.role==='user'?'user':'atlas');
- if(m.role==='user')linkify(el,m.text||'');else formatAnswer(el,m.text||'');mediaBubble(el,m);return el;
+ if(m.role==='user')linkify(el,m.text||'');else formatAnswer(el,cleanReply(m.text||'').text);mediaBubble(el,m);return el;
 }
 function render(){
  const t=active();$('send').disabled=busy;$('send').setAttribute('aria-busy',String(busy));feed.replaceChildren();for(const m of t.msgs)feed.append(bubble(m));
- if(busy&&t.id===data.active){const el=document.createElement('div');el.className='bubble atlas typing';el.id='atlasTyping';el.innerHTML='<i></i><i></i><i></i>';feed.append(el)}
+ if(busy&&t.id===busyThread){const el=document.createElement('div');el.className='bubble atlas typing';el.id='atlasTyping';el.innerHTML='<i></i><i></i><i></i>';feed.append(el)}
  const threads=$('threads');threads.replaceChildren();
  for(const thread of data.threads){const b=document.createElement('button');b.className='btn entry '+(thread.id===data.active?'active':'');b.textContent=thread.title||'Conversation';b.onclick=()=>{data.active=thread.id;save();render();close()};threads.append(b)}
  bottom();
@@ -131,6 +131,23 @@ function render(){
 function push(role,text,extras={}){const t=active();const m={role,text,...extras};t.msgs.push(m);save();render();return m}
 function setStatus(t){status.textContent=t}
 function dispatch(type,action){window.dispatchEvent(new CustomEvent('atlas-action',{detail:{type,action}}))}
+function cleanReply(text){
+ const actions=[];
+ text=String(text||'').replace(/<atlas_actions?>\s*([\s\S]*?)(?:<\/atlas_actions?>|$)/gi,(_,raw)=>{actions.push(...raw.split(',').map(x=>x.trim()));return ''});
+ text=text.replace(/(?:^|(?<=[.!?])\s+|\n)(?:think|nod|idle|point|wave|greet)(?:\s*,\s*(?:think|nod|idle|point|wave|greet)){1,4}[.!]?\s*$/i,'').trim();
+ return {text,actions};
+}
+function actionReply(action){return action==='idle'?'Stopping. The dramatic pause is intentional.':action==='dance'?'Fine. The floor clearly needs my talent.':action==='walk'?'Taking a stroll. Very ambitious of me.':action==='back'?'Backing up. A rare strategic retreat.':action==='wave'?'A wave? Consider yourself acknowledged.':'On it. Try to contain your excitement.'}
+async function afterReply(run){
+ const id=++pendingAction;
+ await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+ await new Promise(resolve=>setTimeout(resolve,280));
+ if(id===pendingAction)run();
+}
+function performMotion(action){
+ $('stageActions').open=false;push('atlas',actionReply(action));
+ void afterReply(()=>dispatch('motion',action));
+}
 function safeMemory(text){
  return typeof text==='string'&&text.length>=4&&text.length<=240&&!/\b(?:sk-[\w-]+|password|api[ _-]?key|access[ _-]?token|credit card|social security|bearer)\b/i.test(text);
 }
@@ -228,25 +245,10 @@ async function reduceImage(file,maxSize=1280){
  const ratio=Math.min(1,maxSize/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*ratio));c.height=Math.max(1,Math.round(img.height*ratio));
  c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.76);
 }
-async function videoFrames(file){
- const u=URL.createObjectURL(file),video=document.createElement('video');video.preload='auto';video.muted=true;video.src=u;video.playsInline=true;
- try{await new Promise((res,rej)=>{video.onloadedmetadata=res;video.onerror=()=>rej(Error('Cannot inspect this video'));setTimeout(()=>rej(Error('Video did not load')),9000)});
-  const shots=[],length=Math.min(video.duration||9,35);
-  for(let i=1;i<=3;i++){video.currentTime=Math.min(Math.max(0,length-0.2),length*i/4);
-    await new Promise((res,rej)=>{video.onseeked=res;video.onerror=()=>rej(Error('Cannot read video frame'));setTimeout(res,2500)});
-    const c=document.createElement('canvas'),ratio=Math.min(1,800/Math.max(video.videoWidth||800,video.videoHeight||450));
-    c.width=Math.max(1,Math.floor((video.videoWidth||800)*ratio));c.height=Math.max(1,Math.floor((video.videoHeight||450)*ratio));
-    c.getContext('2d').drawImage(video,0,0,c.width,c.height);shots.push(c.toDataURL('image/jpeg',.65));
-  }return shots;
- }finally{URL.revokeObjectURL(u);video.removeAttribute('src');video.load()}
-}
 async function processFiles(selection=files,forEdit=false){
  const out=[];for(const file of selection.slice(0,3)){
   if(file.size>9*1024*1024)throw Error(file.name+' is over the 9 MB attachment limit.');
   if(file.type.startsWith('image/'))out.push({name:file.name,type:'image/jpeg',data:await reduceImage(file,forEdit?504:1280)});
-  else if(file.type.startsWith('video/'))out.push({name:file.name,type:file.type,frames:await videoFrames(file)});
-  else if(file.type==='application/pdf')out.push({name:file.name,type:file.type,data:await imageData(file)});
-  else if(/\.(docx|pptx|xlsx)$/i.test(file.name))out.push({name:file.name,type:file.type||'application/vnd.openxmlformats-officedocument',data:await imageData(file)});
   else if(file.type.startsWith('text/')||/\.(md|txt|csv|json|js|ts|py|html|css|xml|log)$/i.test(file.name))out.push({name:file.name,type:'text/plain',text:(await textData(file)).slice(0,16000)});
   else throw Error('Unsupported attachment: '+file.name+'. Use an image or text file.');
  }return out;
@@ -292,7 +294,7 @@ function requestedMotion(text){
 }
 function isImageEdit(text){
  const q=(text||'').trim();
- if(/\b(?:explain|describe|identify|what|why|how|analyze)\b/i.test(q))return false;
+ if(/\b(?:explain|describe|identify|what|why|how|analyze|schedule|calendar|recipe|workout|password)\b/i.test(q))return false;
  return /^(?:please\s+)?(?:edit|change|modify|recolor|retouch|enhance|improve|remove|replace|add|erase|crop|brighten|darken|sharpen)\b/i.test(q)||/^(?:please\s+)?(?:make|turn)\s+(?:it|this|that|the\s+\w+)\b/i.test(q)||/\b(?:more realistic|less blurry|better lighting)\b/i.test(q);
 }
 function responseActions(question,answer,proposed,mode,legacy){
@@ -321,43 +323,29 @@ function modeFromText(t,attachments=[]){
  // Other vague requests remain chat rather than starting an expensive generation.
  return 'chat';
 }
-async function createVideo(text,m){
- const j=await api('/atlas/api/video',{text},60000);
- if(!j.id)throw Error('Video service did not return a render job ID');
- m.text='Rendering your video. This can take a few minutes.';render();
- for(let i=0;i<55;i++){await new Promise(r=>setTimeout(r,9000));const state=await api('/atlas/api/video/'+encodeURIComponent(j.id),null,30000);
-  if(state.status==='completed'){
-   const r=await fetch(BASE+'/atlas/api/video/'+encodeURIComponent(j.id)+'/content',{headers:{Authorization:'Bearer '+ACCESS}});if(!r.ok)throw Error('Video generated, but download failed');
-   m.video=URL.createObjectURL(await r.blob());m.text='Your video is ready. Yes, I expect applause.';render();return;
-  }
-  if(state.status==='failed')throw Error(state.error?.message||'Video creation failed');
-  if(i%3===0){m.text='Video rendering · '+(state.progress||0)+'%';render()}
- }
- throw Error('Video is still rendering. Job ID: '+j.id);
-}
 async function send(){
- if(busy)return;const text=composer.value.trim();if(!text&&!files.length)return;
+ if(busy)return;const text=composer.value.trim();if(!text&&!files.length)return;++pendingAction;
  composer.value='';if(text&&remember(text)){files=[];attachmentPreview();return}
  if(text&&memoryRequest(text)){files=[];attachmentPreview();return}
  summarizeMemory(text);
  const personality=developPersonality(text);
  const t=active();
  const latest=[...t.msgs].reverse().find(m=>m.images?.length)?.images?.at(-1);
- const followup=Boolean(latest&&isImageEdit(text));
+ const recentVisual=t.msgs.at(-1)?.images?.length||/\b(?:image|picture|photo|photograph)\b/i.test(text);
+ const followup=Boolean(latest&&recentVisual&&isImageEdit(text));
  const mode=modeFromText(text,files)==='image'||followup?'image':'chat';const current=t.id;
  if(t.title==='New conversation')t.title=(text||'Attachments').slice(0,52);
  const filenames=files.map(x=>x.name);const history=t.msgs.slice(-35).filter(x=>x.role==='user'||x.role==='atlas').map(x=>({role:x.role==='atlas'?'assistant':'user',text:x.text}));
  push('user',(text||'Analyze these attachments')+(filenames.length?'\n📎 '+filenames.join(', '):''));
- const action=requestedMotion(text);
- if(action&&!files.length&&text.length<90&&!/\b(?:why|how|explain|what|image|picture|photo|create|generate|screen|presentation|center|home)\b/i.test(text)){dispatch('motion',action);push('atlas',action==='idle'?'Standing by.':'On it.');return}
- if(/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text))$('walkToScreen')?.click();
- else if(/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text))$('walkHome')?.click();
- else if(action)dispatch('motion',action);
- busy=true;render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':mode==='image'?'ATLAS · CREATING IMAGE':'ATLAS · RENDERING VIDEO');
+ const action=mode==='chat'?requestedMotion(text):null;
+ if(action&&!files.length&&text.length<90&&!/\b(?:why|how|explain|what|image|picture|photo|create|generate|screen|presentation|center|home)\b/i.test(text)){performMotion(action);return}
+ const destination=/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text)?'walkToScreen':/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text)?'walkHome':null;
+ if(mode==='chat'&&destination&&!files.length&&text.length<110){push('atlas',destination==='walkHome'?'Back to center. My natural habitat.':'Heading to the screen. Presentation mode: mildly impressive.');void afterReply(()=>$(destination)?.click());return}
+ busy=true;busyThread=current;render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':'ATLAS · CREATING IMAGE');
+ const requestActionVersion=pendingAction;
  const selection=files;files=[];attachmentPreview();
  let response;
  try{
-  if(mode==='video'){const m=push('atlas','Starting your video…');await createVideo(text,m);dispatch('respond');return}
   const attachments=await processFiles(selection,mode==='image');
   if(mode==='image'&&followup&&!attachments.some(a=>a.type.startsWith('image/'))){
    const blob=await (await fetch(latest)).blob();attachments.push({name:'previous-image.jpg',type:'image/jpeg',data:await reduceImage(new File([blob],'previous-image.jpg',{type:blob.type}),504)});
@@ -368,17 +356,15 @@ async function send(){
   const related=relevantHistory(text,t.id);
   const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],personality,model:modelSetting?.value||'cloudflare-free'};
   response=await api('/atlas/api/'+mode,payload,mode==='image'?210000:150000);
-  let txt=response.text||'Done. Consider the dramatic entrance complete.';
-  const match=txt.match(/<atlas_action>(wave|dance|point|think|greet|idle|walk|back)<\/atlas_action>/i);
-  const seqTag=txt.match(/<atlas_actions>([\s\S]*?)<\/atlas_actions>/i);
-  if(seqTag&&!response.actions)response.actions=seqTag[1].split(',').map(x=>x.trim());
-  txt=txt.replace(/<atlas_actions?>[\s\S]*?<\/atlas_actions?>/gi,'').trim();
+  const cleaned=cleanReply(response.text||'Done. Consider the dramatic entrance complete.');
+  const txt=cleaned.text||'Done.';
+  if(!response.actions?.length)response.actions=cleaned.actions;
   if(current===data.active){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[]});cacheImages(m);if(m.images[0])studioImage(m.images[0])}
   else {const thread=data.threads.find(x=>x.id===current);if(thread){const m={role:'atlas',text:txt,images:response.images||[],sources:response.sources||[]};thread.msgs.push(m);cacheImages(m);save()}}
   // Explicit user motions or model-selected actions take precedence over
   // a generic reply nod, so the body follows the intended movement.
   // The explicit user command always wins over an optional AI-selected gesture.
-  if(!action)dispatch('sequence',responseActions(text,txt,response.actions,mode,match?.[1]));
+  if(current===data.active&&requestActionVersion===pendingAction)void afterReply(()=>action?dispatch('motion',action):dispatch('sequence',responseActions(text,txt,response.actions,mode)));
   if(speaking&&window.speechSynthesis&&current===data.active){
     speechSynthesis.cancel();
     dispatch('speech',false);
@@ -390,15 +376,17 @@ async function send(){
     utterance.onerror=()=>dispatch('speech',false);
     speechSynthesis.speak(utterance);
   }
- }catch(e){if(current===data.active)push('atlas','That didn’t work: '+e.message+(e.code==='MISSING_RUNTIME_SECRETS'?' Open Settings for the missing server configuration.':''));setStatus(e.code==='DAILY_LIMIT_REACHED'?'ATLAS · FREE LIMIT RESETS DAILY':'ATLAS · ERROR');console.error('Atlas request',e)}
- finally{busy=false;render();if(!['ATLAS · ERROR','ATLAS · FREE LIMIT RESETS DAILY'].includes(status.textContent))setStatus('ATLAS · FREE AI READY')}
+ }catch(e){if(current===data.active){if(!composer.value)composer.value=text;if(!files.length){files=selection;attachmentPreview()}}if(current===data.active)push('atlas','That didn’t work: '+e.message+(e.code==='MISSING_RUNTIME_SECRETS'?' Open Settings for the missing server configuration.':''));setStatus(e.code==='DAILY_LIMIT_REACHED'?'ATLAS · FREE LIMIT RESETS DAILY':'ATLAS · ERROR');console.error('Atlas request',e)}
+ finally{busy=false;busyThread=null;render();if(!['ATLAS · ERROR','ATLAS · FREE LIMIT RESETS DAILY'].includes(status.textContent))setStatus('ATLAS · FREE AI READY')}
 }
 const input=document.createElement('input');input.type='file';input.multiple=true;input.accept='image/*,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css';input.hidden=true;document.body.append(input);
 input.onchange=()=>{void addFiles(input.files);input.value=''};
 $('atlasAttach').onclick=()=>input.click();
 
 $('studioUpload').onclick=()=>input.click();
-for(const b of document.querySelectorAll('[data-motion]'))b.onclick=()=>dispatch('motion',b.dataset.motion);
+for(const b of document.querySelectorAll('[data-motion]'))b.onclick=()=>performMotion(b.dataset.motion);
+document.addEventListener('pointerdown',e=>{const menu=$('stageActions');if(menu.open&&!menu.contains(e.target))menu.open=false});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')$('stageActions').open=false});
 $('studioPresent').onclick=()=>{const imgs=active().msgs.flatMap(m=>m.images||[]);if(imgs.length)studioImage(imgs.at(-1));else input.click()};
 $('app').addEventListener('dragover',e=>{e.preventDefault();document.body.classList.add('atlas-dropping')});
 $('app').addEventListener('dragleave',e=>{if(!e.currentTarget.contains(e.relatedTarget))document.body.classList.remove('atlas-dropping')});
