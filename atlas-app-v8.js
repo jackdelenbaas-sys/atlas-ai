@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
 let ACCESS=sessionStorage.getItem('atlas-access-token')||'';
-const STORE='atlas-v43-chat',MEM='atlas-v57-memory';
+const STORE='atlas-v43-chat',MEM='atlas-v57-memory',PROFILE='atlas-personality-v1';
 const status=$('aiModeLabel'),feed=$('feed'),composer=$('input');
 const serverField=$('atlasCloudURL'),tokenField=$('atlasCloudToken');
 if(serverField)serverField.value=BASE;
@@ -73,6 +73,25 @@ function linkify(node,text){
  }
  node.append(document.createTextNode(text.slice(i)));
 }
+function answerInline(node,text){
+ const re=/\*\*([^*\n]+)\*\*|__([^_\n]+)__|`([^`\n]+)`|\[([^\]\n]+)\]\((https:\/\/[^\s)]+)\)/g;let at=0,m;
+ while((m=re.exec(text))){linkify(node,text.slice(at,m.index));let part;
+  if(m[4]){part=document.createElement('a');part.textContent=m[4];part.href=m[5];part.target='_blank';part.rel='noopener noreferrer'}
+  else{part=document.createElement(m[3]?'code':'strong');part.textContent=m[1]||m[2]||m[3]}
+  node.append(part);at=m.index+m[0].length;
+ }linkify(node,text.slice(at));
+}
+function formatAnswer(node,text){
+ const lines=text.replace(/\r/g,'').split('\n');let list=null,pre=null;
+ for(const line of lines){
+  if(/^\s*```/.test(line)){if(pre){node.append(pre);pre=null}else{pre=document.createElement('pre');list=null}continue}
+  if(pre){pre.textContent+=(pre.textContent?'\n':'')+line;continue}
+  if(!line.trim()){list=null;continue}
+  const item=line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.+)/);
+  if(item){if(!list){list=document.createElement('ul');node.append(list)}const li=document.createElement('li');answerInline(li,item[1]);list.append(li)}
+  else{list=null;const p=document.createElement('p');answerInline(p,line.replace(/^\s*#{1,6}\s+/,''));node.append(p)}
+ }if(pre)node.append(pre);
+}
 function studioImage(src){
  if(!/^data:image\/(jpeg|png|webp);base64,/.test(src||''))return;
  window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src}}));
@@ -100,7 +119,7 @@ function mediaBubble(el,m){
 }
 function bubble(m){
  const el=document.createElement('div');el.className='bubble '+(m.role==='user'?'user':'atlas');
- linkify(el,m.text||'');mediaBubble(el,m);return el;
+ if(m.role==='user')linkify(el,m.text||'');else formatAnswer(el,m.text||'');mediaBubble(el,m);return el;
 }
 function render(){
  const t=active();$('send').disabled=busy;$('send').setAttribute('aria-busy',String(busy));feed.replaceChildren();for(const m of t.msgs)feed.append(bubble(m));
@@ -112,31 +131,59 @@ function render(){
 function push(role,text,extras={}){const t=active();const m={role,text,...extras};t.msgs.push(m);save();render();return m}
 function setStatus(t){status.textContent=t}
 function dispatch(type,action){window.dispatchEvent(new CustomEvent('atlas-action',{detail:{type,action}}))}
+function safeMemory(text){
+ return typeof text==='string'&&text.length>=4&&text.length<=240&&!/\b(?:sk-[\w-]+|password|api[ _-]?key|access[ _-]?token|credit card|social security|bearer)\b/i.test(text);
+}
+function storeFact(text){
+ const fact=text.trim().slice(0,240);if(!safeMemory(fact))return false;
+ const list=memories(),key=fact.toLowerCase().replace(/[.!]+$/,'');
+ const old=list.find(x=>(x.text||'').toLowerCase().replace(/[.!]+$/,'')===key);
+ if(old)old.date=new Date().toISOString();else list.push({text:fact,date:new Date().toISOString()});
+ putMem(list);return true;
+}
+function profile(){try{const p=JSON.parse(localStorage.getItem(PROFILE)||'{}');return {turns:Math.max(0,Math.min(10000,Number(p.turns)||0)),sass:['gentle','playful','extra'].includes(p.sass)?p.sass:'playful'}}catch{return {turns:0,sass:'playful'}}}
+function developPersonality(text){
+ const p=profile();p.turns++;
+ if(/(?:less|no|stop|without)\s+(?:the\s+)?(?:sarcasm|sass|jokes)|be (?:serious|gentler)/i.test(text))p.sass='gentle';
+ else if(/(?:more|extra)\s+(?:sarcasm|sass)|be sassier/i.test(text))p.sass='extra';
+ else if(/(?:be|stay)\s+(?:funny|sarcastic|sassy)|bring back.*(?:sass|jokes)/i.test(text))p.sass='playful';
+ try{localStorage.setItem(PROFILE,JSON.stringify(p))}catch{}return p;
+}
+function selectedMemories(question){
+ const words=new Set((question.toLowerCase().match(/[a-z]{4,}/g)||[]));
+ let budget=1100;
+ return memories().filter(m=>safeMemory(m.text)).map((m,i)=>({text:m.text,score:[...words].filter(w=>m.text.toLowerCase().includes(w)).length*10+i/1000}))
+ .sort((a,b)=>b.score-a.score).slice(0,8).filter(m=>{budget-=m.text.length;return budget>=0}).map(m=>m.text);
+}
 function remember(text){
  const m=text.match(/^\s*(?:please\s+)?remember(?:\s+that)?[:\s]+(.{4,600})/i);
  if(!m)return false;
- const list=memories(),fact=m[1].trim();
- if(!list.some(x=>(x.text||'').toLowerCase()===fact.toLowerCase()))list.push({text:fact,date:new Date().toISOString()});
- putMem(list);push('atlas','Noted. My memory has officially been upgraded with that little gem.');return true;
+ push('atlas',storeFact(m[1])?'Saved. Tiny memory, enormous ego.':'I won’t save passwords or access keys. Even I have boundaries.');return true;
 }
 function relevantHistory(question,currentId){
  const words=new Set((question.toLowerCase().match(/[a-z]{4,}/g)||[]).filter(w=>!['what','when','where','with','that','this','have','about','from','please','could','would','create','make'].includes(w)));
  const matches=[];
  for(const thread of data.threads){for(const msg of thread.msgs){if(!msg.text||thread.id===currentId)continue;
   const lower=msg.text.toLowerCase(),score=[...words].filter(w=>lower.includes(w)).length;
-  if(score>0)matches.push({score,text:msg.text.slice(0,350),thread:thread.title})}}
- return matches.sort((a,b)=>b.score-a.score).slice(0,8).map(x=>'['+x.thread+'] '+x.text);
+  if(score>0)matches.push({score,text:msg.text.slice(0,200),thread:thread.title})}}
+ return matches.sort((a,b)=>b.score-a.score).slice(0,3).map(x=>'['+x.thread+'] '+x.text);
 }
 function summarizeMemory(text){
- const m=text.match(/^\s*(?:I prefer|I like|my favorite|my favourite)\s+(.{3,160})/i);
- if(!m)return;const fact=text.slice(0,180),list=memories();
- if(!list.some(x=>(x.text||'').toLowerCase()===fact.toLowerCase())){list.push({text:fact,date:new Date().toISOString()});putMem(list)}
+ // Save only explicit, durable user facts. No summarizer call or model-inferred memories.
+ const sentence=(text.match(/^(?:I prefer|I like|I dislike|I love|I hate|my favorite|my favourite|my name is|call me|I am working on|I'm working on)\s+[^\n.!?]{3,200}[.!?]?/i)||[])[0];
+ if(sentence)storeFact(sentence);
 }
 function memoryRequest(text){
+ const forget=text.match(/^\s*forget(?:\s+that)?[:\s]+(.+)/i);
+ if(forget&&!/^(?:everything|all(?: memories)?)\s*[.!]?$/i.test(forget[1])){
+  const q=forget[1].toLowerCase().replace(/[.!]+$/,'');const old=memories(),next=old.filter(m=>!(m.text||'').toLowerCase().includes(q));
+  putMem(next);push('atlas',next.length<old.length?'Forgotten. Selective amnesia: finally useful.':'I couldn’t find that saved note. Try a few words from it.');return true;
+ }
+
  if(/^\s*(?:what do you remember|show (?:my |your )?memories|list (?:my |your )?memories)/i.test(text)){
   const list=memories();push('atlas',list.length?'I remember:\n'+list.slice(-20).map(x=>'• '+x.text).join('\n'):'No saved notes yet. Tell me “remember that…” and I’ll hang onto it.');return true}
  if(/^\s*(?:forget everything|clear (?:all )?memories)/i.test(text)){
-  if(confirm('Clear saved Atlas notes on this browser?')){putMem([]);push('atlas','Memory notes cleared. Fresh start, dramatic entrance.')}return true}
+  if(confirm('Clear saved Atlas notes on this browser?')){putMem([]);localStorage.removeItem(PROFILE);push('atlas','Memory notes cleared. Fresh start, dramatic entrance.')}return true}
  return false;
 }
 async function api(path,body,timeout=140000){
@@ -293,6 +340,7 @@ async function send(){
  composer.value='';if(text&&remember(text)){files=[];attachmentPreview();return}
  if(text&&memoryRequest(text)){files=[];attachmentPreview();return}
  summarizeMemory(text);
+ const personality=developPersonality(text);
  const t=active();
  const latest=[...t.msgs].reverse().find(m=>m.images?.length)?.images?.at(-1);
  const followup=Boolean(latest&&isImageEdit(text));
@@ -316,9 +364,9 @@ async function send(){
   }
   const sent=t.msgs.findLast? t.msgs.findLast(m=>m.role==='user'):[...t.msgs].reverse().find(m=>m.role==='user');
   if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);cacheImages(sent);if(sent.images[0])studioImage(sent.images[0]);render()}
-  const memory=memories().slice(-35).map(x=>x.text);
+  const memory=selectedMemories(text);
   const related=relevantHistory(text,t.id);
-  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],model:modelSetting?.value||'cloudflare-free'};
+  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],personality,model:modelSetting?.value||'cloudflare-free'};
   response=await api('/atlas/api/'+mode,payload,mode==='image'?210000:150000);
   let txt=response.text||'Done. Consider the dramatic entrance complete.';
   const match=txt.match(/<atlas_action>(wave|dance|point|think|greet|idle|walk|back)<\/atlas_action>/i);
@@ -365,7 +413,7 @@ const close=()=>{document.querySelectorAll('.sheet').forEach(x=>x.classList.remo
 $('historyBtn').onclick=()=>open('history');$('settingsBtn').onclick=()=>open('settings');$('veil').onclick=close;document.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);
 $('atlasCheckAPI').onclick=()=>check(true);
 $('atlasMemoryView').onclick=()=>{$('atlasMemoryInfo').textContent=memories().map(x=>'• '+x.text).join('\n')||'No saved notes yet.'};
-$('atlasMemoryClear').onclick=()=>{if(confirm('Clear saved memory notes?')){putMem([]);$('atlasMemoryInfo').textContent='Memories cleared'}};
+$('atlasMemoryClear').onclick=()=>{if(confirm('Clear saved memory notes?')){putMem([]);localStorage.removeItem(PROFILE);$('atlasMemoryInfo').textContent='Memories cleared'}};
 $('mic').title='Speak into Atlas';
 $('mic').onclick=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){alert('Voice input is not supported in this browser.');return}
  if(recognizer){recognizer.stop();recognizer=null;return}recognizer=new SR();recognizer.lang='en-US';recognizer.onresult=e=>{composer.value=e.results[0][0].transcript;composer.focus()};recognizer.onend=()=>{recognizer=null;$('mic').classList.remove('on')};recognizer.start();$('mic').classList.add('on')};

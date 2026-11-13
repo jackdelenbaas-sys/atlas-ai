@@ -39,7 +39,7 @@ test('a later request can work after provider quota resets',async()=>{
 });
 test('chat sends bounded history, memory and text files to fixed free model',async()=>{
  const r=await worker.fetch(req('chat',{text:'Help',model:'paid-model',history:[{role:'assistant',text:'Earlier'}],memories:['A note'],attachments:[{name:'note.txt',type:'text/plain',text:'Document'}]}),{...env,AI:{run:async(model,p)=>{
-  assert.equal(model,'@cf/meta/llama-3.3-70b-instruct-fp8-fast');assert.equal(p.max_tokens,700);
+  assert.equal(model,'@cf/meta/llama-3.3-70b-instruct-fp8-fast');assert.equal(p.max_tokens,320);
   assert.ok(p.messages.some(x=>x.content==='Earlier'));assert.ok(p.messages.at(-1).content.includes('Document'));
   return {response:'Useful answer'};
  }}});
@@ -98,3 +98,11 @@ test('image daily limit stops after one call with no fallback',async()=>{
  let calls=0;const r=await worker.fetch(req('image',{text:'A castle'}),{...env,AI:{run:async()=>{calls++;throw Error('daily free allocation exhausted')}}});assert.equal(r.status,429);assert.equal((await r.json()).code,'DAILY_LIMIT_REACHED');assert.equal(calls,1);
 });
 test('missing generation output is a handled failure',async()=>{const r=await worker.fetch(req('image',{text:'A castle'}),env);assert.equal(r.status,502);assert.equal((await r.json()).images,undefined)});
+
+test('personality, memory and history stay bounded with no extra model call',async()=>{
+ let calls=0;const r=await worker.fetch(req('chat',{text:'Hello',personality:{turns:50,sass:'gentle'},memories:Array(40).fill('A preference '.repeat(80)),history:Array(30).fill({role:'user',text:'History '.repeat(300)})}),{...env,AI:{run:async(model,p)=>{
+ calls++;assert.equal(p.max_tokens,320);assert.match(p.messages[0].content,/no sarcasm/);assert.match(p.messages[0].content,/familiar/);assert.ok(p.messages.filter(m=>m.content.startsWith('History')).length<=8);assert.ok(p.messages.map(m=>m.content).join('').length<9000);return {response:'Hello there.'};}}});assert.equal(r.status,200);assert.equal(calls,1);
+});
+test('requested detail can exceed the short default',async()=>{
+ const r=await worker.fetch(req('chat',{text:'Explain this in detail'}),{...env,AI:{run:async(model,p)=>{assert.equal(p.max_tokens,900);return {response:'Details'};}}});assert.equal(r.status,200);
+});
