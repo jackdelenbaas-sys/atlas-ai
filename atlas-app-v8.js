@@ -9,15 +9,31 @@ if(serverField)serverField.value=BASE;
 if(tokenField)tokenField.value=ACCESS;
 const generateToken=$('atlasGenerateToken');
 if(generateToken)generateToken.onclick=async()=>{
- if(!window.crypto?.getRandomValues){alert('Secure random generation is unavailable in this browser.');return}
- const bytes=new Uint8Array(36);crypto.getRandomValues(bytes);
- const token=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
- if(tokenField)tokenField.value=token; // Do not replace a working session until Save is pressed.
  const info=$('atlasTokenInstructions');
- if(info)info.textContent='Token generated locally. Copy it to Cloudflare → atlas-ai → Settings → Variables and Secrets → ATLAS_ACCESS_TOKEN (type: Secret). It is not stored in GitHub.';
- try{await navigator.clipboard.writeText(token);if(info)info.textContent='Secure token copied. Paste into Cloudflare as the ATLAS_ACCESS_TOKEN Secret, then save. Return here and press Save connection and test.'}
- catch{if(info)info.textContent='Token generated. Select the password field and copy its value to Cloudflare as ATLAS_ACCESS_TOKEN. It is not stored in GitHub.'}
+ if(!window.crypto?.getRandomValues){if(info)info.textContent='Secure token generation is unavailable.';return}
+ let token=ACCESS||(tokenField?.value||'').trim();
+ if(token.length<24){const bytes=new Uint8Array(36);crypto.getRandomValues(bytes);token=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('')}
+ try{
+  const copied=navigator.clipboard.writeText(token);
+  ACCESS=token;if(tokenField)tokenField.value=token;
+  sessionStorage.setItem('atlas-access-token',token);
+  sessionStorage.setItem('atlas-pairing-pending','1');
+  await copied;
+  generateToken.textContent='✓ Token copied';
+  if(info)info.textContent='Paste into Cloudflare’s ATLAS_ACCESS_TOKEN Value, then click Add variable and deploy. Return here; Atlas will test automatically.';
+ }catch{
+  if(tokenField){tokenField.type='text';tokenField.value=token;tokenField.focus();tokenField.select()}
+  if(info)info.textContent='Clipboard access was blocked. Copy the selected token manually.';
+ }
 };
+let pairingCheckRunning=false;
+async function finishPairing(){
+ if(pairingCheckRunning||sessionStorage.getItem('atlas-pairing-pending')!=='1')return;
+ pairingCheckRunning=true;
+ try{if(await check(true))sessionStorage.removeItem('atlas-pairing-pending')}finally{pairingCheckRunning=false}
+}
+window.addEventListener('focus',()=>void finishPairing());
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)void finishPairing()});
 const saveCloud=$('atlasSaveCloud');
 if(saveCloud)saveCloud.onclick=()=>{
  let url=(serverField?.value||'').trim().replace(/\/+$/,'');
@@ -294,4 +310,5 @@ const savedMobile=Number(localStorage.getItem('atlas-mobile-split'));if(savedMob
 composer.addEventListener('focus',()=>document.body.classList.add('atlas-typing'));
 composer.addEventListener('blur',()=>document.body.classList.remove('atlas-typing'));
 render();void check();
+if(new URLSearchParams(location.search).has('setup'))open('settings');
 })();
