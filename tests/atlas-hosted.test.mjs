@@ -111,3 +111,27 @@ test('chat returns clean text and separate bounded gesture data',async()=>{
  const e={...env,AI:{run:async()=>({response:'Operational. <atlas_actions>greet,nod,idle</atlas_actions>'})}};
  const r=await worker.fetch(req('chat',{text:'How are you?'}),e);const j=await r.json();assert.equal(j.text,'Operational.');assert.deepEqual(j.actions,['greet','nod','idle']);
 });
+test('backup keys require explicit free-plan configuration and remain server-only',async()=>{
+ const e={...env,GROQ_API_KEY:'groq-secret',GEMINI_API_KEY:'gemini-secret'};
+ const r=await worker.fetch(req('status'),e),j=await r.json();assert.equal(j.connections.filter(p=>p.configured).length,1);assert.ok(!JSON.stringify(j).includes('groq-secret'));
+});
+test('Groq handles text without using Cloudflare image allowance',async()=>{
+ const original=globalThis.fetch;let calls=0;
+ globalThis.fetch=async(url,options)=>{calls++;assert.equal(url,'https://api.groq.com/openai/v1/chat/completions');assert.equal(options.headers.Authorization,'Bearer groq-secret');return new Response(JSON.stringify({choices:[{message:{content:'Groq answer'}}]}));};
+ try{const r=await worker.fetch(req('chat',{text:'Hello'}),{...env,GROQ_API_KEY:'groq-secret',GROQ_FREE_PLAN:'true',AI:{run:()=>assert.fail('Cloudflare consumed')}});const j=await r.json();assert.equal(j.provider,'groq');assert.equal(j.text,'Groq answer');assert.equal(calls,1)}finally{globalThis.fetch=original}
+});
+test('rate-limited backup advances to Cloudflare exactly once',async()=>{
+ const original=globalThis.fetch;let calls=0;
+ globalThis.fetch=async()=>new Response('{}',{status:429});
+ try{const r=await worker.fetch(req('chat',{text:'Hello'}),{...env,GROQ_API_KEY:'secret',GROQ_FREE_PLAN:'true',AI:{run:async()=>{calls++;return {response:'Cloudflare answer'}}}});const j=await r.json();assert.equal(j.provider,'cloudflare-workers-ai');assert.equal(j.text,'Cloudflare answer');assert.equal(calls,1)}finally{globalThis.fetch=original}
+});
+test('Gemini receives image bytes and uses only the fixed free-tier text model',async()=>{
+ const original=globalThis.fetch;
+ globalThis.fetch=async(url,o)=>{assert.ok(url.endsWith('gemini-3.5-flash-lite:generateContent'));assert.equal(o.headers['x-goog-api-key'],'secret');const p=JSON.parse(o.body);assert.equal(p.contents.at(-1).parts[1].inlineData.data,'QUJDRA==');return new Response(JSON.stringify({candidates:[{content:{parts:[{text:'A photo'}]}}]}));};
+ try{const r=await worker.fetch(req('chat',{text:'Describe',attachments:[{type:'image/jpeg',data:image}]}),{...env,GEMINI_API_KEY:'secret',GEMINI_FREE_PLAN:'true',AI:{run:()=>assert.fail('Cloudflare consumed')}});assert.equal((await r.json()).provider,'gemini')}finally{globalThis.fetch=original}
+});
+test('provider content refusal is returned without trying another provider',async()=>{
+ const original=globalThis.fetch;
+ globalThis.fetch=async()=>new Response(JSON.stringify({promptFeedback:{blockReason:'SAFETY'}}));
+ try{const r=await worker.fetch(req('chat',{text:'Hello'}),{...env,GEMINI_API_KEY:'secret',GEMINI_FREE_PLAN:'true',AI:{run:()=>assert.fail('refusal bypass')}});assert.equal(r.status,400);assert.equal((await r.json()).code,'PROVIDER_DECLINED')}finally{globalThis.fetch=original}
+});

@@ -1,5 +1,5 @@
 // Atlas free daily chat. Requires Cloudflare Workers Free plan, AI binding and owner token.
-// There are no external paid API calls or paid-provider fallbacks in this Worker.
+// Optional Groq and Gemini accounts must be on their free tiers with billing disabled. No OpenAI fallback.
 const ORIGIN='https://jackdelenbaas-sys.github.io';
 const VISION_MODEL='@cf/meta/llama-4-scout-17b-16e-instruct';
 const IMAGE_MODEL='@cf/black-forest-labs/flux-2-klein-4b';
@@ -38,12 +38,46 @@ function validImage(data){
  if(typeof data!=='string'||data.length>2200000||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(data))throw Object.assign(Error('Image is invalid or too large. Upload a JPEG, PNG or WebP.'),{code:'INVALID_IMAGE',status:400});
  return data;
 }
-async function infer(env,messages,max_tokens){
+function connections(env){return [
+ {id:'groq',name:'Groq',tasks:['chat'],configured:Boolean(env.GROQ_API_KEY)&&env.GROQ_FREE_PLAN==='true',setup:'GROQ_API_KEY + GROQ_FREE_PLAN=true'},
+ {id:'gemini',name:'Gemini',tasks:['chat','vision'],configured:Boolean(env.GEMINI_API_KEY)&&env.GEMINI_FREE_PLAN==='true',setup:'GEMINI_API_KEY + GEMINI_FREE_PLAN=true'},
+ {id:'cloudflare-workers-ai',name:'Cloudflare',tasks:['chat','vision','images','image-editing'],configured:typeof env.AI?.run==='function',resetAt:nextReset()}
+]}
+async function providerJSON(url,key,body,header='Authorization'){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
+ try{
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json',[header]:header==='Authorization'?'Bearer '+key:key},body:JSON.stringify(body),signal:controller.signal});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw Object.assign(Error('Provider request failed'),{providerStatus:r.status});
+  return j;
+ }finally{clearTimeout(timer)}
+}
+async function infer(env,messages,max_tokens,meta={}){
  const vision=messages.some(m=>Array.isArray(m.content));
- const result=await env.AI.run(vision?VISION_MODEL:MODEL,{messages,max_tokens,temperature:.5});
- const text=typeof result?.response==='string'?result.response:result?.choices?.[0]?.message?.content;
- if(typeof text!=='string'||!text.trim())throw Error('The free model returned no answer. Please try again.');
- return text.trim();
+ const providers=connections(env).filter(p=>p.configured&&p.tasks.includes(vision?'vision':'chat'));
+ let lastError;
+ for(const p of providers){
+  try{
+   let text;
+   if(p.id==='groq'){
+    const j=await providerJSON('https://api.groq.com/openai/v1/chat/completions',env.GROQ_API_KEY,{model:'openai/gpt-oss-20b',messages,max_completion_tokens:max_tokens+256,temperature:.5});
+    text=j.choices?.[0]?.message?.content;
+   }else if(p.id==='gemini'){
+    const contents=messages.filter(m=>m.role!=='system').map(m=>({role:m.role==='assistant'?'model':'user',parts:Array.isArray(m.content)?m.content.map(c=>{
+     if(c.type==='text')return {text:c.text};
+     const data=validImage(c.image_url?.url);return {inlineData:{mimeType:data.slice(5,data.indexOf(';')),data:data.split(',')[1]}};
+    }):[{text:m.content}]}));
+    const j=await providerJSON('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',env.GEMINI_API_KEY,{systemInstruction:{parts:[{text:messages.filter(m=>m.role==='system').map(m=>m.content).join('\n')}]},contents,generationConfig:{maxOutputTokens:max_tokens,temperature:.5}},'x-goog-api-key');
+    if(j.promptFeedback?.blockReason||j.candidates?.some(c=>['SAFETY','PROHIBITED_CONTENT','BLOCKLIST'].includes(c.finishReason)))throw Object.assign(Error('This request was declined by the AI provider.'),{status:400,code:'PROVIDER_DECLINED',noFallback:true});
+    text=j.candidates?.[0]?.content?.parts?.filter(p=>!p.thought).map(p=>p.text||'').join('');
+   }else{
+    const j=await env.AI.run(vision?VISION_MODEL:MODEL,{messages,max_tokens,temperature:.5});text=typeof j?.response==='string'?j.response:j?.choices?.[0]?.message?.content;
+   }
+   if(typeof text!=='string'||!text.trim())throw Error('The free model returned no answer. Please try again.');
+   meta.provider=p.id;meta.usedBackup=p.id!=='cloudflare-workers-ai';return text.trim();
+  }catch(e){if(e.noFallback)throw e;lastError=e}
+ }
+ throw lastError||Object.assign(Error('No free AI connection is configured.'),{status:503,code:'NO_AI_CONNECTION'});
 }
 function cleanChat(text){
  const actions=[];
@@ -53,7 +87,7 @@ function cleanChat(text){
 }
 function cleanError(e,env){
  let text=String(e?.message||e||'Unknown error');
- for(const key of [env.ATLAS_ACCESS_TOKEN,env.OPENAI_API_KEY])if(key)text=text.split(key).join('[redacted]');
+ for(const key of [env.ATLAS_ACCESS_TOKEN,env.OPENAI_API_KEY,env.GROQ_API_KEY,env.GEMINI_API_KEY])if(key)text=text.split(key).join('[redacted]');
  return text.slice(0,350);
 }
 export default {async fetch(request,env){
@@ -63,12 +97,12 @@ export default {async fetch(request,env){
  if(path==='/atlas/api/health'&&request.method==='GET')return json({provider:'cloudflare-workers-ai',ready:typeof env.AI?.run==='function'&&String(env.ATLAS_ACCESS_TOKEN||'').length>=24,paidFallback:false,images:true,vision:true,imageEditing:true});
  if(!env.ATLAS_ACCESS_TOKEN||env.ATLAS_ACCESS_TOKEN.length<24)return json({error:'The private Atlas access token is missing from Cloudflare runtime settings.',code:'MISSING_ACCESS_TOKEN'},503);
  if(request.headers.get('Authorization')!=='Bearer '+env.ATLAS_ACCESS_TOKEN)return json({error:'Atlas access token does not match. Save the token in Atlas Settings.',code:'INVALID_ACCESS_TOKEN'},401);
- if(typeof env.AI?.run!=='function')return json({error:'Workers AI binding is missing. Deploy the updated Atlas Worker configuration.',code:'MISSING_AI_BINDING'},503);
+ if(!connections(env).some(p=>p.configured))return json({error:'Workers AI binding is missing. Deploy the updated Atlas Worker configuration.',code:'MISSING_AI_BINDING'},503);
  try{
-  if(path==='/atlas/api/status'&&request.method==='GET')return json({bridge:'atlas-free-v1',provider:'cloudflare-workers-ai',configured:true,model:'Llama 3.3 70B · free daily allowance',free:true,paidFallback:false,resetAt:nextReset(),web:false,images:true,vision:true,imageEditing:true,video:false});
+  if(path==='/atlas/api/status'&&request.method==='GET')return json({bridge:'atlas-free-v1',provider:'cloudflare-workers-ai',configured:true,model:'Llama 3.3 70B · free daily allowance',free:true,paidFallback:false,resetAt:nextReset(),web:false,images:true,vision:true,imageEditing:typeof env.AI?.run==='function',video:false,connections:connections(env),routing:'Groq → Gemini → Cloudflare; images stay on Cloudflare'});
   if(path==='/atlas/api/diagnose'&&request.method==='GET'){
-   const reply=await infer(env,[{role:'user',content:'Reply READY in one word.'}],16);
-   return json({connected:true,model:'Cloudflare free AI',provider:'cloudflare-workers-ai',free:true,reply,resetAt:nextReset()});
+   const meta={};const reply=await infer(env,[{role:'user',content:'Reply READY in one word.'}],16,meta);
+   return json({connected:true,model:meta.provider,provider:meta.provider,free:true,reply,resetAt:nextReset()});
   }
   if((path==='/atlas/api/chat'||path==='/atlas/api/image')&&request.method==='POST'){
    if(Number(request.headers.get('Content-Length')||0)>6500000)return json({error:'This message is too large for image chat.'},413);
@@ -90,14 +124,14 @@ export default {async fetch(request,env){
     if(typeof result?.image!=='string'||!result.image.length||result.image.length>12000000||!/^[A-Za-z0-9+/]+={0,2}$/.test(result.image))throw Error('Image generation returned no usable image.');
     return json({text:attachments.length?'Here is the edited image.':'Your image is ready on the studio screen.',actions:['point','nod','idle'],images:['data:image/'+(result.image.startsWith('iVBOR')?'png':'jpeg')+';base64,'+result.image],sources:[],provider:'cloudflare-workers-ai',free:true,resetAt:nextReset()});
    }
-   return json({...cleanChat(await infer(env,messagesFor(p),/\b(detail(?:ed)?|thorough|step.by.step|long|full|explain|code|write|draft)\b/i.test(String(p.text||''))?900:320)),sources:[],images:[],provider:'cloudflare-workers-ai',free:true,resetAt:nextReset()});
+   const meta={};const text=await infer(env,messagesFor(p),/\b(detail(?:ed)?|thorough|step.by.step|long|full|explain|code|write|draft)\b/i.test(String(p.text||''))?900:320,meta);return json({...cleanChat(text),sources:[],images:[],provider:meta.provider,free:true,resetAt:nextReset()});
   }
-  if(path.startsWith('/atlas/api/video'))return json({error:'Video generation is not enabled. No paid service was called.',code:'FREE_CHAT_ONLY'},400);
+  if(path.startsWith('/atlas/api/video'))return json({error:'Free video generation is not connected. Chat backups do not generate videos, and no paid video request was made.',code:'FREE_CHAT_ONLY'},400);
   return json({error:'Not found'},404);
  }catch(e){
   const message=cleanError(e,env);
   if(/daily|free allocation|neurons|4006|3036/i.test(message))return json({error:'Today’s free AI allowance is used up. It resets automatically at '+nextReset()+'. No payment is needed.',code:'DAILY_LIMIT_REACHED',resetAt:nextReset(),paidFallback:false},429);
-  if(/rate.limit|too many|429|busy|capacity/i.test(message))return json({error:'The free AI service is busy. Please try again shortly.',code:'TEMPORARY_LIMIT'},429);
+  if(e.providerStatus===429||/rate.limit|too many|429|busy|capacity/i.test(message))return json({error:'The free AI service is busy. Please try again shortly.',code:'TEMPORARY_LIMIT'},429);
   return json({error:e.status?message:'Free AI could not answer right now. Please try again.',code:e.code||(e instanceof SyntaxError?'INVALID_JSON':'FREE_AI_ERROR')},e.status||(e instanceof SyntaxError?400:502));
  }
 }};

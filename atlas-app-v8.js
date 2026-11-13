@@ -219,12 +219,14 @@ async function check(verify=false){
   const r=await api('/atlas/api/status',null,8000);
   if(!r.configured){
    setStatus('ATLAS · API KEY REQUIRED');
-   if(info)info.textContent='Hosted backend is connected, but its OpenAI API key has not been configured.';
+   if(info)info.textContent='The Atlas server is connected, but no enabled AI provider is ready.';
    return false;
   }
+  const connectionNode=$('atlasConnections');
+  if(connectionNode){connectionNode.replaceChildren();for(const c of r.connections||[]){const row=document.createElement('p');row.textContent=c.name+' · '+(c.configured?'Connected':'Not connected')+' · '+c.tasks.join(', ');connectionNode.append(row)}}
   if(!verify){
    setStatus('ATLAS · FREE AI CONFIGURED');
-   if(info)info.textContent='Free Cloudflare AI is configured. The daily allowance resets automatically at '+new Date(r.resetAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})+'. No paid fallback.';
+   if(info)info.textContent='Automatic routing uses connected free-plan providers, then Cloudflare. Images use Cloudflare’s daily allowance. Provider limits reset on their own schedules.';
    return true;
   }
   const live=await api('/atlas/api/diagnose?model='+encodeURIComponent(modelSetting?.value||'cloudflare-free'),null,60000);
@@ -333,7 +335,7 @@ async function send(){
  const latest=[...t.msgs].reverse().find(m=>m.images?.length)?.images?.at(-1);
  const recentVisual=t.msgs.at(-1)?.images?.length||/\b(?:image|picture|photo|photograph)\b/i.test(text);
  const followup=Boolean(latest&&recentVisual&&isImageEdit(text));
- const mode=modeFromText(text,files)==='image'||followup?'image':'chat';const current=t.id;
+ const mode=followup?'image':modeFromText(text,files);const current=t.id;
  if(t.title==='New conversation')t.title=(text||'Attachments').slice(0,52);
  const filenames=files.map(x=>x.name);const history=t.msgs.slice(-35).filter(x=>x.role==='user'||x.role==='atlas').map(x=>({role:x.role==='atlas'?'assistant':'user',text:x.text}));
  push('user',(text||'Analyze these attachments')+(filenames.length?'\n📎 '+filenames.join(', '):''));
@@ -341,7 +343,7 @@ async function send(){
  if(action&&!files.length&&text.length<90&&!/\b(?:why|how|explain|what|image|picture|photo|create|generate|screen|presentation|center|home)\b/i.test(text)){performMotion(action);return}
  const destination=/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text)?'walkToScreen':/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text)?'walkHome':null;
  if(mode==='chat'&&destination&&!files.length&&text.length<110){push('atlas',destination==='walkHome'?'Back to center. My natural habitat.':'Heading to the screen. Presentation mode: mildly impressive.');void afterReply(()=>$(destination)?.click());return}
- busy=true;busyThread=current;render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':'ATLAS · CREATING IMAGE');
+ busy=true;busyThread=current;render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':mode==='video'?'ATLAS · CHECKING VIDEO CONNECTION':'ATLAS · CREATING IMAGE');
  const requestActionVersion=pendingAction;
  const selection=files;files=[];attachmentPreview();
  let response;
