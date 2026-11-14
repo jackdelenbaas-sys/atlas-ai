@@ -460,13 +460,13 @@ async function send(){
   const cleaned=cleanReply(studioReply.text||'Done. Consider the dramatic entrance complete.');
   const txt=cleaned.text||'Done.';
   if(!response.actions?.length)response.actions=cleaned.actions;
-  if(current===data.active){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]});cacheImages(m);if(m.images[0])studioImage(m.images[0]);else if(m.webImages?.length)void startStudioSlideshow(m.webImages)}
+  if(current===data.active&&requestEpoch===activeRequest){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]});cacheImages(m);if(m.images[0])studioImage(m.images[0]);else if(m.webImages?.length)void startStudioSlideshow(m.webImages)}
   else {const thread=data.threads.find(x=>x.id===current);if(thread){const m={role:'atlas',text:txt,images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]};thread.msgs.push(m);cacheImages(m);save()}}
   // Explicit user motions or model-selected actions take precedence over
   // a generic reply nod, so the body follows the intended movement.
   // The explicit user command always wins over an optional AI-selected gesture.
   if(current===data.active&&requestActionVersion===pendingAction)void afterReply(()=>sceneActions.length?applyStudioCommands(sceneActions,current).catch(e=>{if(current===data.active)push('atlas',e.message)}):action?dispatch('motion',action):dispatch('sequence',responseActions(text,txt,response.actions,mode)));
-  if(speaking&&window.speechSynthesis&&current===data.active){
+  if(speaking&&window.speechSynthesis&&current===data.active&&requestEpoch===activeRequest){
     speechSynthesis.cancel();
     dispatch('speech',false);
     const utterance=new SpeechSynthesisUtterance(txt.slice(0,1400));
