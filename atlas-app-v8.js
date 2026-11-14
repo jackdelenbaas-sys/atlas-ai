@@ -1,3 +1,4 @@
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=111';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
@@ -51,7 +52,7 @@ const memories=()=>{try{const m=JSON.parse(localStorage.getItem(MEM)||'[]');retu
 const putMem=m=>{try{localStorage.setItem(MEM,JSON.stringify(m.slice(-80)))}catch{}};
 const save=()=>{try{const lean={active:data.active,threads:data.threads.slice(0,70).map(t=>({id:t.id,title:t.title,msgs:t.msgs.slice(-160).map(m=>({role:m.role,text:m.text, sources:m.sources||[],imageIds:m.imageIds||[],webImages:m.webImages||[]}))}))};localStorage.setItem(STORE,JSON.stringify(lean))}catch(e){console.warn('Conversation storage full',e)}};
 const active=()=>data.threads.find(t=>t.id===data.active)||data.threads[0];
-let files=[],busy=false,speaking=false,recognizer=null,pendingAction=0,busyThread=null;
+let files=[],busy=false,speaking=false,recognizer=null,pendingAction=0,busyThread=null,activeRequest=0;
 const modelSetting=$('atlasModelChoice');if(modelSetting){modelSetting.value='cloudflare-free';modelSetting.onchange=()=>localStorage.setItem('atlas-model-choice',modelSetting.value)}
 let mediaDBPromise;
 function mediaDB(){
@@ -91,6 +92,39 @@ function formatAnswer(node,text){
   if(item){if(!list){list=document.createElement('ul');node.append(list)}const li=document.createElement('li');answerInline(li,item[1]);list.append(li)}
   else{list=null;const p=document.createElement('p');answerInline(p,line.replace(/^\s*#{1,6}\s+/,''));node.append(p)}
  }if(pre)node.append(pre);
+}
+let studioState={available:false};
+window.addEventListener('atlas-studio-state',e=>{studioState=e.detail||{available:false}});
+function currentStudioState(){window.dispatchEvent(new CustomEvent('atlas-studio-state-request'));return {...studioState,photos:studioSlides?{count:studioSlides.items.length,index:(studioSlides.index+studioSlides.items.length-1)%studioSlides.items.length,paused:!slideTimer,titles:studioSlides.items.map(i=>i.title)}:{count:0}}}
+function sceneCommand(command){return new Promise(resolve=>{
+ const requestId=crypto.randomUUID();let timer;
+ const listener=e=>{if(e.detail?.requestId!==requestId)return;clearTimeout(timer);window.removeEventListener('atlas-studio-result',listener);resolve(e.detail)};
+ window.addEventListener('atlas-studio-result',listener);timer=setTimeout(()=>{window.removeEventListener('atlas-studio-result',listener);resolve({ok:false,error:'3D controls are unavailable or still loading in this browser.'})},15000);
+ window.dispatchEvent(new CustomEvent('atlas-studio-control',{detail:{requestId,command}}));
+})}
+async function applyStudioCommands(commands,threadId=data.active){
+ for(const c of normalizeStudioCommands(commands)){
+  if(threadId!==data.active)return;
+  if(c.type==='photos'){
+   const items=studioSlides?.items||active().msgs.flatMap(m=>m.webImages||[]).slice(-6);
+   if(c.action==='pause'){clearInterval(slideTimer);slideTimer=null;continue}
+   if(!items.length){if(c.action==='remove'){await sceneCommand({type:'screen',clear:true,visible:false});continue}throw Error('There are no photos in this conversation yet.')}
+   const current=studioSlides?((studioSlides.index+items.length-1)%items.length):0;
+   if(c.action==='remove'){
+    const next=items.filter((i,n)=>c.match?!i.title?.toLowerCase().includes(c.match.toLowerCase()):n!==current);
+    if(next.length)await startStudioSlideshow(next);else{stopStudioSlides();await sceneCommand({type:'screen',clear:true,visible:false})}continue;
+   }
+   const index=c.action==='next'?(current+1)%items.length:c.action==='previous'?(current+items.length-1)%items.length:c.index??current;
+   await startStudioSlideshow(items,index);continue;
+  }
+  if(c.type==='reset'||c.type==='screen'&&(c.clear||c.visible===false))stopStudioSlides();
+  const result=await sceneCommand(c);if(!result.ok)throw Error(result.error||'That studio control could not be applied.');
+ }
+}
+function resetConversationScene(){
+ ++pendingAction;++activeRequest;stopStudioSlides();window.speechSynthesis?.cancel();dispatch('speech',false);
+ files=[];attachmentPreview();composer.value='';busy=false;busyThread=null;$('stageActions').open=false;
+ void sceneCommand({type:'reset'});setStatus(ACCESS?'ATLAS · READY':'ATLAS · SIGN-IN TOKEN NEEDED');
 }
 let studioSlides=null,slideTimer=null,slideVersion=0;
 function stopStudioSlides(){++slideVersion;clearInterval(slideTimer);slideTimer=null;studioSlides=null}
@@ -177,7 +211,7 @@ function render(){
  const t=active();$('send').disabled=busy;$('send').setAttribute('aria-busy',String(busy));feed.replaceChildren();for(const m of t.msgs)feed.append(bubble(m));
  if(busy&&t.id===busyThread){const el=document.createElement('div');el.className='bubble atlas typing';el.id='atlasTyping';el.innerHTML='<i></i><i></i><i></i>';feed.append(el)}
  const threads=$('threads');threads.replaceChildren();
- for(const thread of data.threads){const b=document.createElement('button');b.className='btn entry '+(thread.id===data.active?'active':'');b.textContent=thread.title||'Conversation';b.onclick=()=>{stopStudioSlides();data.active=thread.id;save();render();close()};threads.append(b)}
+ for(const thread of data.threads){const b=document.createElement('button');b.className='btn entry '+(thread.id===data.active?'active':'');b.textContent=thread.title||'Conversation';b.onclick=()=>{resetConversationScene();data.active=thread.id;save();render();close()};threads.append(b)}
  bottom();
 }
 function push(role,text,extras={}){const t=active();const m={role,text,...extras};t.msgs.push(m);save();render();return m}
@@ -185,6 +219,7 @@ function setStatus(t){status.textContent=t}
 function dispatch(type,action){window.dispatchEvent(new CustomEvent('atlas-action',{detail:{type,action}}))}
 function cleanReply(text){
  const actions=[];
+ text=extractStudioCommands(text).text;
  text=String(text||'').replace(/<atlas_actions?>\s*([\s\S]*?)(?:<\/atlas_actions?>|$)/gi,(_,raw)=>{actions.push(...raw.split(',').map(x=>x.trim()));return ''});
  text=text.replace(/(?:^|(?<=[.!?])\s+|\n)(?:think|nod|idle|point|wave|greet)(?:\s*,\s*(?:think|nod|idle|point|wave|greet)){1,4}[.!]?\s*$/i,'').trim();
  return {text,actions};
@@ -319,12 +354,13 @@ function attachmentPreview(){
  }
 }
 async function addFiles(incoming){
+ const epoch=activeRequest,thread=data.active;
  const accepted=[...incoming].filter(f=>f.type.startsWith('image/')||f.type.startsWith('text/')||/\.(md|txt|csv|json|js|ts|py|html|css)$/i.test(f.name));
  const tooLarge=accepted.find(f=>f.size>9*1024*1024);
  if(tooLarge){push('atlas',tooLarge.name+' is too large. Choose an image under 9 MB.');return}
  files=[...files,...accepted].slice(0,3);attachmentPreview();
  const image=accepted.find(f=>f.type.startsWith('image/'));
- if(image)try{studioImage(await reduceImage(image))}catch{setStatus('ATLAS · IMAGE COULD NOT LOAD')}
+ if(image)try{const reduced=await reduceImage(image);if(epoch===activeRequest&&thread===data.active)studioImage(reduced)}catch{setStatus('ATLAS · IMAGE COULD NOT LOAD')}
  if(!accepted.length)push('atlas','Upload an image or text file. You can also paste or drop a picture here.');
 }
 
@@ -387,7 +423,7 @@ async function send(){
  composer.value='';if(text&&remember(text)){files=[];attachmentPreview();return}
  if(text&&memoryRequest(text)){files=[];attachmentPreview();return}
  summarizeMemory(text);
- const personality=developPersonality(text);
+ const personality=developPersonality(text);const state=currentStudioState();const localStudio=parseStudioRequest(text,state);
  const t=active();
  const latest=[...t.msgs].reverse().find(m=>m.images?.length)?.images?.at(-1);
  const recentVisual=t.msgs.at(-1)?.images?.length||/\b(?:image|picture|photo|photograph)\b/i.test(text);
@@ -396,11 +432,12 @@ async function send(){
  if(t.title==='New conversation')t.title=(text||'Attachments').slice(0,52);
  const filenames=files.map(x=>x.name);const history=t.msgs.slice(-35).filter(x=>x.role==='user'||x.role==='atlas').map(x=>({role:x.role==='atlas'?'assistant':'user',text:x.text}));
  push('user',(text||'Analyze these attachments')+(filenames.length?'\n📎 '+filenames.join(', '):''));
+ if(localStudio.length&&!files.length){push('atlas','Adjusting the studio.');const id=current;void afterReply(()=>applyStudioCommands(localStudio,id).catch(e=>{if(id===data.active)push('atlas',e.message)}));return}
  const action=mode==='chat'?requestedMotion(text):null;
  if(action&&!files.length&&text.length<90&&!/\b(?:why|how|explain|what|image|picture|photo|create|generate|screen|presentation|center|home)\b/i.test(text)){performMotion(action);return}
  const destination=/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text)?'walkToScreen':/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text)?'walkHome':null;
  if(mode==='chat'&&destination&&!files.length&&text.length<110){push('atlas',destination==='walkHome'?'Back to center. My natural habitat.':'Heading to the screen. Presentation mode: mildly impressive.');void afterReply(()=>$(destination)?.click());return}
- busy=true;busyThread=current;render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':mode==='video'?'ATLAS · CHECKING VIDEO CONNECTION':mode==='web-images'?'ATLAS · FINDING WEB PHOTOS':'ATLAS · CREATING IMAGE');
+ const requestEpoch=++activeRequest;busy=true;busyThread=current;render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':mode==='video'?'ATLAS · CHECKING VIDEO CONNECTION':mode==='web-images'?'ATLAS · FINDING WEB PHOTOS':'ATLAS · CREATING IMAGE');
  const requestActionVersion=pendingAction;
  const selection=files;files=[];attachmentPreview();
  let response;
@@ -413,12 +450,14 @@ async function send(){
    const blob=await (await fetch(latest)).blob();attachments.push({name:'conversation-image.jpg',type:'image/jpeg',data:await reduceImage(new File([blob],'conversation-image.jpg',{type:blob.type}))});
   }
   const sent=t.msgs.findLast? t.msgs.findLast(m=>m.role==='user'):[...t.msgs].reverse().find(m=>m.role==='user');
-  if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);cacheImages(sent);if(sent.images[0])studioImage(sent.images[0]);render()}
+  if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);cacheImages(sent);if(sent.images[0]&&current===data.active)studioImage(sent.images[0]);render()}
   const memory=selectedMemories(text);
   const related=relevantHistory(text,t.id);
-  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],personality,model:modelSetting?.value||'cloudflare-free'};
+  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],personality,studioState:state,model:modelSetting?.value||'cloudflare-free'};
   response=await api('/atlas/api/'+mode,payload,mode==='image'?210000:150000);
-  const cleaned=cleanReply(response.text||'Done. Consider the dramatic entrance complete.');
+  const studioReply=extractStudioCommands(response.text||'');
+  const sceneActions=normalizeStudioCommands(response.studio||studioReply.studio);
+  const cleaned=cleanReply(studioReply.text||'Done. Consider the dramatic entrance complete.');
   const txt=cleaned.text||'Done.';
   if(!response.actions?.length)response.actions=cleaned.actions;
   if(current===data.active){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]});cacheImages(m);if(m.images[0])studioImage(m.images[0]);else if(m.webImages?.length)void startStudioSlideshow(m.webImages)}
@@ -426,7 +465,7 @@ async function send(){
   // Explicit user motions or model-selected actions take precedence over
   // a generic reply nod, so the body follows the intended movement.
   // The explicit user command always wins over an optional AI-selected gesture.
-  if(current===data.active&&requestActionVersion===pendingAction)void afterReply(()=>action?dispatch('motion',action):dispatch('sequence',responseActions(text,txt,response.actions,mode)));
+  if(current===data.active&&requestActionVersion===pendingAction)void afterReply(()=>sceneActions.length?applyStudioCommands(sceneActions,current).catch(e=>{if(current===data.active)push('atlas',e.message)}):action?dispatch('motion',action):dispatch('sequence',responseActions(text,txt,response.actions,mode)));
   if(speaking&&window.speechSynthesis&&current===data.active){
     speechSynthesis.cancel();
     dispatch('speech',false);
@@ -438,8 +477,8 @@ async function send(){
     utterance.onerror=()=>dispatch('speech',false);
     speechSynthesis.speak(utterance);
   }
- }catch(e){if(current===data.active){if(!composer.value)composer.value=text;if(!files.length){files=selection;attachmentPreview()}}if(current===data.active)push('atlas','That didn’t work: '+e.message+(e.code==='MISSING_RUNTIME_SECRETS'?' Open Settings for the missing server configuration.':''));setStatus(e.code==='DAILY_LIMIT_REACHED'?'ATLAS · FREE LIMIT RESETS DAILY':'ATLAS · ERROR');console.error('Atlas request',e)}
- finally{busy=false;busyThread=null;render();if(!['ATLAS · ERROR','ATLAS · FREE LIMIT RESETS DAILY'].includes(status.textContent))setStatus('ATLAS · FREE AI READY')}
+ }catch(e){if(requestEpoch!==activeRequest)return;if(current===data.active){if(!composer.value)composer.value=text;if(!files.length){files=selection;attachmentPreview()}}if(current===data.active)push('atlas','That didn’t work: '+e.message+(e.code==='MISSING_RUNTIME_SECRETS'?' Open Settings for the missing server configuration.':''));setStatus(e.code==='DAILY_LIMIT_REACHED'?'ATLAS · FREE LIMIT RESETS DAILY':'ATLAS · ERROR');console.error('Atlas request',e)}
+ finally{if(requestEpoch===activeRequest){busy=false;busyThread=null;render();if(!['ATLAS · ERROR','ATLAS · FREE LIMIT RESETS DAILY'].includes(status.textContent))setStatus('ATLAS · FREE AI READY')}}
 }
 const input=document.createElement('input');input.type='file';input.multiple=true;input.accept='image/*,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css';input.hidden=true;document.body.append(input);
 input.onchange=()=>{void addFiles(input.files);input.value=''};
@@ -457,7 +496,7 @@ composer.addEventListener('paste',e=>{const images=[...e.clipboardData.items].fi
 
 $('send').onclick=send;
 composer.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
-$('newChat').onclick=()=>{stopStudioSlides();const id=Date.now();data.threads.unshift({id,title:'New conversation',msgs:[]});data.active=id;save();render();close()};
+$('newChat').onclick=()=>{resetConversationScene();const id=Date.now();data.threads.unshift({id,title:'New conversation',msgs:[]});data.active=id;save();render();close()};
 const open=id=>{$(id).classList.add('show');$('veil').classList.add('show')};
 const close=()=>{document.querySelectorAll('.sheet').forEach(x=>x.classList.remove('show'));$('veil').classList.remove('show')};
 $('historyBtn').onclick=()=>open('history');$('settingsBtn').onclick=()=>open('settings');$('veil').onclick=close;document.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);
@@ -467,7 +506,7 @@ $('atlasMemoryClear').onclick=()=>{if(confirm('Clear saved memory notes?')){putM
 $('mic').title='Speak into Atlas';
 $('mic').onclick=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){alert('Voice input is not supported in this browser.');return}
  if(recognizer){recognizer.stop();recognizer=null;return}recognizer=new SR();recognizer.lang='en-US';recognizer.onresult=e=>{composer.value=e.results[0][0].transcript;composer.focus()};recognizer.onend=()=>{recognizer=null;$('mic').classList.remove('on')};recognizer.start();$('mic').classList.add('on')};
-$('speaker').title='Speak Atlas responses';$('speaker').onclick=()=>{speaking=!speaking;$('speaker').classList.toggle('on',speaking);if(!speaking){speechSynthesis?.cancel();dispatch('speech',false)}};
+$('speaker').title='Speak Atlas responses';$('speaker').onclick=()=>{speaking=!speaking;$('speaker').classList.toggle('on',speaking);if(!speaking){window.speechSynthesis?.cancel();dispatch('speech',false)}};
 const app=$('app'),divider=$('dividerHandle');let dragging=false;
 divider.addEventListener('pointerdown',e=>{dragging=true;divider.setPointerCapture(e.pointerId)});
 divider.addEventListener('pointermove',e=>{if(!dragging)return;const r=app.getBoundingClientRect(),mobile=matchMedia('(max-width:760px)').matches;
