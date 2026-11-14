@@ -463,11 +463,11 @@ function applyScreenPosition(){
  for(const [id,k] of [['screenX','x'],['screenY','y'],['screenZ','z']])$(id).value=screenPos[k];
 }
 applyScreenPosition();screenRoot.visible=false;
-let presentationVersion=0,screenBillboard=true,studioControlVersion=0;
+let presentationVersion=0,screenBillboard=true,studioControlVersion=0,screenContent={kind:"empty"};
 async function presentStudioImage(src,reframe=true){
  if(typeof src!=='string'||!/^data:image\/(jpeg|png|webp);base64,/.test(src))return;
  const version=++presentationVersion,im=new Image();im.src=src;
- try{await im.decode();if(version!==presentationVersion)return;drawPresentation(im);showScreen(true);
+ try{await im.decode();if(version!==presentationVersion)return;drawPresentation(im);screenContent={kind:"image"};showScreen(true);
   if(reframe){Object.assign(screenPos,{x:1.35,y:1.48,z:-.85});applyScreenPosition();
   center.set(.48,1.18,-.3);yaw=0;pitch=0;distance=mobileCanvas()?6.8:5.6;sliders();updateCam();}
   $('showStatus').textContent='Image displayed. Ask Atlas about it, or tap a movement control.';
@@ -1170,11 +1170,11 @@ window.addEventListener('atlas-action',e=>{
 });
 
 function emitStudioState(){
- const detail={available:true,screen:{visible:screenRoot.visible,x:screenPos.x,y:screenPos.y,z:screenPos.z,width:screenRoot.scale.x*1.5,height:screenRoot.scale.y*1.06},camera:{yaw,pitch,distance,x:center.x,y:center.y,z:center.z},avatar:model?{x:model.position.x,z:model.position.z,rotation:model.rotation.y*180/Math.PI}:null,roomVisible:studioObjects.visible};
+ const detail={available:true,screen:{visible:screenRoot.visible,content:screenContent,x:screenPos.x,y:screenPos.y,z:screenPos.z,width:screenRoot.scale.x*1.5,height:screenRoot.scale.y*1.06},camera:{yaw,pitch,distance,x:center.x,y:center.y,z:center.z},avatar:model?{x:model.position.x,z:model.position.z,rotation:model.rotation.y*180/Math.PI}:null,roomVisible:studioObjects.visible};
  window.dispatchEvent(new CustomEvent('atlas-studio-state',{detail}));return detail;
 }
 window.addEventListener('atlas-studio-state-request',emitStudioState);
-function clearStudioScreen(){++presentationVersion;sc.fillStyle='#091628';sc.fillRect(0,0,1024,680);screenTex.needsUpdate=true;showScreen(false)}
+function clearStudioScreen(){screenContent={kind:'empty'};++presentationVersion;sc.fillStyle='#091628';sc.fillRect(0,0,1024,680);screenTex.needsUpdate=true;showScreen(false)}
 window.addEventListener('atlas-studio-control',async e=>{
  const {requestId}=e.detail||{},command=normalizeStudioCommands([e.detail?.command])[0];
  const version=++studioControlVersion;
@@ -1192,7 +1192,7 @@ window.addEventListener('atlas-studio-control',async e=>{
    if(c.billboard!==undefined)screenBillboard=c.billboard;
    if(c.rotation!==undefined){screenBillboard=false;screenRoot.rotation.y=c.rotation*Math.PI/180}
    if(c.text!==undefined){
-    ++presentationVersion;sc.fillStyle='#091628';sc.fillRect(0,0,1024,680);sc.fillStyle='#f0f6ff';sc.font='36px sans-serif';
+    screenContent={kind:'text',text:c.text};++presentationVersion;sc.fillStyle='#091628';sc.fillRect(0,0,1024,680);sc.fillStyle='#f0f6ff';sc.font='36px sans-serif';
     const words=c.text.split(/\s+/);let line='',y=65;for(const word of words){if(sc.measureText(line+' '+word).width>920){sc.fillText(line,45,y);y+=52;line=word}else line+=(line?' ':'')+word;if(y>620)break}if(y<=620)sc.fillText(line,45,y);screenTex.needsUpdate=true;if(c.visible===undefined)showScreen(true);
    }
    if(c.visible!==undefined)showScreen(c.visible);
