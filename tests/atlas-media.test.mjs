@@ -95,7 +95,7 @@ test('web image finding is separate from generation and editing',()=>{
 });
 test('slideshow rotates, caches photos and only reframes the camera once',async()=>{
  const events=[];let tick,calls=0;
- const c=vm.createContext({Map,CustomEvent:class{constructor(type,o){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>events.push(e),addEventListener:()=>{}},document:{hidden:false},$:()=>null,api:async()=>{calls++;return {image:'data:image/jpeg;base64,QUJDRA==' }},setStatus:()=>{},setInterval:f=>{tick=f;return 1},clearInterval:()=>{}});
+ const c=vm.createContext({Image:class{async decode(){}},Map,CustomEvent:class{constructor(type,o){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>events.push(e),addEventListener:()=>{}},document:{hidden:false},$:()=>null,api:async()=>{calls++;return {image:'data:image/jpeg;base64,QUJDRA==' }},setStatus:()=>{},setInterval:f=>{tick=f;return 1},clearInterval:()=>{}});
  vm.runInContext(source.slice(source.indexOf('let studioState='),source.indexOf('function studioImage(')),c);
  await c.startStudioSlideshow([{url:'https://upload.wikimedia.org/a.jpg'},{url:'https://thumb.wikimedia.org/b.jpg'}]);await new Promise(setImmediate);
  tick();await new Promise(setImmediate);
@@ -112,13 +112,18 @@ test('photo replies start presenting automatically without a second request',asy
 });
 test('slideshow skips failed downloads and keeps rotating successful photos',async()=>{
  const events=[];let tick;
- const c=vm.createContext({Map,Set,CustomEvent:class{constructor(type,o){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>events.push(e),addEventListener:()=>{}},document:{hidden:false},$:()=>null,api:async(p,{url})=>{if(url.includes('broken'))throw Error('blocked');return {image:'data:image/jpeg;base64,QUJDRA=='}},setStatus:()=>{},setInterval:f=>{tick=f;return 1},clearInterval:()=>{}});
+ const c=vm.createContext({Image:class{async decode(){}},Map,Set,CustomEvent:class{constructor(type,o){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>events.push(e),addEventListener:()=>{}},document:{hidden:false},$:()=>null,api:async(p,{url})=>{if(url.includes('broken'))throw Error('blocked');return {image:'data:image/jpeg;base64,QUJDRA=='}},setStatus:()=>{},setInterval:f=>{tick=f;return 1},clearInterval:()=>{}});
  vm.runInContext(source.slice(source.indexOf('let studioState='),source.indexOf('function studioImage(')),c);
  await c.startStudioSlideshow([{url:'https://upload.wikimedia.org/broken.jpg'},{url:'https://upload.wikimedia.org/house.jpg'},{url:'https://upload.wikimedia.org/villa.jpg'}]);
  assert.equal(events.length,1);assert.equal(events[0].detail.reframe,true);tick();await new Promise(setImmediate);assert.equal(events.length,2);assert.equal(events[1].detail.reframe,false);
 });
 test('browser photo download avoids the authenticated proxy when CORS succeeds',async()=>{
- let requests=0;const c=vm.createContext({fetch:async()=>({ok:true,blob:async()=>({type:'image/jpeg',size:123})}),AbortSignal:{timeout:()=>null},imageData:async()=> 'data:image/jpeg;base64,QUJDRA==',api:()=>{requests++;throw Error('No proxy needed')}});
- vm.runInContext(source.slice(source.indexOf('async function loadStudioPhoto('),source.indexOf('async function startStudioSlideshow(')),c);
+ let requests=0;const c=vm.createContext({Image:class{async decode(){}},fetch:async()=>({ok:true,blob:async()=>({type:'image/jpeg',size:123})}),AbortSignal:{timeout:()=>null},imageData:async()=> 'data:image/jpeg;base64,QUJDRA==',api:()=>{requests++;throw Error('No proxy needed')}});
+ vm.runInContext(source.slice(source.indexOf('async function decodeStudioPhoto('),source.indexOf('async function startStudioSlideshow(')),c);
  assert.match(await c.loadStudioPhoto({url:'https://upload.wikimedia.org/house.jpg'}),/^data:image/);assert.equal(requests,0);
+});
+test('undecodable photo bytes are rejected before a blank frame can replace the screen',async()=>{
+ const c=vm.createContext({Image:class{async decode(){throw Error('Invalid image bytes')}},api:async()=>({image:'data:image/jpeg;base64,QkFE'})});
+ vm.runInContext(source.slice(source.indexOf('async function decodeStudioPhoto('),source.indexOf('async function startStudioSlideshow(')),c);
+ await assert.rejects(()=>c.loadStudioPhoto({url:'https://upload.wikimedia.org/bad.jpg'}),/Invalid image bytes/);
 });

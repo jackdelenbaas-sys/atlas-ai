@@ -128,13 +128,14 @@ function resetConversationScene(){
 }
 let studioSlides=null,slideTimer=null,slideVersion=0;
 function stopStudioSlides(){++slideVersion;clearInterval(slideTimer);slideTimer=null;studioSlides=null}
+async function decodeStudioPhoto(src){const image=new Image();image.src=src;await image.decode();return src}
 async function loadStudioPhoto(item){
  try{
   const r=await fetch(item.url,{mode:'cors',credentials:'omit',signal:AbortSignal.timeout(10000)});
   if(!r.ok)throw Error('Photo download failed');const blob=await r.blob();
   if(!['image/jpeg','image/png','image/webp'].includes(blob.type)||blob.size>4000000)throw Error('Unsupported photo');
-  return await imageData(blob);
- }catch{const j=await api('/atlas/api/web-image',{url:item.url},20000);if(!/^data:image\/(jpeg|png|webp);base64,/.test(j.image||''))throw Error('Photo unavailable');return j.image}
+  return await decodeStudioPhoto(await imageData(blob));
+ }catch{const j=await api('/atlas/api/web-image',{url:item.url},20000);if(!/^data:image\/(jpeg|png|webp);base64,/.test(j.image||''))throw Error('Photo unavailable');return await decodeStudioPhoto(j.image)}
 }
 async function startStudioSlideshow(items,start=0){
  stopStudioSlides();
