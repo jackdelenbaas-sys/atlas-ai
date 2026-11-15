@@ -501,7 +501,7 @@ async function presentStudioImage(src,reframe=true){
 window.addEventListener('atlas-studio-image',e=>{void presentStudioImage(e.detail?.src,e.detail?.reframe!==false)});
 
 for(const [id,k] of [['screenX','x'],['screenY','y'],['screenZ','z']]){
- $(id).oninput=e=>{screenPos[k]=Number(e.target.value);applyScreenPosition()};
+ $(id).oninput=e=>{screenPos[k]=Number(e.target.value);applyScreenPosition()};$(id).onchange=()=>arrangeStudioPresentation(false);
 }
 $('resetScreen').onclick=()=>{Object.assign(screenPos,{x:1.85,y:1.63,z:-2.2});applyScreenPosition()};
 function showScreen(visible){screenRoot.visible=Boolean(visible)}
@@ -541,7 +541,7 @@ canvas.addEventListener('pointermove',e=>{
  e.stopImmediatePropagation();
 },true);
 for(const ev of ['pointerup','pointercancel'])canvas.addEventListener(ev,e=>{
- if(draggingScreen&&e.pointerId===screenDragId){draggingScreen=false;e.stopImmediatePropagation()}
+ if(draggingScreen&&e.pointerId===screenDragId){draggingScreen=false;arrangeStudioPresentation(false);e.stopImmediatePropagation()}
 },true);
 let studioTargetX=0,studioTargetZ=0;
 async function walkTo(x,z=0){
