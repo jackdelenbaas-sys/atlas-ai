@@ -26,3 +26,9 @@ test('playing an already-running clip preserves its phase even when forced',()=>
  assert.equal(c.playMixamo('idle',true),true);assert.equal(resets,0);
  assert.match(html,/title:'Atlas response',returnHome:false/);assert.match(html,/if\(run.show.returnHome===false\)/);
 });
+test('facing the viewer turns smoothly through the shortest angle',async()=>{
+ const {facingCameraYaw}=await import('../atlas-presentation.mjs');let yaw=Math.PI/2;
+ const p={x:0,z:0},camera={x:0,z:4};const first=facingCameraYaw(yaw,p,camera,1/60);assert.ok(first>0&&first<yaw);
+ for(let i=0;i<120;i++)yaw=facingCameraYaw(yaw,p,camera,1/60);assert.ok(Math.abs(yaw)<.001);
+ const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');assert.match(html,/walkHome'\).onclick=\(\)=>\{faceCameraRequested=true/);assert.match(html,/generation===chatActionVersion/);
+});

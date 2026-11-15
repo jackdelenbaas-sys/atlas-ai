@@ -20,7 +20,7 @@ test('movement commands retain explicit intent',()=>{
  assert.equal(ctx.requestedMotion('Please dance'),'dance');assert.equal(ctx.requestedMotion('What is gravity?'),null);
 });
 test('only local image data reaches the studio image event',()=>{
- const events=[];const c=vm.createContext({stopStudioSlides:()=>{},window:{dispatchEvent:e=>events.push(e)},CustomEvent:class{constructor(type,o){this.type=type;this.detail=o.detail}}});
+ const events=[];const c=vm.createContext({stopStudioSlides:()=>{},window:{dispatchEvent:e=>{if(e.type==='atlas-studio-image')events.push(e)}},CustomEvent:class{constructor(type,o={}){this.type=type;this.detail=o.detail}}});
  const fn=source.slice(source.indexOf('function studioImage('),source.indexOf('function mediaBubble('));vm.runInContext(fn,c);
  c.studioImage('https://example.com/image.jpg');c.studioImage('data:text/html;base64,AAA');assert.equal(events.length,0);
  c.studioImage('data:image/jpeg;base64,QUJDRA==');assert.equal(events.length,1);assert.equal(events[0].type,'atlas-studio-image');
@@ -95,7 +95,7 @@ test('web image finding is separate from generation and editing',()=>{
 });
 test('slideshow rotates, caches photos and only reframes the camera once',async()=>{
  const events=[];let tick,calls=0;
- const c=vm.createContext({Image:class{async decode(){}},Map,CustomEvent:class{constructor(type,o){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>events.push(e),addEventListener:()=>{}},document:{hidden:false},$:()=>null,api:async()=>{calls++;return {image:'data:image/jpeg;base64,QUJDRA==' }},setStatus:()=>{},setInterval:f=>{tick=f;return 1},clearInterval:()=>{}});
+ const c=vm.createContext({Image:class{async decode(){}},Map,CustomEvent:class{constructor(type,o={}){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>{if(e.type==='atlas-studio-image')events.push(e)},addEventListener:()=>{}},document:{hidden:false},$:()=>null,api:async()=>{calls++;return {image:'data:image/jpeg;base64,QUJDRA==' }},setStatus:()=>{},setInterval:f=>{tick=f;return 1},clearInterval:()=>{}});
  vm.runInContext(source.slice(source.indexOf('let studioState='),source.indexOf('function studioImage(')),c);
  await c.startStudioSlideshow([{url:'https://upload.wikimedia.org/a.jpg'},{url:'https://thumb.wikimedia.org/b.jpg'}]);await new Promise(setImmediate);
  tick();await new Promise(setImmediate);
@@ -112,7 +112,7 @@ test('photo replies start presenting automatically without a second request',asy
 });
 test('slideshow skips failed downloads and keeps rotating successful photos',async()=>{
  const events=[];let tick;
- const c=vm.createContext({Image:class{async decode(){}},Map,Set,CustomEvent:class{constructor(type,o){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>events.push(e),addEventListener:()=>{}},document:{hidden:false},$:()=>null,api:async(p,{url})=>{if(url.includes('broken'))throw Error('blocked');return {image:'data:image/jpeg;base64,QUJDRA=='}},setStatus:()=>{},setInterval:f=>{tick=f;return 1},clearInterval:()=>{}});
+ const c=vm.createContext({Image:class{async decode(){}},Map,Set,CustomEvent:class{constructor(type,o={}){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>{if(e.type==='atlas-studio-image')events.push(e)},addEventListener:()=>{}},document:{hidden:false},$:()=>null,api:async(p,{url})=>{if(url.includes('broken'))throw Error('blocked');return {image:'data:image/jpeg;base64,QUJDRA=='}},setStatus:()=>{},setInterval:f=>{tick=f;return 1},clearInterval:()=>{}});
  vm.runInContext(source.slice(source.indexOf('let studioState='),source.indexOf('function studioImage(')),c);
  await c.startStudioSlideshow([{url:'https://upload.wikimedia.org/broken.jpg'},{url:'https://upload.wikimedia.org/house.jpg'},{url:'https://upload.wikimedia.org/villa.jpg'}]);
  assert.equal(events.length,1);assert.equal(events[0].detail.reframe,true);tick();await new Promise(setImmediate);assert.equal(events.length,2);assert.equal(events[1].detail.reframe,false);
@@ -129,4 +129,11 @@ test('undecodable photo bytes are rejected before a blank frame can replace the 
 });
 test('make me a pic routes to image generation instead of a chat capability denial',()=>{
  assert.equal(ctx.modeFromText('make me a pic of a cybertruck'),'image');
+});
+test('Screen Off cancels both rotation and an in-flight slideshow download',async()=>{
+ const listeners={},events=[];let resolve,tick;
+ const c=vm.createContext({Image:class{async decode(){}},Map,Set,CustomEvent:class{constructor(type,o={}){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>events.push(e),addEventListener:(n,f)=>listeners[n]=f},document:{hidden:false},$:()=>null,api:()=>new Promise(r=>resolve=r),setStatus(){},setInterval:f=>{tick=f;return 1},clearInterval(){}});
+ vm.runInContext(source.slice(source.indexOf('let studioState='),source.indexOf('function studioImage(')),c);
+ const pending=c.startStudioSlideshow([{url:'https://upload.wikimedia.org/a.jpg'},{url:'https://upload.wikimedia.org/b.jpg'}]);listeners['atlas-screen-visibility']({detail:{visible:false}});resolve({image:'data:image/jpeg;base64,QUJDRA=='});await pending;tick();await Promise.resolve();
+ assert.equal(events.filter(e=>e.type==='atlas-studio-image').length,0);
 });

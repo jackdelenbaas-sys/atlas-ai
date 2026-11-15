@@ -5,3 +5,5 @@ export function presentationFit(bounds,aspect,fov=35){
  return {x:(bounds.min.x+bounds.max.x)/2,y:(bounds.min.y+bounds.max.y)/2-height*.10,z:(bounds.min.z+bounds.max.z)/2,distance:Math.max(height/(2*tan*.63),width/(2*tan*ratio*.86))+depth/2+.15};
 }
 export function presentationSize(aspect){const a=Math.max(.2,Math.min(5,aspect));const height=Math.min(1.55,1.85/a);return {width:height*a,height}}
+
+export function facingCameraYaw(yaw,position,camera,dt){const target=Math.atan2(camera.x-position.x,camera.z-position.z);const delta=Math.atan2(Math.sin(target-yaw),Math.cos(target-yaw));return yaw+delta*(1-Math.exp(-Math.max(0,dt)*6))}

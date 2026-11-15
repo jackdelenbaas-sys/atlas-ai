@@ -17,10 +17,19 @@ test('new conversation clears presentation and restores avatar even during pendi
 test('put them on the screen starts photos rather than revealing an empty panel',()=>{assert.deepEqual(parseStudioRequest('put them on the screen',{photos:{count:6}}),[{type:'photos',action:'show'}]);assert.deepEqual(parseStudioRequest('show the screen',{photos:{count:6}}),[{type:'photos',action:'show'}])});
 test('decoded slideshow frames draw on the studio texture and become visible',async()=>{
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8'),drawn=[];
- const c=vm.createContext({Image:class{async decode(){}},drawPresentation:i=>drawn.push(i.src),showScreen:v=>drawn.push(v),arrangeStudioPresentation(){},fitStudioPresentation(){},screenPos:{},applyScreenPosition(){},center:{set(){}},mobileCanvas:()=>false,sliders(){},updateCam(){},$:()=>({}),window:{dispatchEvent(){}},CustomEvent:class{}});
- vm.runInContext('let presentationVersion=0,screenContent={},yaw=0,pitch=0,distance=0;',c);
+ const c=vm.createContext({Image:class{async decode(){}},drawPresentation:i=>drawn.push(i.src),showScreen:v=>drawn.push(v),arrangeStudioPresentation(){},fitStudioPresentation(){},screenPos:{},applyScreenPosition(){},center:{set(){}},mobileCanvas:()=>false,sliders(){},updateCam(){},$:()=>({}),window:{dispatchEvent(){},addEventListener(){}},CustomEvent:class{}});
+ vm.runInContext('let presentationHiddenByUser=false,presentationVersion=0,screenContent={},yaw=0,pitch=0,distance=0;',c);
  vm.runInContext(html.slice(html.indexOf('async function presentStudioImage('),html.indexOf("window.addEventListener('atlas-studio-image'")),c);
  await c.presentStudioImage('data:image/jpeg;base64,QUJDRA==',true);await c.presentStudioImage('data:image/jpeg;base64,QUJDRA==',false);
  assert.deepEqual(drawn,['data:image/jpeg;base64,QUJDRA==',true,'data:image/jpeg;base64,QUJDRA==',true]);
  assert.equal(vm.runInContext('screenContent.kind',c),'image');
+});
+test('screen off prevents a pending decoded picture or timer from making the panel visible',async()=>{
+ const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');let finish;const draws=[];
+ const c=vm.createContext({Image:class{decode(){return new Promise(r=>finish=r)}},drawPresentation:()=>draws.push('draw'),arrangeStudioPresentation(){},$:()=>({}),window:{dispatchEvent(){}},CustomEvent:class{constructor(type,o){this.detail=o.detail}}});
+ vm.runInContext('let presentationHiddenByUser=false,presentationVersion=0,screenContent={};const screenRoot={visible:true};',c);
+ vm.runInContext(html.slice(html.indexOf('function showScreen('),html.indexOf("$('screenToggle').onclick")),c);
+ vm.runInContext(html.slice(html.indexOf('async function presentStudioImage('),html.indexOf("window.addEventListener('atlas-presentation-start'")),c);
+ const pending=c.presentStudioImage('data:image/jpeg;base64,QUJDRA==');c.setScreenVisibility(false);finish();await pending;c.showScreen(true);
+ assert.equal(vm.runInContext('screenRoot.visible',c),false);assert.equal(draws.length,0);
 });

@@ -1,4 +1,4 @@
-import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=114';
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=115';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
@@ -141,6 +141,7 @@ async function startStudioSlideshow(items,start=0){
  stopStudioSlides();
  const photos=items.filter(i=>/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(i.url||'')).slice(0,6);
  if(!photos.length)return;
+ window.dispatchEvent(new CustomEvent('atlas-presentation-start'));
  const version=slideVersion,state={items:photos,index:start%photos.length,busy:false,cache:new Map(),failed:new Set(),shown:0};studioSlides=state;
  const credits=$('photoCredits');if(credits){credits.replaceChildren();for(const item of photos){const p=document.createElement('p');p.textContent=(item.author||item.title||'Photo')+' · '+(item.license||'See source license')+' ';if(/^https:\/\/commons\.wikimedia\.org\//.test(item.source||'')){const a=document.createElement('a');a.href=item.source;a.textContent='Original';a.target='_blank';a.rel='noopener noreferrer';p.append(a)}credits.append(p)}}
  async function next(){
@@ -162,9 +163,11 @@ async function startStudioSlideshow(items,start=0){
  await next();
 }
 window.addEventListener('pagehide',stopStudioSlides);
+window.addEventListener('atlas-screen-visibility',e=>{if(e.detail?.visible===false)stopStudioSlides()});
 function studioImage(src){
  stopStudioSlides();
  if(!/^data:image\/(jpeg|png|webp);base64,/.test(src||''))return;
+ window.dispatchEvent(new CustomEvent('atlas-presentation-start'));
  window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src}}));
 }
 async function presentReplyMedia(message){
@@ -440,7 +443,7 @@ function modeFromText(t,attachments=[]){
 }
 async function send(){
  if(busy)return;const text=composer.value.trim();if(!text&&!files.length)return;++pendingAction;
- composer.value='';if(text&&remember(text)){files=[];attachmentPreview();return}
+ composer.value='';dispatch('listen');if(text&&remember(text)){files=[];attachmentPreview();return}
  if(text&&memoryRequest(text)){files=[];attachmentPreview();return}
  summarizeMemory(text);
  const personality=developPersonality(text);const state=currentStudioState();const localStudio=parseStudioRequest(text,state);
