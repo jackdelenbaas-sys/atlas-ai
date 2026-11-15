@@ -1,4 +1,4 @@
-import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=112';
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=113';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
@@ -458,6 +458,7 @@ async function send(){
  const destination=/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text)?'walkToScreen':/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text)?'walkHome':null;
  if(mode==='chat'&&destination&&!files.length&&text.length<110){push('atlas',destination==='walkHome'?'Back to center. My natural habitat.':'Heading to the screen. Presentation mode: mildly impressive.');void afterReply(()=>$(destination)?.click());return}
  const requestEpoch=++activeRequest;busy=true;busyThread=current;render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':mode==='video'?'ATLAS · CHECKING VIDEO CONNECTION':mode==='web-images'?'ATLAS · FINDING WEB PHOTOS':'ATLAS · CREATING IMAGE');
+ if(mode==='web-images'){stopStudioSlides();void sceneCommand({type:'screen',clear:true,visible:false})}
  const requestActionVersion=pendingAction;
  const selection=files;files=[];attachmentPreview();
  let response;

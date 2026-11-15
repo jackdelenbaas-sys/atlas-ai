@@ -64,32 +64,59 @@ async function webFacts(text){
  const j=await wikiJSON('en.wikipedia.org',{generator:'search',gsrsearch:String(text).slice(0,220),gsrnamespace:'0',gsrlimit:'3',prop:'extracts|info',inprop:'url',exintro:'1',explaintext:'1',exchars:'1200',exlimit:'3'});
  return (j.query?.pages||[]).filter(p=>p.extract&&p.fullurl?.startsWith('https://en.wikipedia.org/')).sort((a,b)=>a.index-b.index).slice(0,3).map(p=>({title:p.title,url:p.fullurl,excerpt:plain(p.extract),retrievedAt:new Date().toISOString()}));
 }
-function photoMatch(topic,page){
+const PHOTO_STOP=new Set('a an the of in on at with and or for to from me please can could you show find get pull give send search look photos photo pictures picture images image photographs photograph some multiple several few real actual genuine beautiful nice cool best high quality updated'.split(' '));
+const PHOTO_GROUPS=[['cow','cattle','bovine'],['car','automobile'],['bike','bicycle'],['dog','canine'],['cat','feline'],['house','home','villa','residence','dwelling'],['modern','contemporary','modernist','modernism'],['airplane','aircraft','aeroplane'],['ship','vessel'],['beach','seaside']];
+const photoWords=text=>(String(text||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').match(/[\p{L}\p{N}]+/gu)||[]).map(t=>t.length>3&&t.endsWith('s')&&!t.endsWith('ss')?t.slice(0,-1):t);
+function photoRequest(text,now=new Date()){
+ let topic=searchTopic(text).replace(/^(?:a|an|the|some)\s+/i,'');
+ const exclusions=[];topic=topic.replace(/\b(?:without|excluding|not|no)\s+([^,;.]+)/gi,(_,part)=>{exclusions.push(...photoWords(part).filter(t=>!PHOTO_STOP.has(t)));return ''});
+ const fresh=/\b(?:latest|newest|recent|recently|current|updated|up to date|today|this week|this month|this year|new photos?|new pictures?|new images?|brand new)\b/i.test(topic)||/\bnew\b(?!\s+(?:york|zealand|orleans|delhi|jersey|hampshire|mexico|brunswick|south wales)\b)/i.test(topic);
+ let since=null;
+ if(fresh){since=new Date(now);if(/\btoday\b/i.test(topic))since.setUTCHours(0,0,0,0);else if(/this year/i.test(topic))since=new Date(Date.UTC(now.getUTCFullYear(),0,1));else since.setUTCDate(since.getUTCDate()-(/this week/i.test(topic)?7:/this month/i.test(topic)?31:365));}
+ topic=topic.replace(/\b(?:latest|newest|recent|recently|current|updated|up to date|today|this week|this month|this year|brand new)\b/gi,'').replace(/\bnew\b(?!\s+(?:york|zealand|orleans|delhi|jersey|hampshire|mexico|brunswick|south wales)\b)/gi,'').replace(/\s+/g,' ').trim();
+ const terms=[...new Set(photoWords(topic).filter(t=>!PHOTO_STOP.has(t)))];
+ return {topic:terms.join(' '),terms,exclusions,since,until:now,photoOnly:! /\b(?:drawing|illustration|painting|cartoon|diagram|map|logo|render|artwork)\b/i.test(text)};
+}
+function photoTakenDate(page){
+ const meta=page.imageinfo?.[0]?.extmetadata||{};
+ // Original capture date only; upload timestamps do not prove a photo is new.
+ const raw=plain(meta.DateTimeOriginal?.value||meta.DateTime?.value||'');
+ const match=raw.match(/\b((?:19|20)\d{2})[-:/](\d{2})[-:/](\d{2})\b/);if(!match)return null;
+ const iso=match.slice(1).join('-'),date=new Date(iso+'T00:00:00Z');
+ return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===iso?date:null;
+}
+function photoMatch(request,page){
  const info=page.imageinfo?.[0],meta=info?.extmetadata||{};
- const label=plain([page.title,meta.ImageDescription?.value,meta.Categories?.value,...(page.categories||[]).map(c=>c.title)].join(' ')).toLowerCase();
  const title=String(page.title||'').toLowerCase();
- if(/\b(?:modern|contemporary|modernist)\b/i.test(topic)&&/\b(?:house|home|villa)s?\b/i.test(topic)){
-  if(/\b(?:construction|scaffolding|under construction)\b/i.test(label))return -1;
-  if(!/\b(?:modern|contemporary|modernist|modernism|mid.century)\b/i.test(label)||!/\b(?:house|home|villa|residence|residential|dwelling)s?\b/i.test(label))return -1;
-  if(/\b(?:church|temple|museum|tower|apartment|artwork|painting|mural|drawing|floor.?plan|interior|kitchen|bedroom|bathroom|ruin|barn)s?\b/i.test(title))return -1;
-  return (/\b(?:modern|modernist)\b/.test(title)?5:/\bcontemporary\b/.test(title)?4:1)+(/\b(?:house|home|villa|residence)s?\b/.test(title)?3:0);
+ const label=[page.title,plain(meta.ImageDescription?.value),plain(meta.Categories?.value),...(page.categories||[]).map(c=>c.title)].join(' ').toLowerCase();
+ const words=new Set(photoWords(label));
+ const matches=t=>{const group=PHOTO_GROUPS.find(g=>g.includes(t))||[t];return group.some(v=>words.has(v))};
+ if(request.exclusions.some(matches)||!request.terms.length||!request.terms.every(matches))return -1;
+ if(request.photoOnly){
+  if(/\b(?:ai.generated|ai.generative|synthetic image|generative ai|generative art|text.to.image|stable diffusion|midjourney|computer.generated)\b/i.test(label))return -1;
+  if(/\b(?:painting|mural|drawing|illustration|cartoon|diagram|logo|floor.?plan|rendering)\b/i.test(title))return -1;
+  for(const substitute of ['statue','sculpture','toy','miniature'])if(new RegExp('\\b'+substitute+'s?\\b','i').test(title)&&!request.terms.includes(substitute))return -1;
  }
- const terms=topic.toLowerCase().match(/[a-z0-9]+/g)||[];
- const matches=terms.filter(t=>label.includes(t.replace(/s$/,''))).length;
- return matches>=Math.max(1,Math.ceil(terms.length*.7))?matches:-1;
+ if(request.terms.some(t=>['modern','contemporary','modernist'].includes(t))&&request.terms.some(t=>['house','home','villa'].includes(t))){
+  if(/\b(?:construction|scaffolding|under construction)\b/i.test(label)||/\b(?:church|temple|museum|tower|apartment|interior|kitchen|bedroom|bathroom|ruin|barn)s?\b/i.test(title))return -1;
+ }
+ const taken=photoTakenDate(page);
+ if(request.since&&(!taken||taken<request.since||taken>request.until))return -1;
+ const titleWords=new Set(photoWords(title));
+ return request.terms.reduce((score,t)=>score+(titleWords.has(t)?3:1),0);
 }
 async function webImages(text){
- const q=searchTopic(text).replace(/^(?:a|an|the|some)\s+/i,'');if(!q)throw Object.assign(Error('Tell me what pictures to find.'),{status:400});
+ const request=photoRequest(text),q=request.topic;if(!q)throw Object.assign(Error('Tell me what pictures to find.'),{status:400});
  const modern=/\b(?:modern|contemporary|modernist)\b/i.test(q)&&/\b(?:house|home|villa)s?\b/i.test(q);
- const queries=modern?['"modern house"','"contemporary house"','"modern villa"']:['"'+q.replace(/"/g,'')+'"'];
- const searches=await Promise.allSettled(queries.map(query=>wikiJSON('commons.wikimedia.org',{generator:'search',gsrsearch:query+' filetype:bitmap',gsrnamespace:'6',gsrlimit:'24',prop:'imageinfo|categories',cllimit:'20',iiprop:'url|mime|extmetadata',iiurlwidth:'800'})));
+ const queries=modern?['"modern house"','"contemporary house"','"modern villa"']:[q.split(' ').map(t=>'"'+t+'"').join(' ')];
+ const searches=await Promise.allSettled(queries.map(query=>wikiJSON('commons.wikimedia.org',{generator:'search',gsrsearch:query+' filetype:bitmap',gsrnamespace:'6',gsrlimit:'24',prop:'imageinfo|categories',cllimit:'20',iiprop:'url|mime|extmetadata|timestamp',iiurlwidth:'800'})));
  const results=searches.filter(r=>r.status==='fulfilled').flatMap(r=>r.value.query?.pages||[]);
  if(!results.length&&searches.every(r=>r.status==='rejected'))throw searches[0].reason;
- const seen=new Set(),subjects=new Set();return results.map(p=>({p,score:photoMatch(q,p)})).filter(r=>r.score>=0).sort((a,b)=>b.score-a.score||(a.p.index||0)-(b.p.index||0)).flatMap(({p})=>{
+ const seen=new Set(),subjects=new Set();return results.map(p=>({p,score:photoMatch(request,p)})).filter(r=>r.score>=0).sort((a,b)=>b.score-a.score||(a.p.index||0)-(b.p.index||0)).flatMap(({p})=>{
   const i=p.imageinfo?.[0];if(!i||!['image/jpeg','image/png','image/webp'].includes(i.mime))return [];
   const url=i.thumburl||i.url;if(!/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(url||'')||seen.has(url))return [];const subject=p.title.toLowerCase().replace(/\([^)]*\)|\.[a-z]{3,4}$/g,'').replace(/\s+/g,' ').trim();
   if(subjects.has(subject))return [];subjects.add(subject);seen.add(url);
-  return [{url,title:p.title.replace(/^File:/,''),source:i.descriptionurl,license:plain(i.extmetadata?.LicenseShortName?.value||'See source for license'),author:plain(i.extmetadata?.Artist?.value||'')}];
+  return [{url,title:p.title.replace(/^File:/,''),source:i.descriptionurl,license:plain(i.extmetadata?.LicenseShortName?.value||'See source for license'),author:plain(i.extmetadata?.Artist?.value||''),takenAt:photoTakenDate(p)?.toISOString().slice(0,10)||null,retrievedAt:new Date().toISOString()}];
  }).slice(0,6);
 }
 async function remoteImage(data){
@@ -171,7 +198,7 @@ export default {async fetch(request,env){
    if(Number(request.headers.get('Content-Length')||0)>6500000)return json({error:'This message is too large for image chat.'},413);
    const raw=await request.text();if(raw.length>6500000)return json({error:'This message is too large for image chat.'},413);
    const p=JSON.parse(raw);if(!p||typeof p!=='object'||Array.isArray(p))return json({error:'Invalid message.'},400);
-   if(path.endsWith('/web-images')){const images=await webImages(p.text);return json({text:images.length?'Here are the photos.':'I couldn’t find closely matching photos. Try a different description.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),actions:['point','idle'],web:true,provider:'wikimedia',free:true})}
+   if(path.endsWith('/web-images')){const images=await webImages(p.text);return json({text:images.length?(photoRequest(p.text).since?'Here are matching photos with recent source-recorded capture dates.':'Here are the matching photos.'):'I couldn’t verify matching photos'+(photoRequest(p.text).since?' with a recent capture date':'')+'. I won’t substitute unrelated or undated pictures.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),actions:['point','idle'],web:true,provider:'wikimedia',free:true})}
    if(path.endsWith('/web-image'))return json({image:await remoteImage(p.url)});
    if(path.endsWith('/image')){
     let prompt=String(p.text||'').trim().slice(0,1500);
