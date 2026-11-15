@@ -18,13 +18,14 @@ export function normalizeStudioCommands(input){
    if(typeof raw.match==='string')c.match=raw.match.slice(0,80);
   }else if(raw.type==='scene'){
    for(const k of ['roomVisible','autoRotate','naturalMotion'])if(typeof raw[k]==='boolean')c[k]=raw[k];
-  }else if(raw.type!=='reset')continue;
-  if(Object.keys(c).length>1||c.type==='reset')out.push(c);
+  }else if(raw.type!=='reset'&&raw.type!=='normal')continue;
+  if(Object.keys(c).length>1||c.type==='reset'||c.type==='normal')out.push(c);
  }return out;
 }
 export function parseStudioRequest(text,state={}){
  const q=String(text||'').trim(),lower=q.toLowerCase();const out=[];
- const screen=/\b(screen|display|presentation|scree)\b/i.test(q);
+ if(/^(?:(?:please|can you|could you)\s+)?(?:(?:go|return|back|get)\s+(?:back\s+)?(?:to\s+)?|restore\s+|reset\s+)?(?:the\s+)?(?:normal(?: view| layout| studio)?|default view|original view)[.!?]?$/i.test(q))return [{type:'normal'}];
+ const screen=/\b(screen|display|presentation|scree)\b/i.test(q)||/^(?:even |a little |much )?(?:bigger|smaller|larger)[.!?]?$/i.test(q);
  const photo=/\b(photo|picture|image|slideshow|slide)s?\b/i.test(q);
  if(screen&&/\b(?:put|show|display|play|bring|turn on)\b/i.test(q)&&(/\b(?:them|those|these|photos?|pictures?|images?|slideshow)\b/i.test(q)||state.photos?.count>0))out.push({type:'photos',action:'show'});
  if(screen&&/\b(hide|remove|clear|erase|turn off|switch off|take.+off)\b/i.test(q))out.push({type:'screen',visible:false,clear:true});
@@ -61,4 +62,4 @@ export function extractStudioCommands(text){
  const raw=[];const clean=String(text||'').replace(/<atlas_studio>\s*([\s\S]*?)(?:<\/atlas_studio>|$)/gi,(_,json)=>{try{raw.push(...JSON.parse(json.replace(/^```(?:json)?\s*|\s*```$/g,'')))}catch{}return ''});
  return {text:clean.trim(),studio:normalizeStudioCommands(raw)};
 }
-export const STUDIO_CONTRACT='You control the 3D studio through commands, never by merely claiming an action happened. For scene changes append <atlas_studio>[JSON commands]</atlas_studio>. Up to 8 commands. Commands: {type:"screen",visible:boolean,clear:boolean,text:string,x:number,y:number,z:number,width:number,height:number,billboard:boolean,rotation:number}; {type:"camera",preset:"head|body|studio|screen|left|right|reset",yaw:number,pitch:number,distance:number,x:number,y:number,z:number}; {type:"avatar",motion:"idle|wave|greet|point|think|nod|walk|back|dance|hiphop|sillydance|breakdance|flair",x:number,z:number,rotation:number}; {type:"photos",action:"next|previous|pause|resume|show|remove",index:0-based number,match:string}; {type:"scene",roomVisible:boolean,autoRotate:boolean,naturalMotion:boolean}; {type:"reset"}. Include only fields needed. Screen size is in studio units; default 1.5 by 1.06. Camera angles and rotations are degrees. Avatar walking stays inside the room. For a requested change write a short intent such as "I’m clearing the screen", not a claim of successful completion. The browser executes commands and reports failures. Never invent visible pictures; use CURRENT STUDIO STATE. If state.available is false, explain that 3D controls are unavailable. Never put commands in ordinary visible prose or cite web sources for studio control requests.';
+export const STUDIO_CONTRACT='You control the 3D studio through commands, never by merely claiming an action happened. For scene changes append <atlas_studio>[JSON commands]</atlas_studio>. Up to 8 commands. Use {type:"normal"} to restore the normal layout without clearing photos. Screen adjustments automatically reframe to keep everything visible. Commands: {type:"screen",visible:boolean,clear:boolean,text:string,x:number,y:number,z:number,width:number,height:number,billboard:boolean,rotation:number}; {type:"camera",preset:"head|body|studio|screen|left|right|reset",yaw:number,pitch:number,distance:number,x:number,y:number,z:number}; {type:"avatar",motion:"idle|wave|greet|point|think|nod|walk|back|dance|hiphop|sillydance|breakdance|flair",x:number,z:number,rotation:number}; {type:"photos",action:"next|previous|pause|resume|show|remove",index:0-based number,match:string}; {type:"scene",roomVisible:boolean,autoRotate:boolean,naturalMotion:boolean}; {type:"reset"}. Include only fields needed. Screen size is in studio units; default 1.5 by 1.06. Camera angles and rotations are degrees. Avatar walking stays inside the room. For a requested change write a short intent such as "I’m clearing the screen", not a claim of successful completion. The browser executes commands and reports failures. Never invent visible pictures; use CURRENT STUDIO STATE. If state.available is false, explain that 3D controls are unavailable. Never put commands in ordinary visible prose or cite web sources for studio control requests.';

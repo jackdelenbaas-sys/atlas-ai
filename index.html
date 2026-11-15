@@ -158,8 +158,8 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 </style><style>.image-editor{width:min(520px,92vw);max-height:90dvh;overflow:auto;padding:22px;border:1px solid #8bcfff55;border-radius:22px;background:#0c1b2c;color:#e8f3ff}.image-editor::backdrop{background:#020812c9;backdrop-filter:blur(8px)}.image-editor img{display:block;width:100%;max-height:240px;object-fit:contain;border-radius:12px}.image-editor textarea{display:block;width:100%;min-height:85px;margin:8px 0;padding:12px;border:1px solid #a9d7ff44;border-radius:12px;background:#071421;color:white;font:inherit}.image-editor button{padding:10px 16px;margin:8px 8px 0 0;border:1px solid #99ccff55;border-radius:12px;background:#234b71;color:white}.image-editor button:disabled{opacity:.5}.atlas-image-card>img{max-width:100%;max-height:330px;object-fit:contain}</style><style>.atlas-web-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;white-space:normal;margin:10px 0}.atlas-web-gallery .atlas-image-card{min-width:0;margin:0}.atlas-web-gallery img{width:100%;height:180px;object-fit:contain;background:#06131b}.atlas-web-gallery .hint{font-size:10px;padding:0 8px;max-height:56px;overflow:auto}.atlas-web-gallery .atlas-image-actions{gap:4px;padding:6px}.atlas-web-gallery button,.atlas-web-gallery a{font-size:10px!important;padding:7px!important}@media(max-width:760px){.atlas-web-gallery img{height:115px}}</style><style>
 .bubble.photo-reply{background:transparent!important;border:0!important;padding:4px 0!important;box-shadow:none!important}.photo-reply .atlas-image-card{border:0;background:transparent;box-shadow:none;padding:0}.photo-reply .atlas-image-preview{border:0;background:none;padding:0;display:block}.photo-reply .atlas-image-preview img{border-radius:12px}.photo-reply details{font-size:11px;color:#89a9bf;margin-top:7px}.photo-reply summary{cursor:pointer}.atlas-web-gallery{display:flex;gap:8px;overflow-x:auto;margin:10px 0;max-width:100%;scrollbar-width:thin}.atlas-web-gallery .photo-thumb{flex:0 0 94px;padding:0!important;border:0;background:none;border-radius:10px;overflow:hidden}.atlas-web-gallery .photo-thumb img{display:block;width:94px;height:76px;object-fit:cover;background:none}.photo-reply .atlas-image-actions{padding:6px 0;border:0;background:none}#photoCredits{max-height:200px;overflow:auto}#photoCredits a{color:#8bdcff}
 </style></head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">10.11 STUDIO</span></header><div id="feed" class="feed"></div></div>
-<div class="right"><div class="stage"><canvas id="canvas"></canvas></div><details id="stageActions" class="studio-dock"><summary aria-label="Expand studio controls">Studio controls <span aria-hidden="true">⌄</span></summary><div class="studio-panel" aria-label="Atlas studio controls"><button id="studioUpload" title="Upload a picture">＋ Picture</button><button id="studioPresent" title="Show the latest image on the studio screen">▣ Screen</button><button data-motion="wave">Wave</button><button data-motion="walk">Walk</button><button data-motion="dance">Dance</button><button data-motion="idle">Stop</button></div></details><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div id="atlasFiles" class="atlas-files"></div><div class="inputglass"><button id="atlasAttach" class="circle" title="Upload an image or text file" aria-label="Attach files">＋</button><input id="input" autocomplete="off" placeholder="Ask anything, upload a photo, or create an image…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">ATLAS AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">10.12 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div class="right"><div class="stage"><canvas id="canvas"></canvas></div><details id="stageActions" class="studio-dock"><summary aria-label="Expand studio controls">Studio controls <span aria-hidden="true">⌄</span></summary><div class="studio-panel" aria-label="Atlas studio controls"><button id="studioUpload" title="Upload a picture">＋ Picture</button><button id="studioNormal" title="Restore the normal studio layout">↺ Normal view</button><button id="studioPresent" title="Show the latest image on the studio screen">▣ Screen</button><button data-motion="wave">Wave</button><button data-motion="walk">Walk</button><button data-motion="dance">Dance</button><button data-motion="idle">Stop</button></div></details><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div id="atlasFiles" class="atlas-files"></div><div class="inputglass"><button id="atlasAttach" class="circle" title="Upload an image or text file" aria-label="Attach files">＋</button><input id="input" autocomplete="off" placeholder="Ask anything, upload a photo, or create an image…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">ATLAS AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
 <div class="section">Atlas Cloud AI</div>
@@ -202,9 +202,10 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
 <p class="hint">Atlas's real motion clips control his limbs. The old manual joint sliders have been removed so they cannot interfere with natural animation.</p><div class="section">Model</div><label id="uploadModelBtn" class="btn wide">Replace Atlas body (optional)<input id="modelUpload" type="file" accept=".glb,model/gltf-binary"></label><p class="hint">The complete original Atlas model now loads automatically from the hosted library, even on a new device.</p><button id="repairAvatar" class="btn wide" style="margin:10px 0;text-align:center">↺ Reset Atlas body and animations</button>
 <p class="hint" id="modelDetails">Original full-body human model • securely hosted and cached</p></aside></div>
-<script type="module" src="atlas-app-v8.js?v=113"></script>
+<script type="module" src="atlas-app-v8.js?v=114"></script>
 <script type="module">
-import {normalizeStudioCommands} from './atlas-studio-controls.mjs?v=113';
+import {normalizeStudioCommands} from './atlas-studio-controls.mjs?v=114';
+import {presentationFit,presentationSize} from './atlas-presentation.mjs?v=114';
 import {clampPoint,stepTravel,stepGravity} from './atlas-motion.mjs?v=101';
 import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 function createAtlasRenderer(){
@@ -213,7 +214,7 @@ function createAtlasRenderer(){
 }
 const $=id=>document.getElementById(id),canvas=$('canvas'),scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(35,1,.05,200),renderer=createAtlasRenderer();renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;scene.add(new THREE.HemisphereLight(0xeaf5ff,0x384b72,1.3));const a=new THREE.DirectionalLight(0xffffff,2.5);a.position.set(3,5,5);a.castShadow=true;a.shadow.mapSize.set(1024,1024);a.shadow.camera.left=-5;a.shadow.camera.right=5;a.shadow.camera.top=5;a.shadow.camera.bottom=-5;a.shadow.normalBias=.025;a.shadow.bias=-.0002;scene.add(a);const b=new THREE.DirectionalLight(0x7598ff,1.7);b.position.set(-3,3,-4);scene.add(b);
 let model,rig={},base={},mouth=[],blink=[],t0=performance.now(),gesture='',gestureStart=0,drag=false,px=0,py=0,yaw=0,pitch=0,distance=3.5,center=new THREE.Vector3(0,1,0),yOffset=0,auto=false,idle=true,eyes=true;
-let resizeFrame=0,renderW=0,renderH=0;
+let resizeFrame=0,renderW=0,renderH=0,presentationCameraTween=null;
 function fit(){
  if(resizeFrame)return;
  resizeFrame=requestAnimationFrame(()=>{
@@ -222,11 +223,12 @@ function fit(){
   if(w<2||h<2||w===renderW&&h===renderH)return;
   renderW=w;renderH=h;
   renderer.setSize(w,h,false);
-  camera.aspect=w/h;camera.updateProjectionMatrix();
+  camera.aspect=w/h;camera.updateProjectionMatrix();if(screenRoot.visible)fitStudioPresentation();
  });
 }
 new ResizeObserver(fit).observe(canvas);fit();
 function updateCam(){
+ presentationCameraTween=null;
  // A continuous orbit with a rotating camera-up vector prevents pole flipping.
  const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch*Math.PI/180,yaw*Math.PI/180,0,'YXZ'));
  const offset=new THREE.Vector3(0,0,distance).applyQuaternion(q);
@@ -429,19 +431,20 @@ studio.add(footShadow);
 const spotlight=new THREE.SpotLight(0xd4e9ff,22,12,.87,.49,.6);
 spotlight.position.set(-2.7,3.5,2.6);spotlight.target.position.set(0,1.1,0);studio.add(spotlight,spotlight.target);
 const rim=new THREE.PointLight(0x6d95f7,3.4,7);rim.position.set(2.1,2.6,-2);studio.add(rim);
-const screenRoot=new THREE.Group();studio.add(screenRoot);
+const screenRoot=new THREE.Group();studio.add(screenRoot);const screenBase={width:1.5,height:1.06};
 const frame=new THREE.Mesh(new THREE.BoxGeometry(1.50,1.06,.045),mat(0x162a44,0x24649a,.3));
 frame.material.depthTest=true;frame.material.depthWrite=true;screenRoot.add(frame);
 const screenSurface=document.createElement('canvas');screenSurface.width=1024;screenSurface.height=680;
 const sc=screenSurface.getContext('2d'),screenTex=new THREE.CanvasTexture(screenSurface);
 screenTex.colorSpace=THREE.SRGBColorSpace;
-const panel=new THREE.Mesh(new THREE.PlaneGeometry(1.40,.96),new THREE.MeshBasicMaterial({map:screenTex,side:THREE.DoubleSide,depthTest:true,depthWrite:true}));
+const panel=new THREE.Mesh(new THREE.PlaneGeometry(1.476,1.036),new THREE.MeshBasicMaterial({map:screenTex,side:THREE.DoubleSide,depthTest:true,depthWrite:true}));
 panel.position.z=.046;screenRoot.add(panel);
 function drawPresentation(image){
- sc.fillStyle='#091628';sc.fillRect(0,0,1024,680);
+ if(image){const size=presentationSize(image.naturalWidth/image.naturalHeight||image.width/image.height);Object.assign(screenBase,size);const nextHeight=Math.round(1024*size.height/size.width);if(screenSurface.height!==nextHeight)screenTex.dispose();screenSurface.width=1024;screenSurface.height=nextHeight;frame.scale.set(size.width/1.5,size.height/1.06,1);panel.scale.set((size.width-.024)/1.476,(size.height-.024)/1.036,1)}
+ sc.fillStyle='#091628';sc.fillRect(0,0,screenSurface.width,screenSurface.height);
  if(image){
-  const scale=Math.min(990/image.width,632/image.height),w=image.width*scale,h=image.height*scale;
-  sc.drawImage(image,(1024-w)/2,(680-h)/2,w,h);
+  const scale=Math.min(screenSurface.width/image.width,screenSurface.height/image.height),w=image.width*scale,h=image.height*scale;
+  sc.drawImage(image,(screenSurface.width-w)/2,(screenSurface.height-h)/2,w,h);
  }else{
   const grad=sc.createLinearGradient(0,0,1024,680);
   grad.addColorStop(0,'#123865');grad.addColorStop(1,'#081323');
@@ -464,12 +467,34 @@ function applyScreenPosition(){
 }
 applyScreenPosition();screenRoot.visible=false;
 let presentationVersion=0,screenBillboard=true,studioControlVersion=0,screenContent={kind:"empty"};
+function fitStudioPresentation(){
+ if(!screenRoot.visible)return;
+ const w=screenBase.width*screenRoot.scale.x,h=screenBase.height*screenRoot.scale.y;
+ const min={x:screenPos.x-w/2,y:screenPos.y-h/2,z:screenPos.z-.06},max={x:screenPos.x+w/2,y:screenPos.y+h/2,z:screenPos.z+.06};
+ if(model){min.x=Math.min(min.x,model.position.x-.4);max.x=Math.max(max.x,model.position.x+.4);min.y=Math.min(min.y,0);max.y=Math.max(max.y,1.9);min.z=Math.min(min.z,model.position.z-.2);max.z=Math.max(max.z,model.position.z+.2)}
+ const fromPosition=camera.position.clone(),fromQuaternion=camera.quaternion.clone();
+ const fit=presentationFit({min,max},camera.aspect,camera.fov);center.set(fit.x,fit.y,fit.z);distance=fit.distance;yaw=0;pitch=0;auto=false;$('auto').checked=false;sliders();updateCam();
+ if(fromPosition.distanceTo(camera.position)>.01){presentationCameraTween={at:performance.now(),fromPosition,fromQuaternion,toPosition:camera.position.clone(),toQuaternion:camera.quaternion.clone()};camera.position.copy(fromPosition);camera.quaternion.copy(fromQuaternion)}
+}
+function arrangeStudioPresentation(reposition=true){
+ const w=screenBase.width*screenRoot.scale.x;
+ // Anchor the screen beside Atlas instead of overlapping his body.
+ if(reposition)Object.assign(screenPos,{x:.55,y:1.25,z:-.15});
+ if(model&&(reposition||Math.abs(model.position.x-screenPos.x)<w/2+.45)){model.position.x=Math.max(-2.4,screenPos.x-w/2-.65);model.position.z=.05}
+ applyScreenPosition();fitStudioPresentation();
+}
+function normalStudioView(){
+ ++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;gesture='';
+ screenRoot.scale.set(1,1,1);screenBillboard=true;
+ if(model){model.position.x=0;model.position.z=0;model.rotation.y=0;playMixamo('idle',false,.65)}
+ if(screenRoot.visible)arrangeStudioPresentation();else centerAtlasView(false);
+}
+$('studioNormal').onclick=normalStudioView;
 async function presentStudioImage(src,reframe=true){
  if(typeof src!=='string'||!/^data:image\/(jpeg|png|webp);base64,/.test(src))return;
  const version=++presentationVersion,im=new Image();im.src=src;
  try{await im.decode();if(version!==presentationVersion)return;drawPresentation(im);screenContent={kind:"image"};showScreen(true);
-  if(reframe){Object.assign(screenPos,{x:1.35,y:1.48,z:-.85});applyScreenPosition();
-  center.set(.48,1.18,-.3);yaw=0;pitch=0;distance=mobileCanvas()?6.8:5.6;sliders();updateCam();}
+  arrangeStudioPresentation(reframe);
   $('showStatus').textContent='Image displayed. Ask Atlas about it, or tap a movement control.';
  }catch{if(version===presentationVersion){showScreen(false);$('showStatus').textContent='That picture could not be displayed. Try another photo.';window.dispatchEvent(new CustomEvent('atlas-studio-image-error'))}}
 }
@@ -955,11 +980,11 @@ async function importMotion(name,buffer){
  }
  return tracks.length;
 }
-function playMixamo(type,force=false,fadeSeconds=.30){
+function playMixamo(type,force=false,fadeSeconds=.55){
  if(!mixamoMixer)return false;
  const clip=clipFor(type);if(!clip)return false;
  const next=mixamoMixer.clipAction(clip);
- if(next===mixamoCurrent&&next.isRunning()&&!force)return true;
+ if(next===mixamoCurrent&&next.isRunning())return true;
  const normalized=normActionName(type);
  // Exact names in the motion picker (for example "Walking") need the same
  // looping behavior as the alias "walk". Otherwise legs stop after 1 second
@@ -1037,7 +1062,7 @@ async function nextShowStep(){
    planTravel(x,z,null,kind);
    if(!travelPlan)continue; // Never keep walking in place at a wall.
   }else travelPlan=null;
-  gesture='';playMixamo(kind,true);
+  gesture='';playMixamo(kind,false,.65);
   run.kind=kind;
   // Walking lasts exactly as long as its real calibrated gait needs; never
   // cut off a step merely because a sequence had a shorter nominal duration.
@@ -1047,6 +1072,7 @@ async function nextShowStep(){
  }
  if(run!==showRun)return;
  showRun=null;
+ if(run.show.returnHome===false){playMixamo('idle',false,.65);nextNaturalAt=performance.now()+45000;return}
  $('showStatus').textContent='Show complete — Atlas is returning to center.';
  if(model&&Math.hypot(model.position.x,model.position.z)>.08){
   try{
@@ -1105,7 +1131,7 @@ $('naturalMotion').onchange=e=>{naturalMotion=e.target.checked;nextNaturalAt=per
 async function naturalGesture(now){
  if(!naturalMotion||!idle||document.hidden||!model||!mixamoMixer||naturalLoading||showRun||travelPlan||speechActive||now<manualMotionUntil||now<nextNaturalAt)return;
  nextNaturalAt=now+16000+Math.random()*14000;naturalLoading=true;
- try{const names=['Breathing Idle','Happy Idle'];const name=names[Math.floor(Math.random()*names.length)];await ensureMotion(name);
+ try{const names=['Breathing Idle'];const name=names[Math.floor(Math.random()*names.length)];await ensureMotion(name);
   if(naturalMotion&&!showRun&&!travelPlan&&!speechActive&&performance.now()>manualMotionUntil)playMixamo(name,true,.8);
  }catch{}finally{naturalLoading=false}
 }
@@ -1128,7 +1154,7 @@ window.addEventListener('atlas-action',e=>{
   const actions=(e.detail?.action||[]).filter(x=>Object.hasOwn(ACTION_LIBRARY,x)).slice(0,4);
   if(!actions.length)return;
   manualMotionUntil=0;nextNaturalAt=performance.now()+30000;
-  showRun={show:{title:'Atlas response',steps:actions.map(a=>[a,a==='idle'?1.5:2.8])},index:-1,at:0,seconds:0,loading:false};
+  showRun={show:{title:'Atlas response',returnHome:false,steps:actions.map(a=>[a,a==='idle'?1.5:2.8])},index:-1,at:0,seconds:0,loading:false};
   void nextShowStep();return;
  }
  if(kind==='think'){++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;manualMotionUntil=0;}
@@ -1170,17 +1196,17 @@ window.addEventListener('atlas-action',e=>{
 });
 
 function emitStudioState(){
- const detail={available:true,screen:{visible:screenRoot.visible,content:screenContent,x:screenPos.x,y:screenPos.y,z:screenPos.z,width:screenRoot.scale.x*1.5,height:screenRoot.scale.y*1.06},camera:{yaw,pitch,distance,x:center.x,y:center.y,z:center.z},avatar:model?{x:model.position.x,z:model.position.z,rotation:model.rotation.y*180/Math.PI}:null,roomVisible:studioObjects.visible};
+ const detail={available:true,screen:{visible:screenRoot.visible,content:screenContent,x:screenPos.x,y:screenPos.y,z:screenPos.z,width:screenRoot.scale.x*screenBase.width,height:screenRoot.scale.y*screenBase.height},camera:{yaw,pitch,distance,x:center.x,y:center.y,z:center.z},avatar:model?{x:model.position.x,z:model.position.z,rotation:model.rotation.y*180/Math.PI}:null,roomVisible:studioObjects.visible};
  window.dispatchEvent(new CustomEvent('atlas-studio-state',{detail}));return detail;
 }
 window.addEventListener('atlas-studio-state-request',emitStudioState);
-function clearStudioScreen(){screenContent={kind:'empty'};++presentationVersion;sc.fillStyle='#091628';sc.fillRect(0,0,1024,680);screenTex.needsUpdate=true;showScreen(false)}
+function clearStudioScreen(){screenContent={kind:'empty'};++presentationVersion;sc.fillStyle='#091628';sc.fillRect(0,0,screenSurface.width,screenSurface.height);screenTex.needsUpdate=true;showScreen(false)}
 window.addEventListener('atlas-studio-control',async e=>{
  const {requestId}=e.detail||{},command=normalizeStudioCommands([e.detail?.command])[0];
  const version=++studioControlVersion;
  try{
   if(!command)throw Error('Unsupported studio command.');const c=command;
-  if(c.type==='reset'){
+  if(c.type==='normal'){normalStudioView()}else if(c.type==='reset'){
    ++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;gesture='';speechActive=false;speechMouthLevel=0;
    clearStudioScreen();screenRoot.scale.set(1,1,1);screenBillboard=true;Object.assign(screenPos,{x:1.85,y:1.63,z:-2.2});applyScreenPosition();
    if(model){model.position.x=0;model.position.z=0;model.rotation.y=0;playMixamo('idle',true)}
@@ -1188,14 +1214,15 @@ window.addEventListener('atlas-studio-control',async e=>{
   }else if(c.type==='screen'){
    if(c.clear)clearStudioScreen();
    for(const k of ['x','y','z'])if(c[k]!==undefined)screenPos[k]=c[k];applyScreenPosition();
-   if(c.width!==undefined)screenRoot.scale.x=c.width/1.5;if(c.height!==undefined)screenRoot.scale.y=c.height/1.06;
+   if(c.width!==undefined)screenRoot.scale.x=c.width/screenBase.width;if(c.height!==undefined)screenRoot.scale.y=c.height/screenBase.height;
    if(c.billboard!==undefined)screenBillboard=c.billboard;
    if(c.rotation!==undefined){screenBillboard=false;screenRoot.rotation.y=c.rotation*Math.PI/180}
    if(c.text!==undefined){
-    screenContent={kind:'text',text:c.text};++presentationVersion;sc.fillStyle='#091628';sc.fillRect(0,0,1024,680);sc.fillStyle='#f0f6ff';sc.font='36px sans-serif';
+    screenContent={kind:'text',text:c.text};++presentationVersion;sc.fillStyle='#091628';sc.fillRect(0,0,screenSurface.width,screenSurface.height);sc.fillStyle='#f0f6ff';sc.font='36px sans-serif';
     const words=c.text.split(/\s+/);let line='',y=65;for(const word of words){if(sc.measureText(line+' '+word).width>920){sc.fillText(line,45,y);y+=52;line=word}else line+=(line?' ':'')+word;if(y>620)break}if(y<=620)sc.fillText(line,45,y);screenTex.needsUpdate=true;if(c.visible===undefined)showScreen(true);
    }
    if(c.visible!==undefined)showScreen(c.visible);
+   if(screenRoot.visible){if(c.width!==undefined||c.height!==undefined)arrangeStudioPresentation();else fitStudioPresentation()}
   }else if(c.type==='camera'){
    const x=model?.position.x||0,z=model?.position.z||0;
    if(c.preset==='head'){center.set(x,1.65,z);yaw=0;pitch=0;distance=1.35}
@@ -1327,6 +1354,7 @@ function animate(){
  const now=performance.now(),dt=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;
  const t=(now-t0)/1000;
  if(auto){yaw+=dt*12;updateCam();}
+ if(presentationCameraTween){const t=presentationCameraTween,k=Math.min(1,(now-t.at)/550),ease=k*k*(3-2*k);camera.position.lerpVectors(t.fromPosition,t.toPosition,ease);camera.quaternion.slerpQuaternions(t.fromQuaternion,t.toQuaternion,ease);if(k===1)presentationCameraTween=null}
  updateShow(now);
  void naturalGesture(now);
  orientScreen();

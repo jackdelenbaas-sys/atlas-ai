@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../cloudflare-worker/index.js',import.meta.url),'utf8');
 const ctx=vm.createContext({searchTopic:t=>t,plain:t=>String(t||'').replace(/<[^>]*>/g,''),Date});
 vm.runInContext(source.slice(source.indexOf('const PHOTO_STOP='),source.indexOf('async function webImages(')),ctx);
-const page=(title,description='',taken='',uploaded='')=>({title:'File:'+title,imageinfo:[{timestamp:uploaded,extmetadata:{ImageDescription:{value:description},DateTimeOriginal:{value:taken}}}]});
+const page=(title,description='',taken='2026-11-15',uploaded='')=>({title:'File:'+title,imageinfo:[{timestamp:uploaded,extmetadata:{ImageDescription:{value:description},DateTimeOriginal:{value:taken}}}]});
 const now=new Date('2026-11-15T12:00:00Z');
 test('all requested attributes match across subjects, not partial substrings',()=>{
  for(const [query,good,bad] of [['red sports cars','Red sports cars in Rome.jpg','Red barn and cars.jpg'],['black cats','Black cat sleeping.jpg','Black catfish.jpg'],['snowy mountains in Japan','Snowy mountain in Japan.jpg','Mountains in Canada.jpg'],['blue bicycles','Blue bicycle.jpg','Red bicycle.jpg']]){
@@ -23,5 +23,9 @@ test('freshness uses capture date instead of upload date, and excludes unknown o
 });
 test('explicit timing and exclusions are honored without treating New York as a date request',()=>{
  const r=ctx.photoRequest('cars today without toys',now);assert.equal(ctx.photoMatch(r,page('Car toy.jpg','','2026-11-15')),-1);assert.equal(ctx.photoMatch(r,page('Car.jpg','','2026-11-14')),-1);
- assert.equal(ctx.photoRequest('New York skyline',now).since,null);assert.ok(ctx.photoRequest('updated cars',now).since);
+ assert.ok(ctx.photoRequest('New York skyline',now).since);assert.ok(ctx.photoRequest('New York skyline',now).terms.includes('new'));assert.ok(ctx.photoRequest('updated cars',now).since);
+});
+test('recent capture dates are the default, with an explicit historical exception',()=>{
+ assert.ok(ctx.photoRequest('cars',now).since);assert.equal(ctx.photoMatch(ctx.photoRequest('cars',now),page('Car.jpg','','2018-01-01')),-1);
+ assert.equal(ctx.photoRequest('historical cars',now).since,null);
 });

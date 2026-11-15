@@ -1,4 +1,4 @@
-import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=113';
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=114';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
@@ -410,13 +410,13 @@ function isImageEdit(text){
 function responseActions(question,answer,proposed,mode,legacy){
  const allowed=['wave','greet','point','pointforward','think','nod','idle'];
  const valid=Array.isArray(proposed)?proposed.filter(a=>allowed.includes(a)).slice(0,3):[];
- if(mode==='image')return ['point','nod','idle'];
- if(valid.length)return [...valid.filter(a=>a!=='idle'),'idle'].slice(0,4);
+ if(mode==='image')return ['point','idle'];
+ if(valid.length)return [...new Set([valid.find(a=>a!=='idle')||'idle','idle'])];
  if(legacy&&allowed.includes(legacy))return [legacy,'nod','idle'];
  if(/\b(hi|hello|hey|good morning)\b/i.test(question))return ['greet','nod','idle'];
  if(/\b(image|picture|photo|screen|look)\b/i.test(question))return ['point','nod','idle'];
  if(/\b(sorry|sad|worried|anxious|hurt)\b/i.test(question+' '+answer))return ['nod','idle'];
- return ['think','point','idle'];
+ return ['nod','idle'];
 }
 function wantsWebImages(text){
  const t=(text||'').trim();if(/\b(?:make|create|generate|draw|paint|edit|modify|recolor|retouch)\b/i.test(t))return false;
@@ -428,7 +428,7 @@ function modeFromText(t,attachments=[]){
  // The one chat box handles every task. Never inherit a mode from an earlier message.
  const asks=/\b(?:make|create|generate|draw|paint|design|produce|render|animate|edit|modify|change|transform|enhance|retouch|recolor|turn|convert)\b/i.test(q);
  const video=/\b(?:video|movie|film|animation|animated clip|short clip|footage|moving scene)\b/i.test(q);
- const image=/\b(?:image|picture|photo|photograph|illustration|portrait|poster|drawing|artwork|graphic|logo|visual|rendering|art)\b/i.test(q);
+ const image=/\b(?:image|picture|pic|photo|photograph|illustration|portrait|poster|drawing|artwork|graphic|logo|visual|rendering|art)\b/i.test(q);
  const hasImage=attachments.some(f=>f.type?.startsWith('image/'));
  const editPicture=hasImage&&isImageEdit(q)||hasImage&&/\b(?:edit|change|transform|recolor|retouch|remove|replace|add|turn|make|stylize|restyle|enhance|erase)\b/i.test(q)&&!/\b(?:explain|describe|identify|what|why|how|analyze)\b/i.test(q);
  if(asks&&video)return 'video';

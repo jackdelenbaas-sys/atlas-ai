@@ -31,7 +31,7 @@ test('follow-up edits target an existing image and questions remain chat',()=>{
  for(const text of ['What color is it?','Explain the image','Create a new image of a cat','How can I make it green?'])assert.equal(ctx.isImageEdit(text),false,text);
 });
 test('response sequences match images, greetings and empathy and reject unsafe actions',()=>{
- assert.equal(ctx.responseActions('Create an image','Done',null,'image').join(','),'point,nod,idle');
+ assert.equal(ctx.responseActions('Create an image','Done',null,'image').join(','),'point,idle');
  assert.equal(ctx.responseActions('hello','Hi',null,'chat').join(','),'greet,nod,idle');
  assert.equal(ctx.responseActions('I am worried','',null,'chat').join(','),'nod,idle');
  assert.equal(ctx.responseActions('Explain','', ['walk','dance','point'],'chat').join(','),'point,idle');
@@ -126,4 +126,7 @@ test('undecodable photo bytes are rejected before a blank frame can replace the 
  const c=vm.createContext({Image:class{async decode(){throw Error('Invalid image bytes')}},api:async()=>({image:'data:image/jpeg;base64,QkFE'})});
  vm.runInContext(source.slice(source.indexOf('async function decodeStudioPhoto('),source.indexOf('async function startStudioSlideshow(')),c);
  await assert.rejects(()=>c.loadStudioPhoto({url:'https://upload.wikimedia.org/bad.jpg'}),/Invalid image bytes/);
+});
+test('make me a pic routes to image generation instead of a chat capability denial',()=>{
+ assert.equal(ctx.modeFromText('make me a pic of a cybertruck'),'image');
 });

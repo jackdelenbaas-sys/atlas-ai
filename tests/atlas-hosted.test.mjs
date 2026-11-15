@@ -137,7 +137,7 @@ test('provider content refusal is returned without trying another provider',asyn
  try{const r=await worker.fetch(req('chat',{text:'Hello'}),{...env,GEMINI_API_KEY:'secret',GEMINI_FREE_PLAN:'true',AI:{run:()=>assert.fail('refusal bypass')}});assert.equal(r.status,400);assert.equal((await r.json()).code,'PROVIDER_DECLINED')}finally{globalThis.fetch=original}
 });
 test('web photo search returns multiple attributed real image URLs without AI',async()=>{
- const original=globalThis.fetch;globalThis.fetch=async url=>{const u=new URL(url);assert.equal(u.hostname,'commons.wikimedia.org');assert.equal(u.searchParams.get('gsrnamespace'),'6');return new Response(JSON.stringify({query:{pages:[1,2,3].map(i=>({title:'File:Cow '+i+'.jpg',index:i,imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/cow'+i+'.jpg',descriptionurl:'https://commons.wikimedia.org/wiki/File:Cow_'+i+'.jpg',extmetadata:{LicenseShortName:{value:'CC BY-SA'}}}]}))}}))};
+ const original=globalThis.fetch;globalThis.fetch=async url=>{const u=new URL(url);assert.equal(u.hostname,'commons.wikimedia.org');assert.equal(u.searchParams.get('gsrnamespace'),'6');return new Response(JSON.stringify({query:{pages:[1,2,3].map(i=>({title:'File:Cow '+i+'.jpg',index:i,imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/cow'+i+'.jpg',descriptionurl:'https://commons.wikimedia.org/wiki/File:Cow_'+i+'.jpg',extmetadata:{DateTimeOriginal:{value:new Date().toISOString().slice(0,10)},LicenseShortName:{value:'CC BY-SA'}}}]}))}}))};
  try{const r=await worker.fetch(req('web-images',{text:'Show me photos of cows'}),{...env,AI:{run:()=>assert.fail('AI consumed')}});const j=await r.json();assert.equal(j.webImages.length,3);assert.equal(j.sources.length,3);assert.equal(j.provider,'wikimedia')}finally{globalThis.fetch=original}
 });
 test('factual answer is grounded in freshly retrieved source text',async()=>{
@@ -165,6 +165,6 @@ test('AI studio commands return separately without exposing JSON in replies',asy
 test('modern house search rejects unrelated towers, murals and traditional houses',async()=>{
  const original=globalThis.fetch;
  const names=['Modern house exterior.jpg','Contemporary villa.jpg','Traditional cottage.jpg','Modern tower.jpg','Modern house mural.jpg'];
- globalThis.fetch=async url=>{const u=new URL(url);assert.ok(u.searchParams.get('gsrsearch').startsWith('"'));return new Response(JSON.stringify({query:{pages:names.map((name,i)=>({title:'File:'+name,index:i,imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/'+i+'.jpg',extmetadata:{ImageDescription:{value:name}}}]}))}}))};
+ globalThis.fetch=async url=>{const u=new URL(url);assert.ok(u.searchParams.get('gsrsearch').startsWith('"'));return new Response(JSON.stringify({query:{pages:names.map((name,i)=>({title:'File:'+name,index:i,imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/'+i+'.jpg',extmetadata:{DateTimeOriginal:{value:new Date().toISOString().slice(0,10)},ImageDescription:{value:name}}}]}))}}))};
  try{const r=await worker.fetch(req('web-images',{text:'find a picture of a modern house'}),env);const j=await r.json();assert.equal(r.status,200);assert.deepEqual(j.webImages.map(x=>x.title),['Modern house exterior.jpg','Contemporary villa.jpg'])}finally{globalThis.fetch=original}
 });
