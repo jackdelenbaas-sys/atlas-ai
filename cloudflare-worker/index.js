@@ -169,6 +169,29 @@ async function remoteImage(data){
  const reader=r.body.getReader(),parts=[];let total=0;while(true){const {done,value}=await reader.read();if(done)break;total+=value.length;if(total>4000000){await reader.cancel();throw Object.assign(Error('This web photo is too large.'),{status:413})}parts.push(value)}
  const bytes=new Uint8Array(total);let offset=0;for(const part of parts){bytes.set(part,offset);offset+=part.length}let str='';for(let i=0;i<bytes.length;i+=8192)str+=String.fromCharCode(...bytes.subarray(i,i+8192));return 'data:'+mime+';base64,'+btoa(str);
 }
+function generatedImageData(result){
+ const data=result?.image;
+ if(typeof data!=='string'||data.length<32||data.length>12000000||!/^[A-Za-z0-9+/]+={0,2}$/.test(data))throw Object.assign(Error('The image service returned an unusable file. Please retry.'),{code:'INVALID_GENERATED_IMAGE',status:502});
+ const bytes=Uint8Array.from(atob(data),c=>c.charCodeAt(0));
+ const png=bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71&&bytes[4]===13&&bytes[5]===10&&bytes[6]===26&&bytes[7]===10;
+ const jpeg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+ const webp=String.fromCharCode(...bytes.slice(0,4))==='RIFF'&&String.fromCharCode(...bytes.slice(8,12))==='WEBP';
+ if(!png&&!jpeg&&!webp)throw Object.assign(Error('The image service did not return a valid picture. Please retry.'),{code:'INVALID_GENERATED_IMAGE',status:502});
+ return 'data:image/'+(png?'png':jpeg?'jpeg':'webp')+';base64,'+data;
+}
+async function generateImage(env,form){
+ const response=new Response(form),contentType=response.headers.get('content-type'),bytes=await response.arrayBuffer();
+ for(let attempt=0;attempt<2;attempt++){
+  try{return generatedImageData(await env.AI.run(IMAGE_MODEL,{multipart:{body:new Response(bytes).body,contentType}}))}
+  catch(e){
+   const message=String(e?.message||''),status=Number(e?.status||e?.statusCode||e?.response?.status);
+   const stopped=/daily|allocation|neurons|4006|3036|quota|safety|moderation|policy|refus|denied|invalid/i.test(message)||e.code==='INVALID_GENERATED_IMAGE';
+   const transient=[502,503,504].includes(status)||/temporar|capacity|overload|service unavailable|connection reset/i.test(message);
+   if(attempt||stopped||!transient)throw e;
+   await new Promise(resolve=>setTimeout(resolve,350));
+  }
+ }
+}
 function connections(env){return [
  {id:'groq',name:'Groq',tasks:['chat'],configured:Boolean(env.GROQ_API_KEY)&&env.GROQ_FREE_PLAN==='true',setup:'GROQ_API_KEY + GROQ_FREE_PLAN=true'},
  {id:'gemini',name:'Gemini',tasks:['chat','vision'],configured:Boolean(env.GEMINI_API_KEY)&&env.GEMINI_FREE_PLAN==='true',setup:'GEMINI_API_KEY + GEMINI_FREE_PLAN=true'},
@@ -225,12 +248,12 @@ export default {async fetch(request,env){
  const origin=request.headers.get('Origin'),path=new URL(request.url).pathname;
  if(origin&&origin!==ORIGIN)return json({error:'Origin not allowed'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
- if(path==='/atlas/api/health'&&request.method==='GET')return json({provider:'cloudflare-workers-ai',ready:typeof env.AI?.run==='function'&&String(env.ATLAS_ACCESS_TOKEN||'').length>=24,paidFallback:false,images:true,vision:true,imageEditing:true});
+ if(path==='/atlas/api/health'&&request.method==='GET')return json({provider:'cloudflare-workers-ai',ready:typeof env.AI?.run==='function'&&String(env.ATLAS_ACCESS_TOKEN||'').length>=24,paidFallback:false,images:typeof env.AI?.run==='function',vision:true,imageEditing:typeof env.AI?.run==='function'});
  if(!env.ATLAS_ACCESS_TOKEN||env.ATLAS_ACCESS_TOKEN.length<24)return json({error:'The private Atlas access token is missing from Cloudflare runtime settings.',code:'MISSING_ACCESS_TOKEN'},503);
  if(request.headers.get('Authorization')!=='Bearer '+env.ATLAS_ACCESS_TOKEN)return json({error:'Atlas access token does not match. Save the token in Atlas Settings.',code:'INVALID_ACCESS_TOKEN'},401);
  if(!connections(env).some(p=>p.configured))return json({error:'Workers AI binding is missing. Deploy the updated Atlas Worker configuration.',code:'MISSING_AI_BINDING'},503);
  try{
-  if(path==='/atlas/api/status'&&request.method==='GET')return json({bridge:'atlas-free-v1',provider:'cloudflare-workers-ai',configured:true,model:'Llama 3.3 70B · free daily allowance',free:true,paidFallback:false,resetAt:nextReset(),web:true,webScope:'Wikipedia live text and Wikimedia photos; not full-web search',images:true,vision:true,imageEditing:typeof env.AI?.run==='function',video:false,connections:connections(env),routing:'Groq → Gemini → Cloudflare; images stay on Cloudflare'});
+  if(path==='/atlas/api/status'&&request.method==='GET')return json({bridge:'atlas-free-v1',provider:'cloudflare-workers-ai',configured:true,model:'Llama 3.3 70B · free daily allowance',free:true,paidFallback:false,resetAt:nextReset(),web:true,webScope:'Wikipedia live text and Wikimedia photos; not full-web search',images:typeof env.AI?.run==='function',vision:true,imageEditing:typeof env.AI?.run==='function',video:false,connections:connections(env),routing:'Groq → Gemini → Cloudflare; images stay on Cloudflare'});
   if(path==='/atlas/api/diagnose'&&request.method==='GET'){
    const meta={};const reply=await infer(env,[{role:'user',content:'Reply READY in one word.'}],16,meta);
    return json({connected:true,model:meta.provider,provider:meta.provider,free:true,reply,resetAt:nextReset()});
@@ -242,6 +265,7 @@ export default {async fetch(request,env){
    if(path.endsWith('/web-images')){const images=await webImages(p.text,env,p.history);return json({text:images.length?(images.length===1?'Here it is.':'Here are the photos.'):'I couldn’t find a matching picture. Try the specific name or model.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),actions:['point','idle'],web:true,provider:'wikimedia',free:true})}
    if(path.endsWith('/web-image'))return json({image:await remoteImage(p.url)});
    if(path.endsWith('/image')){
+    if(typeof env.AI?.run!=='function')throw Object.assign(Error('Image generation needs the Cloudflare Workers AI binding. Chat-only connections cannot create pictures.'),{status:503,code:'IMAGE_NOT_CONFIGURED'});
     let prompt=String(p.text||'').trim().slice(0,1500);
     if(!prompt)return json({error:'Describe the image you want to create.'},400);
     const attachments=(Array.isArray(p.attachments)?p.attachments:[]).filter(a=>String(a?.type||'').startsWith('image/')).slice(0,3);
@@ -252,10 +276,8 @@ export default {async fetch(request,env){
      const data=validImage(a.data),mime=data.slice(5,data.indexOf(';')),bytes=Uint8Array.from(atob(data.split(',')[1]),c=>c.charCodeAt(0));
      form.append('input_image_'+i,new Blob([bytes],{type:mime}),'reference-'+i+'.jpg');
     }
-    const formResponse=new Response(form);
-    const result=await env.AI.run(IMAGE_MODEL,{multipart:{body:formResponse.body,contentType:formResponse.headers.get('content-type')}});
-    if(typeof result?.image!=='string'||!result.image.length||result.image.length>12000000||!/^[A-Za-z0-9+/]+={0,2}$/.test(result.image))throw Error('Image generation returned no usable image.');
-    return json({text:attachments.length?'Here is the edited image.':'Your image is ready on the studio screen.',actions:['point','nod','idle'],images:['data:image/'+(result.image.startsWith('iVBOR')?'png':'jpeg')+';base64,'+result.image],sources:[],provider:'cloudflare-workers-ai',free:true,resetAt:nextReset()});
+    const image=await generateImage(env,form);
+    return json({text:attachments.length?'Here is the edited image.':'Here is your image.',actions:['point','nod','idle'],images:[image],sources:[],provider:'cloudflare-workers-ai',free:true,resetAt:nextReset()});
    }
    const directStudio=parseStudioRequest(p.text,p.studioState);
    if(directStudio.length)return json({text:'Adjusting the studio.',studio:directStudio,sources:[],images:[],free:true,provider:'local-studio'});
@@ -272,7 +294,7 @@ export default {async fetch(request,env){
    return json({...cleaned,sources:sources.map(({excerpt,...s})=>s),images:[],web:sources.length>0,provider:meta.provider,free:true,resetAt:nextReset()});
 
   }
-  if(path.startsWith('/atlas/api/video'))return json({error:'Free video generation is not connected. Chat backups do not generate videos, and no paid video request was made.',code:'FREE_CHAT_ONLY'},400);
+  if(path.startsWith('/atlas/api/video'))return json({error:'AI video generation needs a video provider. The current free connection supports pictures, but has no connected video generator.',code:'FREE_CHAT_ONLY'},400);
   return json({error:'Not found'},404);
  }catch(e){
   const message=cleanError(e,env);
