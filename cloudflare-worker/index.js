@@ -64,11 +64,31 @@ async function webFacts(text){
  const j=await wikiJSON('en.wikipedia.org',{generator:'search',gsrsearch:String(text).slice(0,220),gsrnamespace:'0',gsrlimit:'3',prop:'extracts|info',inprop:'url',exintro:'1',explaintext:'1',exchars:'1200',exlimit:'3'});
  return (j.query?.pages||[]).filter(p=>p.extract&&p.fullurl?.startsWith('https://en.wikipedia.org/')).sort((a,b)=>a.index-b.index).slice(0,3).map(p=>({title:p.title,url:p.fullurl,excerpt:plain(p.extract),retrievedAt:new Date().toISOString()}));
 }
+function photoMatch(topic,page){
+ const info=page.imageinfo?.[0],meta=info?.extmetadata||{};
+ const label=plain([page.title,meta.ImageDescription?.value,meta.Categories?.value,...(page.categories||[]).map(c=>c.title)].join(' ')).toLowerCase();
+ const title=String(page.title||'').toLowerCase();
+ if(/\b(?:modern|contemporary|modernist)\b/i.test(topic)&&/\b(?:house|home|villa)s?\b/i.test(topic)){
+  if(/\b(?:construction|scaffolding|under construction)\b/i.test(label))return -1;
+  if(!/\b(?:modern|contemporary|modernist|modernism|mid.century)\b/i.test(label)||!/\b(?:house|home|villa|residence|residential|dwelling)s?\b/i.test(label))return -1;
+  if(/\b(?:church|temple|museum|tower|apartment|artwork|painting|mural|drawing|floor.?plan|interior|kitchen|bedroom|bathroom|ruin|barn)s?\b/i.test(title))return -1;
+  return (/\b(?:modern|modernist)\b/.test(title)?5:/\bcontemporary\b/.test(title)?4:1)+(/\b(?:house|home|villa|residence)s?\b/.test(title)?3:0);
+ }
+ const terms=topic.toLowerCase().match(/[a-z0-9]+/g)||[];
+ const matches=terms.filter(t=>label.includes(t.replace(/s$/,''))).length;
+ return matches>=Math.max(1,Math.ceil(terms.length*.7))?matches:-1;
+}
 async function webImages(text){
- const q=searchTopic(text);if(!q)throw Object.assign(Error('Tell me what pictures to find.'),{status:400});
- const j=await wikiJSON('commons.wikimedia.org',{generator:'search',gsrsearch:q+' filetype:bitmap',gsrnamespace:'6',gsrlimit:'12',prop:'imageinfo',iiprop:'url|mime|extmetadata',iiurlwidth:'800'});
- return (j.query?.pages||[]).sort((a,b)=>a.index-b.index).flatMap(p=>{const i=p.imageinfo?.[0];if(!i||!['image/jpeg','image/png','image/webp'].includes(i.mime))return [];const url=i.thumburl||i.url;
-  if(!/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(url||''))return [];
+ const q=searchTopic(text).replace(/^(?:a|an|the|some)\s+/i,'');if(!q)throw Object.assign(Error('Tell me what pictures to find.'),{status:400});
+ const modern=/\b(?:modern|contemporary|modernist)\b/i.test(q)&&/\b(?:house|home|villa)s?\b/i.test(q);
+ const queries=modern?['"modern house"','"contemporary house"','"modern villa"']:['"'+q.replace(/"/g,'')+'"'];
+ const searches=await Promise.allSettled(queries.map(query=>wikiJSON('commons.wikimedia.org',{generator:'search',gsrsearch:query+' filetype:bitmap',gsrnamespace:'6',gsrlimit:'24',prop:'imageinfo|categories',cllimit:'20',iiprop:'url|mime|extmetadata',iiurlwidth:'800'})));
+ const results=searches.filter(r=>r.status==='fulfilled').flatMap(r=>r.value.query?.pages||[]);
+ if(!results.length&&searches.every(r=>r.status==='rejected'))throw searches[0].reason;
+ const seen=new Set(),subjects=new Set();return results.map(p=>({p,score:photoMatch(q,p)})).filter(r=>r.score>=0).sort((a,b)=>b.score-a.score||(a.p.index||0)-(b.p.index||0)).flatMap(({p})=>{
+  const i=p.imageinfo?.[0];if(!i||!['image/jpeg','image/png','image/webp'].includes(i.mime))return [];
+  const url=i.thumburl||i.url;if(!/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(url||'')||seen.has(url))return [];const subject=p.title.toLowerCase().replace(/\([^)]*\)|\.[a-z]{3,4}$/g,'').replace(/\s+/g,' ').trim();
+  if(subjects.has(subject))return [];subjects.add(subject);seen.add(url);
   return [{url,title:p.title.replace(/^File:/,''),source:i.descriptionurl,license:plain(i.extmetadata?.LicenseShortName?.value||'See source for license'),author:plain(i.extmetadata?.Artist?.value||'')}];
  }).slice(0,6);
 }
@@ -151,7 +171,7 @@ export default {async fetch(request,env){
    if(Number(request.headers.get('Content-Length')||0)>6500000)return json({error:'This message is too large for image chat.'},413);
    const raw=await request.text();if(raw.length>6500000)return json({error:'This message is too large for image chat.'},413);
    const p=JSON.parse(raw);if(!p||typeof p!=='object'||Array.isArray(p))return json({error:'Invalid message.'},400);
-   if(path.endsWith('/web-images')){const images=await webImages(p.text);return json({text:images.length?'Here are the photos.':'No matching Wikimedia photos found. Try a simpler description.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),actions:['point','idle'],web:true,provider:'wikimedia',free:true})}
+   if(path.endsWith('/web-images')){const images=await webImages(p.text);return json({text:images.length?'Here are the photos.':'I couldn’t find closely matching photos. Try a different description.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),actions:['point','idle'],web:true,provider:'wikimedia',free:true})}
    if(path.endsWith('/web-image'))return json({image:await remoteImage(p.url)});
    if(path.endsWith('/image')){
     let prompt=String(p.text||'').trim().slice(0,1500);

@@ -26,8 +26,9 @@ export function parseStudioRequest(text,state={}){
  const q=String(text||'').trim(),lower=q.toLowerCase();const out=[];
  const screen=/\b(screen|display|presentation|scree)\b/i.test(q);
  const photo=/\b(photo|picture|image|slideshow|slide)s?\b/i.test(q);
+ if(screen&&/\b(?:put|show|display|play|bring|turn on)\b/i.test(q)&&(/\b(?:them|those|these|photos?|pictures?|images?|slideshow)\b/i.test(q)||state.photos?.count>0))out.push({type:'photos',action:'show'});
  if(screen&&/\b(hide|remove|clear|erase|turn off|switch off|take.+off)\b/i.test(q))out.push({type:'screen',visible:false,clear:true});
- else if(screen&&/\b(show|turn on|switch on|bring back)\b/i.test(q)&&!photo)out.push({type:'screen',visible:true});
+ else if(screen&&!out.length&&/\b(show|turn on|switch on|bring back)\b/i.test(q)&&!photo)out.push({type:'screen',visible:true});
  if(screen&&/\b(bigger|larger|enlarge|smaller|shrink)\b/i.test(q)){
   const factor=/bigger|larger|enlarge/i.test(q)?1.3:.75;
   out.push({type:'screen',width:(state.screen?.width||1.5)*factor,height:(state.screen?.height||1.06)*factor});

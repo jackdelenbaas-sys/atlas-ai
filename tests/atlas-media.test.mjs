@@ -103,3 +103,22 @@ test('slideshow rotates, caches photos and only reframes the camera once',async(
  tick();await new Promise(setImmediate);assert.equal(calls,2);
  c.stopStudioSlides();tick();await Promise.resolve();assert.equal(events.length,3);
 });
+
+test('photo replies start presenting automatically without a second request',async()=>{
+ const shown=[];const c=vm.createContext({studioImage:x=>shown.push(x),startStudioSlideshow:async x=>shown.push(x)});
+ vm.runInContext(source.slice(source.indexOf('async function presentReplyMedia('),source.indexOf('function openImageEditor(')),c);
+ const photos=[{url:'https://upload.wikimedia.org/house.jpg'}];await c.presentReplyMedia({webImages:photos});assert.equal(shown[0],photos);
+ assert.match(source,/void presentReplyMedia\(m\)/);
+});
+test('slideshow skips failed downloads and keeps rotating successful photos',async()=>{
+ const events=[];let tick;
+ const c=vm.createContext({Map,Set,CustomEvent:class{constructor(type,o){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>events.push(e),addEventListener:()=>{}},document:{hidden:false},$:()=>null,api:async(p,{url})=>{if(url.includes('broken'))throw Error('blocked');return {image:'data:image/jpeg;base64,QUJDRA=='}},setStatus:()=>{},setInterval:f=>{tick=f;return 1},clearInterval:()=>{}});
+ vm.runInContext(source.slice(source.indexOf('let studioState='),source.indexOf('function studioImage(')),c);
+ await c.startStudioSlideshow([{url:'https://upload.wikimedia.org/broken.jpg'},{url:'https://upload.wikimedia.org/house.jpg'},{url:'https://upload.wikimedia.org/villa.jpg'}]);
+ assert.equal(events.length,1);assert.equal(events[0].detail.reframe,true);tick();await new Promise(setImmediate);assert.equal(events.length,2);assert.equal(events[1].detail.reframe,false);
+});
+test('browser photo download avoids the authenticated proxy when CORS succeeds',async()=>{
+ let requests=0;const c=vm.createContext({fetch:async()=>({ok:true,blob:async()=>({type:'image/jpeg',size:123})}),AbortSignal:{timeout:()=>null},imageData:async()=> 'data:image/jpeg;base64,QUJDRA==',api:()=>{requests++;throw Error('No proxy needed')}});
+ vm.runInContext(source.slice(source.indexOf('async function loadStudioPhoto('),source.indexOf('async function startStudioSlideshow(')),c);
+ assert.match(await c.loadStudioPhoto({url:'https://upload.wikimedia.org/house.jpg'}),/^data:image/);assert.equal(requests,0);
+});

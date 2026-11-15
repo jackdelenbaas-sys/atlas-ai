@@ -1,4 +1,4 @@
-import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=111';
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=112';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
@@ -128,28 +128,47 @@ function resetConversationScene(){
 }
 let studioSlides=null,slideTimer=null,slideVersion=0;
 function stopStudioSlides(){++slideVersion;clearInterval(slideTimer);slideTimer=null;studioSlides=null}
+async function loadStudioPhoto(item){
+ try{
+  const r=await fetch(item.url,{mode:'cors',credentials:'omit',signal:AbortSignal.timeout(10000)});
+  if(!r.ok)throw Error('Photo download failed');const blob=await r.blob();
+  if(!['image/jpeg','image/png','image/webp'].includes(blob.type)||blob.size>4000000)throw Error('Unsupported photo');
+  return await imageData(blob);
+ }catch{const j=await api('/atlas/api/web-image',{url:item.url},20000);if(!/^data:image\/(jpeg|png|webp);base64,/.test(j.image||''))throw Error('Photo unavailable');return j.image}
+}
 async function startStudioSlideshow(items,start=0){
  stopStudioSlides();
  const photos=items.filter(i=>/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(i.url||'')).slice(0,6);
  if(!photos.length)return;
- const version=slideVersion,state={items:photos,index:start%photos.length,busy:false,cache:new Map(),shown:0};studioSlides=state;
+ const version=slideVersion,state={items:photos,index:start%photos.length,busy:false,cache:new Map(),failed:new Set(),shown:0};studioSlides=state;
  const credits=$('photoCredits');if(credits){credits.replaceChildren();for(const item of photos){const p=document.createElement('p');p.textContent=(item.author||item.title||'Photo')+' · '+(item.license||'See source license')+' ';if(/^https:\/\/commons\.wikimedia\.org\//.test(item.source||'')){const a=document.createElement('a');a.href=item.source;a.textContent='Original';a.target='_blank';a.rel='noopener noreferrer';p.append(a)}credits.append(p)}}
  async function next(){
   if(state.busy||document.hidden||version!==slideVersion)return;state.busy=true;
-  const item=photos[state.index];state.index=(state.index+1)%photos.length;
-  try{let src=state.cache.get(item.url);if(!src){src=(await api('/atlas/api/web-image',{url:item.url},25000)).image;state.cache.set(item.url,src)}
-   if(version!==slideVersion)return;
-   window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src,reframe:state.shown++===0}}));
-  }catch{if(version===slideVersion)setStatus('ATLAS · PHOTO COULD NOT LOAD')}
-  finally{state.busy=false}
+  try{
+   for(let attempt=0;attempt<photos.length;attempt++){
+    const item=photos[state.index];state.index=(state.index+1)%photos.length;
+    if(state.failed.has(item.url))continue;
+    try{
+     let src=state.cache.get(item.url);if(!src){src=await loadStudioPhoto(item);state.cache.set(item.url,src)}
+     if(version!==slideVersion)return;
+     window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src,reframe:state.shown++===0,title:item.title}}));return;
+    }catch{state.failed.add(item.url)}
+   }
+   if(version===slideVersion){clearInterval(slideTimer);slideTimer=null;setStatus('ATLAS · PHOTOS COULD NOT LOAD — TRY FINDING PHOTOS AGAIN')}
+  }finally{state.busy=false}
  }
- void next();if(photos.length>1)slideTimer=setInterval(()=>void next(),5500);
+ if(photos.length>1)slideTimer=setInterval(()=>void next(),5500);
+ await next();
 }
 window.addEventListener('pagehide',stopStudioSlides);
 function studioImage(src){
  stopStudioSlides();
  if(!/^data:image\/(jpeg|png|webp);base64,/.test(src||''))return;
  window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src}}));
+}
+async function presentReplyMedia(message){
+ if(message.images?.length)studioImage(message.images[0]);
+ else if(message.webImages?.length)await startStudioSlideshow(message.webImages);
 }
 function openImageEditor(src){
  if(busy){push('atlas','Let me finish this request first, then I can edit the picture.');return}
@@ -460,7 +479,7 @@ async function send(){
   const cleaned=cleanReply(studioReply.text||'Done. Consider the dramatic entrance complete.');
   const txt=cleaned.text||'Done.';
   if(!response.actions?.length)response.actions=cleaned.actions;
-  if(current===data.active&&requestEpoch===activeRequest){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]});cacheImages(m);if(m.images[0])studioImage(m.images[0]);else if(m.webImages?.length)void startStudioSlideshow(m.webImages)}
+  if(current===data.active&&requestEpoch===activeRequest){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]});cacheImages(m);void presentReplyMedia(m)}
   else {const thread=data.threads.find(x=>x.id===current);if(thread){const m={role:'atlas',text:txt,images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]};thread.msgs.push(m);cacheImages(m);save()}}
   // Explicit user motions or model-selected actions take precedence over
   // a generic reply nod, so the body follows the intended movement.
