@@ -1,4 +1,4 @@
-import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=116';
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=117';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
@@ -143,7 +143,7 @@ async function startStudioSlideshow(items,start=0){
  if(!photos.length)return;
  window.dispatchEvent(new CustomEvent('atlas-presentation-start'));
  const version=slideVersion,state={items:photos,index:start%photos.length,busy:false,cache:new Map(),failed:new Set(),shown:0};studioSlides=state;
- const credits=$('photoCredits');if(credits){credits.replaceChildren();for(const item of photos){const p=document.createElement('p');p.textContent=(item.author||item.title||'Photo')+' · '+(item.license||'See source license')+' ';if(/^https:\/\/commons\.wikimedia\.org\//.test(item.source||'')){const a=document.createElement('a');a.href=item.source;a.textContent='Original';a.target='_blank';a.rel='noopener noreferrer';p.append(a)}credits.append(p)}}
+ const credits=$('photoCredits');if(credits){credits.replaceChildren();for(const item of photos){const p=document.createElement('p');p.textContent=(item.author||item.title||'Photo')+' · '+(item.license||'See source license')+' ';if(/^https:\/\/(?:commons\.wikimedia\.org|en\.wikipedia\.org)\//.test(item.source||'')){const a=document.createElement('a');a.href=item.source;a.textContent='Original';a.target='_blank';a.rel='noopener noreferrer';p.append(a)}credits.append(p)}}
  async function next(){
   if(state.busy||document.hidden||version!==slideVersion)return;state.busy=true;
   try{
@@ -423,7 +423,13 @@ function responseActions(question,answer,proposed,mode,legacy){
 }
 function wantsWebImages(text){
  const t=(text||'').trim();if(/\b(?:make|create|generate|draw|paint|edit|modify|recolor|retouch)\b/i.test(t))return false;
- return /\b(?:find|show|get|pull|search|look for|give|send)\b.*\b(?:images?|pictures?|photos?|photographs?)\b/i.test(t)||/^(?:I want|I need|I'd like)\b.*\b(?:photos?|pictures?|images?)\b/i.test(t)||/^show me (?!how|why|what|your|my|the code|a list)[^?]{2,90}$/i.test(t);
+ return /^(?:(?:a|an|one|some)\s+)?(?:pictures?|pics?|photos?|images?)\s+(?:of|showing)\b/i.test(t)||/\b(?:find|show|get|pull|search|look for|give|send|display|put)\b.*\b(?:images?|pictures?|pics?|photos?|photographs?)\b/i.test(t)||/^(?:I want|I need|I'd like)\b.*\b(?:photos?|pictures?|images?)\b/i.test(t)||/^show me (?!how|why|what|your|my|the code|a list)[^?]{2,90}$/i.test(t);
+}
+function continuePhotoSearch(text,messages){
+ if(wantsWebImages(text))return true;
+ const last=messages?.at(-1);if(!last||last.role!=='atlas'||!/(?:picture|photo|image|matching|specific name)/i.test(last.text||''))return false;
+ const previous=(messages||[]).slice(-6).some(m=>m.role==='user'&&wantsWebImages(m.text||''));
+ return previous&&String(text).length<180&&!/^(?:hi|hello|hey|thanks|thank|how|what|why|when|where|can|could|do|does|is|are|stop|wave|dance|walk|remember|forget|make|create|generate|edit)\b/i.test(text)&&!/[?]/.test(text)&&/\w+\s+\w+/.test(text);
 }
 function modeFromText(t,attachments=[]){
  const q=(t||'').trim();
@@ -451,11 +457,11 @@ async function send(){
  const latest=[...t.msgs].reverse().find(m=>m.images?.length)?.images?.at(-1);
  const recentVisual=t.msgs.at(-1)?.images?.length||/\b(?:image|picture|photo|photograph)\b/i.test(text);
  const followup=Boolean(latest&&recentVisual&&isImageEdit(text));
- const mode=followup?'image':modeFromText(text,files);const current=t.id;
+ const mode=followup?'image':!files.length&&continuePhotoSearch(text,t.msgs)?'web-images':modeFromText(text,files);const current=t.id;
  if(t.title==='New conversation')t.title=(text||'Attachments').slice(0,52);
  const filenames=files.map(x=>x.name);const history=t.msgs.slice(-35).filter(x=>x.role==='user'||x.role==='atlas').map(x=>({role:x.role==='atlas'?'assistant':'user',text:x.text}));
  push('user',(text||'Analyze these attachments')+(filenames.length?'\n📎 '+filenames.join(', '):''));
- if(localStudio.length&&!files.length){push('atlas','Adjusting the studio.');const id=current;void afterReply(()=>applyStudioCommands(localStudio,id).catch(e=>{if(id===data.active)push('atlas',e.message)}));return}
+ if(localStudio.length&&!files.length&&!(mode==='web-images'&&/\b(?:of|showing|about)\s+\S/i.test(text))){push('atlas','Adjusting the studio.');const id=current;void afterReply(()=>applyStudioCommands(localStudio,id).catch(e=>{if(id===data.active)push('atlas',e.message)}));return}
  const action=mode==='chat'?requestedMotion(text):null;
  if(action&&!files.length&&text.length<90&&!/\b(?:why|how|explain|what|image|picture|photo|create|generate|screen|presentation|center|home)\b/i.test(text)){performMotion(action);return}
  const destination=/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text)?'walkToScreen':/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text)?'walkHome':null;

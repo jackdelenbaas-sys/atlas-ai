@@ -37,3 +37,13 @@ test('conversational one-picture requests identify the new Tesla robotaxi withou
  assert.ok(ctx.photoMatch(r,page('Tesla Cybercab.jpg','',''))>=0);
  assert.equal(ctx.photoMatch(r,page('Tesla Model Y.jpg','','')),-1);
 });
+test('searches remove retry chatter and normalize compound names',()=>{
+ assert.deepEqual(Array.from(ctx.photoRequest('try to find a picture of a cyber cab',now).terms),['cybercab']);
+ assert.deepEqual(Array.from(ctx.photoRequest('Tesla cyber taxi cab thing recently made',now).terms),['tesla','cybercab']);
+ assert.deepEqual(Array.from(ctx.photoRequest('try to find a good picture of a golden retriever',now).terms),['golden','retriever']);
+});
+
+test('query wording preserves city and product names while matching normalized words',()=>{assert.equal(ctx.photoRequest('show me Paris',now).topic,'Paris');assert.equal(ctx.photoRequest('show me Texas',now).topic,'Texas')});
+test('a named photo requested on the screen keeps the subject out of the studio-control trap',()=>{
+ assert.deepEqual(Array.from(ctx.photoRequest('put a picture of a golden retriever on the screen',now).terms),['golden','retriever']);
+});

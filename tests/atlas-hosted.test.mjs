@@ -173,3 +173,22 @@ test('one-picture request returns a relevant undated fallback with no date expla
  globalThis.fetch=async()=>new Response(JSON.stringify({query:{pages:[{title:'File:Tesla Cybercab.jpg',index:1,imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/cybercab.jpg',extmetadata:{}}]}]}}));
  try{const r=await worker.fetch(req('web-images',{text:'show me one cool picture of the Tesla robot taxi the new one'}),env);const j=await r.json();assert.equal(r.status,200);assert.equal(j.webImages.length,1);assert.equal(j.text,'Here it is.');assert.ok(!/date|capture|verify/i.test(j.text))}finally{globalThis.fetch=original}
 });
+test('Wikipedia file fallback retrieves an actual image when Commons search is empty',async()=>{
+ const original=globalThis.fetch;
+ globalThis.fetch=async url=>{const u=new URL(url);let pages=[];if(u.hostname==='en.wikipedia.org')pages=u.searchParams.has('titles')?[{title:'File:Golden retriever.jpg',imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/golden.jpg',descriptionurl:'https://commons.wikimedia.org/wiki/File:Golden_retriever.jpg'}]}]:[{title:'Golden retriever',pageimage:'Golden retriever.jpg',index:1,thumbnail:{source:'https://upload.wikimedia.org/golden.jpg'}}];return new Response(JSON.stringify({query:{pages}}))};
+ try{const r=await worker.fetch(req('web-images',{text:'show me a picture of a golden retriever'}),{...env,AI:{run:()=>assert.fail('No AI needed for article fallback')}});const j=await r.json();assert.equal(j.webImages[0].title,'Golden retriever.jpg');assert.equal(j.text,'Here it is.')}finally{globalThis.fetch=original}
+});
+test('failed searches use bounded query refinement and return retrieved photos, not promises',async()=>{
+ const original=globalThis.fetch;let inference=0;
+ globalThis.fetch=async url=>{const u=new URL(url),q=u.searchParams.get('gsrsearch')||'';const pages=u.hostname==='commons.wikimedia.org'&&q.includes('retriever')&&!q.includes('doggo')?[{title:'File:Golden retriever.jpg',imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/golden.jpg'}]}]:[];return new Response(JSON.stringify({query:{pages}}))};
+ try{const r=await worker.fetch(req('web-images',{text:'show me a picture of a golden retriever doggo'}),{...env,AI:{run:async()=>{inference++;return {response:'["golden retriever"]'}}}});const j=await r.json();assert.equal(inference,1);assert.equal(j.webImages.length,1);assert.equal(j.text,'Here it is.')}finally{globalThis.fetch=original}
+});
+test('model show-photo actions with an empty studio execute a search instead of an empty presentation',async()=>{
+ const original=globalThis.fetch;globalThis.fetch=async()=>new Response(JSON.stringify({query:{pages:[{title:'File:Golden retriever.jpg',imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/golden.jpg'}]}]}}));
+ try{const r=await worker.fetch(req('chat',{text:'golden retriever',studioState:{photos:{count:0}}}),{...env,AI:{run:async()=>({response:'I will show a picture. <atlas_studio>[{"type":"photos","action":"show"}]</atlas_studio>'})}});const j=await r.json();assert.equal(j.webImages.length,1);assert.equal(j.text,'Here it is.');assert.equal(j.studio,undefined)}finally{globalThis.fetch=original}
+});
+test('clear subject matches outrank newer incidental mentions and document scans',async()=>{
+ const original=globalThis.fetch;
+ globalThis.fetch=async()=>new Response(JSON.stringify({query:{pages:[{title:'File:Concerto in C.jpg',imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/scan.jpg',extmetadata:{ImageDescription:{value:'Published in Paris'},Categories:{value:'Musical scores'},DateTimeOriginal:{value:'2026-11-15'}}}]},{title:'File:Paris skyline.jpg',imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/paris.jpg',extmetadata:{DateTimeOriginal:{value:'2024-01-01'}}}]}]}}));
+ try{const r=await worker.fetch(req('web-images',{text:'show me a picture of Paris'}),env);const j=await r.json();assert.equal(j.webImages[0].title,'Paris skyline.jpg');assert.equal(j.webImages.length,1)}finally{globalThis.fetch=original}
+});

@@ -64,11 +64,11 @@ async function webFacts(text){
  const j=await wikiJSON('en.wikipedia.org',{generator:'search',gsrsearch:String(text).slice(0,220),gsrnamespace:'0',gsrlimit:'3',prop:'extracts|info',inprop:'url',exintro:'1',explaintext:'1',exchars:'1200',exlimit:'3'});
  return (j.query?.pages||[]).filter(p=>p.extract&&p.fullurl?.startsWith('https://en.wikipedia.org/')).sort((a,b)=>a.index-b.index).slice(0,3).map(p=>({title:p.title,url:p.fullurl,excerpt:plain(p.extract),retrievedAt:new Date().toISOString()}));
 }
-const PHOTO_STOP=new Set('a an the of in on at with and or for to from me please can could you show find get pull give send search look photos photo pictures picture images image photographs photograph some multiple several few real actual genuine beautiful nice cool best high quality updated one two three four five six just only really awesome amazing please'.split(' '));
+const PHOTO_STOP=new Set('a an the of in on at with and or for to from me please can could you show find get pull give send search look photos photo pictures picture images image photographs photograph some multiple several few real actual genuine beautiful nice cool best high quality updated one two three four five six just only really awesome amazing please try trying thing something recently made looks like another it that this one but hd 4k professional sharp crisp highresolution good great pretty pic actually meant instead display put'.split(' '));
 const PHOTO_GROUPS=[['cow','cattle','bovine'],['car','automobile'],['bike','bicycle'],['dog','canine'],['cat','feline'],['house','home','villa','residence','dwelling'],['modern','contemporary','modernist','modernism'],['airplane','aircraft','aeroplane'],['ship','vessel'],['beach','seaside']];
 const photoWords=text=>(String(text||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').match(/[\p{L}\p{N}]+/gu)||[]).map(t=>t.length>3&&t.endsWith('s')&&!t.endsWith('ss')?t.slice(0,-1):t);
 function photoRequest(text,now=new Date()){
- let topic=searchTopic(text).replace(/\bcyber\s+truck\b/gi,'cybertruck').replace(/\brobot\s+taxi\b/gi,'robotaxi').replace(/^(?:a|an|the|some)\s+/i,'');
+ let topic=searchTopic(text).replace(/\b(?:on|to) (?:the )?(?:studio )?screen\b/gi,'').replace(/^(?:no[, ]+(?:the|i meant)|i meant|i mean|actually|instead)\s+/i,'').replace(/\bcyber\s+(?:taxi\s+)?cab\b/gi,'cybercab').replace(/\bcyber\s+truck\b/gi,'cybertruck').replace(/\brobot\s+taxi\b/gi,'robotaxi').replace(/^(?:a|an|the|some)\s+/i,'');
  if(/\btesla\b/i.test(topic)&&/\brobotaxi\b/i.test(topic)&&/\b(?:new|newest|latest|cybercab)\b/i.test(topic))topic=topic.replace(/\brobotaxi\b/gi,'cybercab');
  const exclusions=[];topic=topic.replace(/\b(?:without|excluding|not|no)\s+([^,;.]+)/gi,(_,part)=>{exclusions.push(...photoWords(part).filter(t=>!PHOTO_STOP.has(t)));return ''});
  const fresh=!/\b(?:historical|historic|archival|vintage|old photos?|old pictures?|old images?|from (?:19|20)\d{2})\b/i.test(topic)||/\b(?:latest|newest|recent|recently|current|updated|up to date|today|this week|this month|this year|new photos?|new pictures?|new images?|brand new)\b/i.test(topic)||/\bnew\b(?!\s+(?:york|zealand|orleans|delhi|jersey|hampshire|mexico|brunswick|south wales)\b)/i.test(topic);
@@ -76,7 +76,8 @@ function photoRequest(text,now=new Date()){
  if(fresh){since=new Date(now);if(/\btoday\b/i.test(topic))since.setUTCHours(0,0,0,0);else if(/this year/i.test(topic))since=new Date(Date.UTC(now.getUTCFullYear(),0,1));else since.setUTCDate(since.getUTCDate()-(/this week/i.test(topic)?7:/this month/i.test(topic)?31:365));}
  topic=topic.replace(/\b(?:latest|newest|recent|recently|current|updated|up to date|today|this week|this month|this year|brand new)\b/gi,'').replace(/\bnew\b(?!\s+(?:york|zealand|orleans|delhi|jersey|hampshire|mexico|brunswick|south wales)\b)/gi,'').replace(/\s+/g,' ').trim();
  const terms=[...new Set(photoWords(topic).filter(t=>!PHOTO_STOP.has(t)))];
- return {topic:terms.join(' '),terms,exclusions,since,until:now,limit:/\b(?:one|1|single|a picture|a photo|an image)\b/i.test(text)?1:6,photoOnly:! /\b(?:drawing|illustration|painting|cartoon|diagram|map|logo|render|artwork)\b/i.test(text)};
+ const queryWords=(topic.match(/[\p{L}\p{N}]+/gu)||[]).filter(t=>!PHOTO_STOP.has(photoWords(t)[0]));
+ return {topic:queryWords.join(' '),terms,exclusions,since,until:now,limit:/\b(?:photos|pictures|images|pics|photographs|multiple|several|some|[2-6]|two|three|four|five|six)\b/i.test(text)?6:1,photoOnly:! /\b(?:drawing|illustration|painting|cartoon|diagram|map|logo|render|artwork)\b/i.test(text)};
 }
 function photoTakenDate(page){
  const meta=page.imageinfo?.[0]?.extmetadata||{};
@@ -91,10 +92,12 @@ function photoMatch(request,page){
  const title=String(page.title||'').toLowerCase();
  if(request.photoOnly&&/海報|海报/.test(title))return -1;
  const label=[page.title,plain(meta.ImageDescription?.value),plain(meta.Categories?.value),...(page.categories||[]).map(c=>c.title)].join(' ').toLowerCase();
+ const categories=[plain(meta.Categories?.value),...(page.categories||[]).map(c=>c.title)].join(' ');
  const words=new Set(photoWords(label));
  const matches=t=>{const group=PHOTO_GROUPS.find(g=>g.includes(t))||[t];return group.some(v=>words.has(v))};
  if(request.exclusions.some(matches)||!request.terms.length||!request.terms.every(matches))return -1;
  if(request.photoOnly){
+  if(/\b(?:paintings|artworks|drawings|manuscripts|musical scores|sheet music|digitized books|scans|charts|graphs|plots|engravings|etchings|postcards|screenshots)\b/i.test(categories)||/\b(?:btv1b|concerto|margin loss|diagram|chart|graph|sheet music)\b/i.test(title))return -1;
   if(/\b(?:ai.generated|ai.generative|synthetic image|generative ai|generative art|text.to.image|stable diffusion|midjourney|computer.generated)\b/i.test(label))return -1;
   if(/\b(?:painting|mural|drawing|illustration|cartoon|diagram|logo|floor.?plan|rendering)\b/i.test(title))return -1;
   for(const substitute of ['statue','sculpture','toy','miniature','poster','album','sign'])if(new RegExp('\\b'+substitute+'s?\\b','i').test(title)&&!request.terms.includes(substitute))return -1;
@@ -111,15 +114,47 @@ function photoRecency(page,until=new Date()){
  const capture=photoTakenDate(page);if(capture)return capture<=until?capture.getTime():0;
  const upload=new Date(page.imageinfo?.[0]?.timestamp||'');return Number.isFinite(upload.getTime())&&upload<=until?upload.getTime():0;
 }
-async function webImages(text){
- const request=photoRequest(text),q=request.topic;if(!q)throw Object.assign(Error('Tell me what pictures to find.'),{status:400});
+async function wikipediaImages(request){
+ const j=await wikiJSON('en.wikipedia.org',{generator:'search',gsrsearch:request.topic,gsrnamespace:'0',gsrlimit:'5',prop:'pageimages|info',piprop:'thumbnail|name',pithumbsize:'1000',inprop:'url'});
+ const pages=(j.query?.pages||[]).filter(p=>p.thumbnail?.source&&p.pageimage&&!/\.svg(?:\.|$)/i.test(p.pageimage));
+ if(!pages.length)return [];
+ const files=await wikiJSON('en.wikipedia.org',{titles:pages.map(p=>'File:'+p.pageimage).join('|'),prop:'imageinfo',iiprop:'url|mime|size|extmetadata|timestamp',iiurlwidth:'1000'});
+ const byTitle=new Map((files.query?.pages||[]).map(p=>[p.title,p]));
+ return pages.flatMap(p=>{
+  const file=byTitle.get('File:'+p.pageimage);const info=file?.imageinfo?.[0];if(!info)return [];
+  return [{...file,title:file.title,index:p.index,imageinfo:[{...info,thumburl:info.thumburl||p.thumbnail.source}],articleTitle:p.title}];
+ });
+}
+async function webImages(text,env={},history=[]){
+ const initial=photoRequest(text);if(!initial.terms.length)throw Object.assign(Error('What should the picture show?'),{status:400});
+ let images=await searchPhotoSources(initial).catch(()=>[]);if(images.length)return images;
+ // Only failed lookups use one small query-refinement call. Returned words are
+ // search terms, never image URLs or a claim that a photo was retrieved.
+ try{
+  if(!connections(env).some(p=>p.configured))return [];
+  const reply=await infer(env,[{role:'system',content:'Rewrite an unsuccessful photo search into at most three concise search queries. Return only a JSON array of strings. Resolve everyday wording, spacing and nicknames using context. Preserve the requested subject, colors, location and model; never substitute a different product (Cybercab is not Cybertruck). Remove filler like try to, thing, recently made. Do not return URLs or claim success.'},{role:'user',content:JSON.stringify({request:String(text).slice(0,400),context:(Array.isArray(history)?history:[]).slice(-4).map(m=>({role:m.role,text:String(m.text||'').slice(0,250)}))})}],160);
+  const queries=JSON.parse(reply.replace(/^```(?:json)?\s*|\s*```$/g,''));
+  for(const query of (Array.isArray(queries)?queries:[]).filter(q=>typeof q==='string'&&q.length>1&&q.length<140).slice(0,3)){
+   const refined=photoRequest(query);refined.limit=initial.limit;refined.exclusions=[...initial.exclusions,...refined.exclusions];refined.photoOnly=initial.photoOnly;
+   images=await searchPhotoSources(refined).catch(()=>[]);if(images.length)return images;
+  }
+ }catch{}
+ return [];
+}
+async function searchPhotoSources(request){
+ const q=request.topic;if(!q)return [];
  const modern=/\b(?:modern|contemporary|modernist)\b/i.test(q)&&/\b(?:house|home|villa)s?\b/i.test(q);
- const queries=modern?['"modern house"','"contemporary house"','"modern villa"']:[q.split(' ').map(t=>'"'+t+'"').join(' ')];
- const searches=await Promise.allSettled(queries.map(query=>wikiJSON('commons.wikimedia.org',{generator:'search',gsrsearch:query+' filetype:bitmap',gsrnamespace:'6',gsrlimit:request.since?'48':'24',gsrsort:request.since?'last_edit_desc':'relevance',prop:'imageinfo|categories',cllimit:'20',iiprop:'url|mime|extmetadata|timestamp',iiurlwidth:'800'})));
- const results=searches.filter(r=>r.status==='fulfilled').flatMap(r=>r.value.query?.pages||[]);
- if(!results.length&&searches.every(r=>r.status==='rejected'))throw searches[0].reason;
- const seen=new Set(),subjects=new Set();return results.map(p=>({p,score:photoMatch(request,p)})).filter(r=>r.score>=0).sort((a,b)=>(request.since?photoRecency(b.p,request.until)-photoRecency(a.p,request.until):0)||b.score-a.score||(a.p.index||0)-(b.p.index||0)).flatMap(({p})=>{
+ const queries=modern?['"modern house"','"contemporary house"','"modern villa"']:[q.split(' ').map(t=>'"'+t+'"').join(' '),q];
+ const searches=await Promise.allSettled(queries.map((query,index)=>wikiJSON('commons.wikimedia.org',{generator:'search',gsrsearch:query+' filetype:bitmap',gsrnamespace:'6',gsrlimit:'32',gsrsort:index===0&&request.since?'last_edit_desc':'relevance',prop:'imageinfo|categories',cllimit:'20',iiprop:'url|mime|size|extmetadata|timestamp',iiurlwidth:'1000'})));
+ let results=searches.filter(r=>r.status==='fulfilled').flatMap(r=>r.value.query?.pages||[]);
+ let images=selectPhotoResults(request,results);
+ if(!images.length){results=await wikipediaImages(request).catch(()=>[]);images=selectPhotoResults(request,results)}
+ return images;
+}
+function selectPhotoResults(request,results){
+ const seen=new Set(),subjects=new Set();return results.map(p=>({p,score:photoMatch(request,p)})).filter(r=>r.score>=0).sort((a,b)=>b.score-a.score||(request.since?photoRecency(b.p,request.until)-photoRecency(a.p,request.until):0)||(a.p.index||0)-(b.p.index||0)).flatMap(({p})=>{
   const i=p.imageinfo?.[0];if(!i||!['image/jpeg','image/png','image/webp'].includes(i.mime))return [];
+  if(request.photoOnly&&i.width&&i.height&&(Math.max(i.width,i.height)<600||Math.min(i.width,i.height)<250))return [];
   const url=i.thumburl||i.url;if(!/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(url||'')||seen.has(url))return [];const subject=p.title.toLowerCase().replace(/\([^)]*\)|\.[a-z]{3,4}$/g,'').replace(/\s+/g,' ').trim();
   if(subjects.has(subject))return [];subjects.add(subject);seen.add(url);
   return [{url,title:p.title.replace(/^File:/,''),source:i.descriptionurl,license:plain(i.extmetadata?.LicenseShortName?.value||'See source for license'),author:plain(i.extmetadata?.Artist?.value||''),takenAt:photoTakenDate(p)?.toISOString().slice(0,10)||null,retrievedAt:new Date().toISOString()}];
@@ -204,7 +239,7 @@ export default {async fetch(request,env){
    if(Number(request.headers.get('Content-Length')||0)>6500000)return json({error:'This message is too large for image chat.'},413);
    const raw=await request.text();if(raw.length>6500000)return json({error:'This message is too large for image chat.'},413);
    const p=JSON.parse(raw);if(!p||typeof p!=='object'||Array.isArray(p))return json({error:'Invalid message.'},400);
-   if(path.endsWith('/web-images')){const images=await webImages(p.text);return json({text:images.length?(images.length===1?'Here it is.':'Here are the photos.'):'I couldn’t find a matching picture. Try the specific name or model.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),actions:['point','idle'],web:true,provider:'wikimedia',free:true})}
+   if(path.endsWith('/web-images')){const images=await webImages(p.text,env,p.history);return json({text:images.length?(images.length===1?'Here it is.':'Here are the photos.'):'I couldn’t find a matching picture. Try the specific name or model.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),actions:['point','idle'],web:true,provider:'wikimedia',free:true})}
    if(path.endsWith('/web-image'))return json({image:await remoteImage(p.url)});
    if(path.endsWith('/image')){
     let prompt=String(p.text||'').trim().slice(0,1500);
@@ -232,7 +267,9 @@ export default {async fetch(request,env){
    // Only server-retrieved text may become web context. Ignore client-supplied context.
    const webContext=sources.map((s,i)=>(i+1)+'. '+s.title+' '+s.url+'\n'+s.excerpt).join('\n\n');
    const meta={};const text=await infer(env,messagesFor({...p,webContext}),/\b(detail(?:ed)?|thorough|step.by.step|long|full|explain|code|write|draft)\b/i.test(String(p.text||''))?900:320,meta);
-   return json({...cleanChat(text),sources:sources.map(({excerpt,...s})=>s),images:[],web:sources.length>0,provider:meta.provider,free:true,resetAt:nextReset()});
+   const cleaned=cleanChat(text);
+   if(cleaned.studio.some(c=>c.type==='photos'&&c.action==='show')&&!p.studioState?.photos?.count){const images=await webImages(p.text,env,p.history);return json({text:images.length?'Here it is.':'I couldn’t retrieve a matching picture after trying multiple searches.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),images:[],actions:['point','idle'],free:true,provider:'image-search'})}
+   return json({...cleaned,sources:sources.map(({excerpt,...s})=>s),images:[],web:sources.length>0,provider:meta.provider,free:true,resetAt:nextReset()});
 
   }
   if(path.startsWith('/atlas/api/video'))return json({error:'Free video generation is not connected. Chat backups do not generate videos, and no paid video request was made.',code:'FREE_CHAT_ONLY'},400);

@@ -137,3 +137,12 @@ test('Screen Off cancels both rotation and an in-flight slideshow download',asyn
  const pending=c.startStudioSlideshow([{url:'https://upload.wikimedia.org/a.jpg'},{url:'https://upload.wikimedia.org/b.jpg'}]);listeners['atlas-screen-visibility']({detail:{visible:false}});resolve({image:'data:image/jpeg;base64,QUJDRA=='});await pending;tick();await Promise.resolve();
  assert.equal(events.filter(e=>e.type==='atlas-studio-image').length,0);
 });
+test('photo corrections continue a real search, while greetings and new questions remain chat',()=>{
+ const messages=[{role:'user',text:'try to find a picture of a cyber cab'},{role:'atlas',text:'I couldn’t find a matching picture. Try the specific name or model.'}];
+ assert.equal(ctx.continuePhotoSearch('Tesla cyber taxi cab thing recently made',messages),true);
+ for(const text of ['how are you','what weekday is December 14','can you wave','make an image of a dragon'])assert.equal(ctx.continuePhotoSearch(text,messages),false);
+ assert.equal(ctx.continuePhotoSearch('Tesla cyber cab',[]),false);
+});
+test('bare picture requests and pic wording use real image search',()=>{
+ for(const text of ['a picture of a golden retriever','find me a pic of Paris','photo of Mount Fuji'])assert.equal(ctx.modeFromText(text),'web-images');
+});
