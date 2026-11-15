@@ -1,3 +1,4 @@
+export {AtlasHistory} from './atlas-history.mjs';
 import {STUDIO_CONTRACT,normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs';
 // Atlas free daily chat. Requires Cloudflare Workers Free plan, AI binding and owner token.
 // Optional Groq and Gemini accounts must be on their free tiers with billing disabled. No OpenAI fallback.
@@ -269,13 +270,31 @@ function cleanError(e,env){
  for(const key of [env.ATLAS_ACCESS_TOKEN,env.OPENAI_API_KEY,env.GROQ_API_KEY,env.GEMINI_API_KEY])if(key)text=text.split(key).join('[redacted]');
  return text.slice(0,350);
 }
+async function syncStore(env,path,body,method='POST'){
+ if(!env.HISTORY)throw Object.assign(Error('Private history storage is still deploying. Your chats remain saved on this device.'),{status:503,code:'SYNC_UNAVAILABLE'});
+ return env.HISTORY.get(env.HISTORY.idFromName('atlas-owner-v1')).fetch(new Request('https://history.internal'+path,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}));
+}
+async function pairingHash(code){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(code)))].map(b=>b.toString(16).padStart(2,'0')).join('')}
 export default {async fetch(request,env){
  const origin=request.headers.get('Origin'),path=new URL(request.url).pathname;
  if(origin&&origin!==ORIGIN)return json({error:'Origin not allowed'},403);
  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors});
  if(path==='/atlas/api/health'&&request.method==='GET')return json({provider:'cloudflare-workers-ai',ready:typeof env.AI?.run==='function'&&String(env.ATLAS_ACCESS_TOKEN||'').length>=24,paidFallback:false,images:typeof env.AI?.run==='function',vision:true,imageEditing:typeof env.AI?.run==='function'});
+ if(path==='/atlas/api/pair/claim'&&request.method==='POST'){
+  try{const p=await request.json();if(!/^[a-f0-9]{64}$/.test(p.code||''))return json({error:'Invalid pairing link'},400);const r=await syncStore(env,'/claim',{hash:await pairingHash(p.code)});return json(await r.json(),r.status)}catch{return json({error:'Pairing is unavailable. Try again after deployment.'},503)}
+ }
  if(!env.ATLAS_ACCESS_TOKEN||env.ATLAS_ACCESS_TOKEN.length<24)return json({error:'The private Atlas access token is missing from Cloudflare runtime settings.',code:'MISSING_ACCESS_TOKEN'},503);
  if(request.headers.get('Authorization')!=='Bearer '+env.ATLAS_ACCESS_TOKEN)return json({error:'Atlas access token does not match. Save the token in Atlas Settings.',code:'INVALID_ACCESS_TOKEN'},401);
+ if(path.startsWith('/atlas/api/sync')||path.startsWith('/atlas/api/media/')||path==='/atlas/api/pair'){
+  try{
+   if(path==='/atlas/api/pair'&&request.method==='POST'){const p=await request.json();if(!/^[a-f0-9]{64}$/.test(p.code||''))return json({error:'Invalid pairing code'},400);const r=await syncStore(env,'/pair',{hash:await pairingHash(p.code),expiresAt:Date.now()+600000});return json(await r.json(),r.status)}
+   const media=path.startsWith('/atlas/api/media/');const target=media?'/media/'+path.split('/').at(-1):'/history';
+   if(!['GET','POST'].includes(request.method))return json({error:'Method not allowed'},405);
+   if(Number(request.headers.get('Content-Length')||0)>13000000)return json({error:'Sync payload too large'},413);
+   const raw=request.method==='POST'?await request.text():undefined;if(raw?.length>13000000)return json({error:'Sync payload too large'},413);
+   const r=await syncStore(env,target,raw?JSON.parse(raw):undefined,media&&request.method==='POST'?'PUT':request.method);return json(await r.json(),r.status);
+  }catch(e){return json({error:e.message,code:e.code||'SYNC_FAILED'},e.status||503)}
+ }
  if(!connections(env).some(p=>p.configured))return json({error:'Workers AI binding is missing. Deploy the updated Atlas Worker configuration.',code:'MISSING_AI_BINDING'},503);
  try{
   if(path==='/atlas/api/status'&&request.method==='GET')return json({bridge:'atlas-free-v1',provider:'cloudflare-workers-ai',configured:true,model:'Llama 3.3 70B · free daily allowance',free:true,paidFallback:false,resetAt:nextReset(),web:true,webScope:'Wikipedia live text and Wikimedia photos; not full-web search',images:typeof env.AI?.run==='function',vision:true,imageEditing:typeof env.AI?.run==='function',video:false,connections:connections(env),routing:'Groq → Gemini → Cloudflare; images stay on Cloudflare'});

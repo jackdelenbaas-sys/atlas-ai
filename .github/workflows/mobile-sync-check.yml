@@ -1,0 +1,24 @@
+name: Mobile layouts and private history
+on:
+  push:
+    branches: [main, atlas-mobile-sync-120]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-and-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser test tooling
+        run: |
+          npm install --prefix "$RUNNER_TEMP/atlas-browser" playwright --ignore-scripts --no-audit --no-fund
+          "$RUNNER_TEMP/atlas-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Check desktop, portrait, landscape and device sync
+        env:
+          ATLAS_TEST_PLAYWRIGHT: ${{ runner.temp }}/atlas-browser/node_modules/playwright
+        run: node scripts/check-mobile-sync.mjs

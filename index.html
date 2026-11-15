@@ -157,10 +157,34 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 @media(max-width:760px){#stageActions.studio-dock{top:58px;left:10px;max-width:calc(100% - 58px)}}
 </style><style>.image-editor{width:min(520px,92vw);max-height:90dvh;overflow:auto;padding:22px;border:1px solid #8bcfff55;border-radius:22px;background:#0c1b2c;color:#e8f3ff}.image-editor::backdrop{background:#020812c9;backdrop-filter:blur(8px)}.image-editor img{display:block;width:100%;max-height:240px;object-fit:contain;border-radius:12px}.image-editor textarea{display:block;width:100%;min-height:85px;margin:8px 0;padding:12px;border:1px solid #a9d7ff44;border-radius:12px;background:#071421;color:white;font:inherit}.image-editor button{padding:10px 16px;margin:8px 8px 0 0;border:1px solid #99ccff55;border-radius:12px;background:#234b71;color:white}.image-editor button:disabled{opacity:.5}.atlas-image-card>img{max-width:100%;max-height:330px;object-fit:contain}</style><style>.atlas-web-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;white-space:normal;margin:10px 0}.atlas-web-gallery .atlas-image-card{min-width:0;margin:0}.atlas-web-gallery img{width:100%;height:180px;object-fit:contain;background:#06131b}.atlas-web-gallery .hint{font-size:10px;padding:0 8px;max-height:56px;overflow:auto}.atlas-web-gallery .atlas-image-actions{gap:4px;padding:6px}.atlas-web-gallery button,.atlas-web-gallery a{font-size:10px!important;padding:7px!important}@media(max-width:760px){.atlas-web-gallery img{height:115px}}</style><style>
 .bubble.photo-reply{background:transparent!important;border:0!important;padding:4px 0!important;box-shadow:none!important}.photo-reply .atlas-image-card{border:0;background:transparent;box-shadow:none;padding:0}.photo-reply .atlas-image-preview{border:0;background:none;padding:0;display:block}.photo-reply .atlas-image-preview img{border-radius:12px}.photo-reply details{font-size:11px;color:#89a9bf;margin-top:7px}.photo-reply summary{cursor:pointer}.atlas-web-gallery{display:flex;gap:8px;overflow-x:auto;margin:10px 0;max-width:100%;scrollbar-width:thin}.atlas-web-gallery .photo-thumb{flex:0 0 94px;padding:0!important;border:0;background:none;border-radius:10px;overflow:hidden}.atlas-web-gallery .photo-thumb img{display:block;width:94px;height:76px;object-fit:cover;background:none}.photo-reply .atlas-image-actions{padding:6px 0;border:0;background:none}#photoCredits{max-height:200px;overflow:auto}#photoCredits a{color:#8bdcff}
+</style><style>
+.atlas-history-row{display:grid;grid-template-columns:minmax(0,1fr) 34px 34px;gap:5px;margin:7px 0}.atlas-history-row .entry{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0}.atlas-history-row .btn{padding:9px 6px}#atlasPairLink{font-size:11px;min-width:0;width:100%}
+#app{height:var(--atlas-visible-height,100dvh);max-height:var(--atlas-visible-height,100dvh)}
+@media(max-width:760px){
+ body.atlas-typing #app{grid-template-rows:minmax(0,43%) minmax(0,1fr)!important}
+ body.atlas-typing #app .left{display:flex!important}
+ body.atlas-typing #dividerHandle{display:block!important}
+ body.atlas-typing #app .right{grid-row:auto!important;height:auto!important}
+ #app .right .controls{padding-bottom:env(safe-area-inset-bottom)}
+}
+@media(orientation:landscape) and (max-height:600px) and (pointer:coarse){
+ html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+ #app,body.atlas-typing #app{display:grid!important;grid-template-columns:minmax(230px,var(--split,43%)) minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr)!important;height:var(--atlas-visible-height,100dvh)!important;max-height:var(--atlas-visible-height,100dvh)!important;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+ #app .left,body.atlas-typing #app .left{display:flex!important;min-height:0;height:100%!important;border-right:1px solid #8dbdff33;border-bottom:0}
+ #app .right,body.atlas-typing #app .right{height:100%!important;grid-row:1!important;grid-column:2;min-height:0}
+ #app header{height:42px;padding:0 10px;gap:8px}#app header .badge{font-size:8px}#app .feed{padding:12px;min-height:0}#app .bubble{font-size:12px;max-width:96%}
+ #app .right .stage{inset:0!important;height:100%!important}
+ #app .right .controls{left:3%;width:94%;bottom:max(6px,env(safe-area-inset-bottom))!important;padding:0}
+ #app .inputglass{padding:5px 6px;min-height:44px;gap:5px}#app .inputglass input{font-size:16px!important}#app .inputglass .circle{width:32px;height:32px;flex:0 0 32px;font-size:17px}
+ #app .right .voicebar{display:none!important}#app .right .status{top:8px;left:10px;max-width:calc(100% - 62px)}#app .right .status .badge{font-size:8px;padding:5px 8px}
+ #app #settingsBtn{top:6px!important;right:8px!important;width:32px;height:32px;font-size:15px}#app #stageActions.studio-dock{top:42px;left:8px;max-width:calc(100% - 48px)}
+ #dividerHandle{top:0!important;bottom:0!important;left:var(--split,43%)!important;right:auto!important;width:18px!important;height:100%!important;transform:translateX(-50%)!important;cursor:col-resize}
+ #dividerHandle:before{width:2px!important;height:100%!important}#dividerHandle:after{content:'⋮'!important;padding:10px 3px!important}
+}
 </style></head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">10.17 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">10.18 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><details id="stageActions" class="studio-dock"><summary aria-label="Expand studio controls">Studio controls <span aria-hidden="true">⌄</span></summary><div class="studio-panel" aria-label="Atlas studio controls"><button id="studioUpload" title="Upload a picture">＋ Picture</button><button id="studioNormal" title="Restore the normal studio layout">↺ Normal view</button><button id="studioPresent" title="Show the latest image on the studio screen">▣ Screen</button><button data-motion="wave">Wave</button><button data-motion="walk">Walk</button><button data-motion="dance">Dance</button><button data-motion="idle">Stop</button></div></details><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div id="atlasFiles" class="atlas-files"></div><div class="inputglass"><button id="atlasAttach" class="circle" title="Upload an image or text file" aria-label="Attach files">＋</button><input id="input" autocomplete="off" placeholder="Ask anything, upload a photo, or create an image…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">ATLAS AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
-<div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><div id="threads"></div><p class="hint">Your conversations are saved in this browser.</p></aside>
+<div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><input id="atlasHistorySearch" class="btn wide" placeholder="Search conversations" aria-label="Search conversations"><p id="atlasSyncStatus" class="hint">History saved on this device.</p><div id="threads"></div><p class="hint">Your chats stay available offline and sync across your connected devices.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
 <div class="section">Atlas Cloud AI</div>
 <p class="hint" id="atlasApiInfo">Free daily chat, image creation and image understanding. Resets automatically. No OpenAI credits needed.</p>
@@ -168,7 +192,7 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 <label>Private Atlas access token <input id="atlasCloudToken" type="password" placeholder="Private token from your hosted server" autocomplete="off" style="width:100%"></label>
 <button class="btn wide" id="atlasGenerateToken">Copy Cloudflare token</button><p class="hint" id="atlasTokenInstructions">Copy the token, paste it into Cloudflare’s ATLAS_ACCESS_TOKEN Value, and deploy. Atlas checks automatically when you return.</p>
 
-<button class="btn wide" id="atlasSaveCloud">Save connection and test live AI</button>
+<p class="hint" id="atlasPairInfo">Connect another device to share your private chat history.</p><button class="btn wide" id="atlasPairDevice">Connect another device</button><input id="atlasPairLink" readonly aria-label="Private one-use pairing link" class="btn wide" placeholder="Pairing link appears here"><button class="btn wide" id="atlasPairShare" hidden>Share or copy pairing link</button><p class="hint">Create a private link on your connected computer, then open it on your phone. The link works once and expires in 10 minutes. This device remembers its connection.</p><button class="btn wide" id="atlasSaveCloud">Save connection and test live AI</button>
 <button class="btn wide" id="atlasCheckAPI">↻ Test API connection</button>
 <p class="hint">Keep your Cloudflare Workers account on the Free plan. The daily allowance stops when used up and resets at midnight UTC. Atlas uses Workers AI directly, with no paid OpenAI fallback. Images, image understanding and chat share the free daily allowance. Image creation uses more of that allowance. Live Wikipedia text and Wikimedia photo retrieval are enabled; full-web search and video generation are not connected.</p>
 <p class="hint"><a href="https://github.com/jackdelenbaas-sys/atlas-ai/blob/main/ATLAS_HOSTED_SETUP.md" target="_blank" rel="noopener noreferrer" style="color:#8bdcff">Hosted setup instructions — no Mac installation</a></p>
@@ -176,7 +200,7 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 <details class="hint"><summary>Backup AI connections</summary><div id="atlasConnections">Connect Atlas to see provider status.</div><p>Groq handles text first, Gemini handles chat and uploaded photos, and Cloudflare remains available for chat, image creation and edits. This reserves more Cloudflare allowance for pictures.</p><p>One-time setup uses private Cloudflare runtime secrets. Keys stay on the server. Enable a backup only with an account/project on its free plan and billing disabled; Atlas cannot verify account billing tiers.</p><p><a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Get a Groq key</a> · <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Get a Gemini key</a></p><p>Add GROQ_API_KEY and GROQ_FREE_PLAN=true, or GEMINI_API_KEY and GEMINI_FREE_PLAN=true, in Worker runtime variables, then deploy. Extra keys for the same account do not add quota.</p><p>Video: no dependable free recurring API connected. Image creation and edits still share Cloudflare’s account-wide allowance.</p></details><details class="hint"><summary>Photo credits</summary><div id="photoCredits">Credits for the current slideshow appear here.</div></details><div class="section">Memory</div>
 <button class="btn wide" id="atlasMemoryView">View saved notes</button>
 <button class="btn wide" id="atlasMemoryClear">Clear saved notes</button>
-<p class="hint" id="atlasMemoryInfo" style="white-space:pre-wrap">Atlas can use saved conversations and notes from this browser. Say “remember that…” to save a detail. Short preferences are saved automatically on this browser without extra AI calls. Say “remember that…” or “forget…” to control saved notes. Atlas’s familiarity and sass preference grow here; they do not sync across devices.</p>
+<p class="hint" id="atlasMemoryInfo" style="white-space:pre-wrap">Atlas can use saved conversations and notes from this browser. Say “remember that…” to save a detail. Short preferences are saved automatically on this browser without extra AI calls. Say “remember that…” or “forget…” to control saved notes. Atlas’s familiarity and sass preference grow here; chat history and pictures sync across your connected devices; memory notes are still local.</p>
 <div class="section">Atlas showtime</div>
 <button class="btn wide" id="surpriseMe" style="text-align:center;font-weight:700;background:linear-gradient(110deg,#234d84,#1c365c);border-color:#8dc8ff70">✦ Surprise Me — play a random show</button>
 <p class="hint" id="showStatus">Atlas picks a short sequence: greeting, exploring, presenting, or dancing.</p>
@@ -202,10 +226,10 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
 <p class="hint">Atlas's real motion clips control his limbs. The old manual joint sliders have been removed so they cannot interfere with natural animation.</p><div class="section">Model</div><label id="uploadModelBtn" class="btn wide">Replace Atlas body (optional)<input id="modelUpload" type="file" accept=".glb,model/gltf-binary"></label><p class="hint">The complete original Atlas model now loads automatically from the hosted library, even on a new device.</p><button id="repairAvatar" class="btn wide" style="margin:10px 0;text-align:center">↺ Reset Atlas body and animations</button>
 <p class="hint" id="modelDetails">Original full-body human model • securely hosted and cached</p></aside></div>
-<script type="module" src="atlas-app-v8.js?v=119"></script>
+<script type="module" src="atlas-app-v8.js?v=120"></script>
 <script type="module">
-import {normalizeStudioCommands} from './atlas-studio-controls.mjs?v=119';
-import {presentationFit,presentationSize,facingCameraYaw} from './atlas-presentation.mjs?v=119';
+import {normalizeStudioCommands} from './atlas-studio-controls.mjs?v=120';
+import {presentationFit,presentationSize,facingCameraYaw} from './atlas-presentation.mjs?v=120';
 import {clampPoint,stepTravel,stepGravity} from './atlas-motion.mjs?v=101';
 import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 function createAtlasRenderer(){
@@ -223,7 +247,7 @@ function fit(){
   if(w<2||h<2||w===renderW&&h===renderH)return;
   renderW=w;renderH=h;
   renderer.setSize(w,h,false);
-  camera.aspect=w/h;camera.updateProjectionMatrix();if(screenRoot.visible)fitStudioPresentation();
+  camera.aspect=w/h;camera.updateProjectionMatrix();if(screenRoot.visible)fitStudioPresentation();else fitAtlasView();
  });
 }
 new ResizeObserver(fit).observe(canvas);fit();
@@ -244,7 +268,7 @@ function sliders(){
 updateCam();
 const phonePointers=new Map();
 let pinchDistance=0;
-function mobileCanvas(){return matchMedia('(max-width:760px)').matches}
+function mobileCanvas(){return matchMedia('(pointer:coarse)').matches||matchMedia('(max-width:760px)').matches}
 canvas.addEventListener('pointerdown',e=>{
  if(mobileCanvas()){
   phonePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
@@ -478,6 +502,12 @@ function fitStudioPresentation(){
  const fit=presentationFit({min,max},camera.aspect,camera.fov);center.set(fit.x,fit.y,fit.z);distance=fit.distance;yaw=0;pitch=0;auto=false;$('auto').checked=false;sliders();updateCam();
  if(fromPosition.distanceTo(camera.position)>.01){presentationCameraTween={at:performance.now(),fromPosition,fromQuaternion,toPosition:camera.position.clone(),toQuaternion:camera.quaternion.clone()};camera.position.copy(fromPosition);camera.quaternion.copy(fromQuaternion)}
 }
+function fitAtlasView(){
+ const x=model?.position.x||0,z=model?.position.z||0;
+ const fit=presentationFit({min:{x:x-.45,y:0,z:z-.2},max:{x:x+.45,y:1.9,z:z+.2}},camera.aspect,camera.fov);
+ center.set(fit.x,fit.y,fit.z);distance=fit.distance;yaw=0;pitch=0;sliders();updateCam();
+}
+window.addEventListener('orientationchange',()=>{phonePointers.clear();drag=false;setTimeout(()=>{if(screenRoot.visible)fitStudioPresentation();else fitAtlasView()},180)});
 function arrangeStudioPresentation(reposition=true){
  const w=screenBase.width*screenRoot.scale.x;
  // Anchor the screen beside Atlas instead of overlapping his body.

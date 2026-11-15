@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+const historyModule=readFileSync(new URL('../atlas-history.mjs',import.meta.url),'utf8');
 const contract=readFileSync(new URL('../atlas-studio-controls.mjs',import.meta.url),'utf8');
-const source=readFileSync(new URL('../cloudflare-worker/index.js',import.meta.url),'utf8').replace("'../atlas-studio-controls.mjs'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(contract).toString('base64')));
+const source=readFileSync(new URL('../cloudflare-worker/index.js',import.meta.url),'utf8').replace("'../atlas-history.mjs'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(historyModule).toString('base64'))).replace("'../atlas-studio-controls.mjs'",JSON.stringify('data:text/javascript;base64,'+Buffer.from(contract).toString('base64')));
 const worker=(await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))).default;
 const token='test-token-with-at-least-32-characters';
 const base='https://atlas.test/atlas/api/';

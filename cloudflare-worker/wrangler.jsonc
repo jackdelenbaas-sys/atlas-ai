@@ -5,5 +5,21 @@
   "workers_dev": true,
   "ai": {
     "binding": "AI"
-  }
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "HISTORY",
+        "class_name": "AtlasHistory"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "atlas-history-v1",
+      "new_sqlite_classes": [
+        "AtlasHistory"
+      ]
+    }
+  ]
 }
