@@ -1,4 +1,4 @@
-import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=118';
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=119';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
@@ -483,7 +483,7 @@ async function send(){
   if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);cacheImages(sent);if(sent.images[0]&&current===data.active)studioImage(sent.images[0]);render()}
   const memory=selectedMemories(text);
   const related=relevantHistory(text,t.id);
-  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],personality,studioState:state,model:modelSetting?.value||'cloudflare-free'};
+  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],personality,grounding:true,imageTask:mode==='image'&&(followup||selection.some(f=>f.type.startsWith('image/'))&&isImageEdit(text))?'edit':'create',studioState:state,model:modelSetting?.value||'cloudflare-free'};
   response=await api('/atlas/api/'+mode,payload,mode==='image'?210000:150000);
   if(mode==='image'){if(!response.images?.length)throw Error('No image was returned. Your prompt is saved so you can retry.');for(const src of response.images)await decodeStudioPhoto(src)}
   const studioReply=extractStudioCommands(response.text||'');
@@ -508,8 +508,8 @@ async function send(){
     utterance.onerror=()=>dispatch('speech',false);
     speechSynthesis.speak(utterance);
   }
- }catch(e){if(requestEpoch!==activeRequest)return;if(current===data.active){if(!composer.value)composer.value=text;if(!files.length){files=selection;attachmentPreview()}}if(current===data.active)push('atlas','That didn’t work: '+e.message+(e.code==='MISSING_RUNTIME_SECRETS'?' Open Settings for the missing server configuration.':''));setStatus(e.code==='DAILY_LIMIT_REACHED'?'ATLAS · FREE LIMIT RESETS DAILY':'ATLAS · ERROR');console.error('Atlas request',e)}
- finally{if(requestEpoch===activeRequest){busy=false;busyThread=null;render();if(!['ATLAS · ERROR','ATLAS · FREE LIMIT RESETS DAILY'].includes(status.textContent))setStatus('ATLAS · FREE AI READY')}}
+ }catch(e){if(requestEpoch!==activeRequest)return;if(current===data.active){if(!composer.value)composer.value=text;if(!files.length){files=selection;attachmentPreview()}}if(current===data.active)push('atlas',(e.code==='FREE_CHAT_ONLY'?'':'That didn’t work: ')+e.message+(e.code==='MISSING_RUNTIME_SECRETS'?' Open Settings for the missing server configuration.':''));setStatus(e.code==='DAILY_LIMIT_REACHED'?'ATLAS · FREE LIMIT RESETS DAILY':e.code==='FREE_CHAT_ONLY'?'ATLAS · VIDEO NOT CONNECTED':'ATLAS · ERROR');console.error('Atlas request',e)}
+ finally{if(requestEpoch===activeRequest){busy=false;busyThread=null;render();if(!['ATLAS · ERROR','ATLAS · FREE LIMIT RESETS DAILY','ATLAS · VIDEO NOT CONNECTED'].includes(status.textContent))setStatus('ATLAS · FREE AI READY')}}
 }
 const input=document.createElement('input');input.type='file';input.multiple=true;input.accept='image/*,.txt,.md,.csv,.json,.js,.ts,.py,.html,.css';input.hidden=true;document.body.append(input);
 input.onchange=()=>{void addFiles(input.files);input.value=''};

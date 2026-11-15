@@ -3,7 +3,7 @@ import {STUDIO_CONTRACT,normalizeStudioCommands,parseStudioRequest,extractStudio
 // Optional Groq and Gemini accounts must be on their free tiers with billing disabled. No OpenAI fallback.
 const ORIGIN='https://jackdelenbaas-sys.github.io';
 const VISION_MODEL='@cf/meta/llama-4-scout-17b-16e-instruct';
-const IMAGE_MODEL='@cf/black-forest-labs/flux-2-klein-4b';
+const IMAGE_MODEL='@cf/black-forest-labs/flux-2-klein-9b';
 const MODEL='@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const cors={'Access-Control-Allow-Origin':ORIGIN,'Vary':'Origin','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type,Authorization','Access-Control-Max-Age':'600'};
 const json=(value,status=200)=>new Response(JSON.stringify(value),{status,headers:{...cors,'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
@@ -118,7 +118,7 @@ async function wikipediaImages(request){
  const j=await wikiJSON('en.wikipedia.org',{generator:'search',gsrsearch:request.topic,gsrnamespace:'0',gsrlimit:'5',prop:'pageimages|info',piprop:'thumbnail|name',pithumbsize:'1000',inprop:'url'});
  const pages=(j.query?.pages||[]).filter(p=>p.thumbnail?.source&&p.pageimage&&!/\.svg(?:\.|$)/i.test(p.pageimage));
  if(!pages.length)return [];
- const files=await wikiJSON('en.wikipedia.org',{titles:pages.map(p=>'File:'+p.pageimage).join('|'),prop:'imageinfo',iiprop:'url|mime|size|extmetadata|timestamp',iiurlwidth:'1000'});
+ const files=await wikiJSON('en.wikipedia.org',{titles:pages.map(p=>'File:'+p.pageimage).join('|'),prop:'imageinfo',iiprop:'url|mime|size|extmetadata|timestamp',iiurlwidth:String(request.referenceWidth||1000)});
  const byTitle=new Map((files.query?.pages||[]).map(p=>[p.title,p]));
  return pages.flatMap(p=>{
   const file=byTitle.get('File:'+p.pageimage);const info=file?.imageinfo?.[0];if(!info)return [];
@@ -145,7 +145,7 @@ async function searchPhotoSources(request){
  const q=request.topic;if(!q)return [];
  const modern=/\b(?:modern|contemporary|modernist)\b/i.test(q)&&/\b(?:house|home|villa)s?\b/i.test(q);
  const queries=modern?['"modern house"','"contemporary house"','"modern villa"']:[q.split(' ').map(t=>'"'+t+'"').join(' '),q];
- const searches=await Promise.allSettled(queries.map((query,index)=>wikiJSON('commons.wikimedia.org',{generator:'search',gsrsearch:query+' filetype:bitmap',gsrnamespace:'6',gsrlimit:'32',gsrsort:index===0&&request.since?'last_edit_desc':'relevance',prop:'imageinfo|categories',cllimit:'20',iiprop:'url|mime|size|extmetadata|timestamp',iiurlwidth:'1000'})));
+ const searches=await Promise.allSettled(queries.map((query,index)=>wikiJSON('commons.wikimedia.org',{generator:'search',gsrsearch:query+' filetype:bitmap',gsrnamespace:'6',gsrlimit:'32',gsrsort:index===0&&request.since?'last_edit_desc':'relevance',prop:'imageinfo|categories',cllimit:'20',iiprop:'url|mime|size|extmetadata|timestamp',iiurlwidth:String(request.referenceWidth||1000)})));
  let results=searches.filter(r=>r.status==='fulfilled').flatMap(r=>r.value.query?.pages||[]);
  let images=selectPhotoResults(request,results);
  if(!images.length){results=await wikipediaImages(request).catch(()=>[]);images=selectPhotoResults(request,results)}
@@ -168,6 +168,31 @@ async function remoteImage(data){
  if(Number(r.headers.get('content-length')||0)>4000000)throw Object.assign(Error('This web photo is too large.'),{status:413});
  const reader=r.body.getReader(),parts=[];let total=0;while(true){const {done,value}=await reader.read();if(done)break;total+=value.length;if(total>4000000){await reader.cancel();throw Object.assign(Error('This web photo is too large.'),{status:413})}parts.push(value)}
  const bytes=new Uint8Array(total);let offset=0;for(const part of parts){bytes.set(part,offset);offset+=part.length}let str='';for(let i=0;i<bytes.length;i+=8192)str+=String.fromCharCode(...bytes.subarray(i,i+8192));return 'data:'+mime+';base64,'+btoa(str);
+}
+function imageBrief(prompt,editing=false){
+ const text=String(prompt).replace(/\bcyber\s+truck\b/gi,'Cybertruck');
+ const stylized=/\b(?:cartoon|anime|illustration|painting|watercolor|sketch|drawing|pixel art|comic|stylized|logo)\b/i.test(text);
+ const identity=/\bcybertruck\b/i.test(text)?'Exact subject: Tesla Cybertruck production pickup. Recognizable sharply folded flat stainless-steel panels, angular wedge profile and peaked roofline, four-door crew cab, separate pickup cargo bed, full-width thin front light bar, dark angular wheel arches and large truck tires. Preserve real vehicle proportions. Do not substitute a rounded crossover, minivan, Cybercab or generic SUV.':'';
+ return {subject:identity?'Tesla Cybertruck':'',prompt:(editing?'Edit the supplied base image. Preserve the scene and all details not requested to change. When the request corrects or replaces the subject, replace its incorrect identity and geometry; do not preserve the wrong model. ':'Create the exact requested scene. ')+text+'\n'+identity+'\n'+(stylized?'Follow the requested artistic style.':'Photorealistic camera photograph: believable physical geometry, correct anatomy and object construction, consistent perspective, natural lighting, physically plausible shadows and material reflections, realistic scale and contact with the environment. Keep the primary subject clearly identifiable and in focus. No invented text, watermark, plastic CGI appearance or arbitrary model substitution.')};
+}
+async function groundedImageBrief(prompt,env,editing){
+ const brief=imageBrief(prompt,editing);let subject=brief.subject;
+ if(!subject){
+  try{
+   const raw=await infer(env,[{role:'system',content:'Return JSON only: {"subject":"short searchable primary subject","details":"brief visual construction details"}. Identify the requested primary subject for image reference search, retaining brand/model/species/landmark names. Preserve the user scene and counts; do not change named subjects or invent specifications. No URLs. If there is no concrete subject, use empty strings.'},{role:'user',content:String(prompt).slice(0,1500)}],160);
+   const plan=JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g,''));
+   if(typeof plan.subject==='string')subject=plan.subject.slice(0,120);
+   if(typeof plan.details==='string')brief.prompt+='\nAdditional visual guidance (the original request takes priority): '+plan.details.slice(0,500);
+  }catch{}
+ }
+ const references=[];
+ if(subject){try{
+  const request=photoRequest(subject);request.limit=2;request.referenceWidth=512;
+  const matches=await searchPhotoSources(request);
+  for(const item of matches.slice(0,2)){try{const data=await remoteImage(item.url);references.push({data,title:item.title,source:item.source})}catch{}}
+ }catch{}}
+ if(references.length)brief.prompt+='\nAdditional supplied reference images show the primary subject’s real appearance. Match its recognizable shape, proportions and materials. Use references for identity only; keep the user-requested scene, action, camera and composition. Requested colors and modifications override reference colors. '+(editing?'The first image is the base image to edit; the later images are identity references.':'All supplied images are appearance references, not a scene to copy.');
+ return {...brief,references};
 }
 function generatedImageData(result){
  const data=result?.image;
@@ -269,15 +294,17 @@ export default {async fetch(request,env){
     let prompt=String(p.text||'').trim().slice(0,1500);
     if(!prompt)return json({error:'Describe the image you want to create.'},400);
     const attachments=(Array.isArray(p.attachments)?p.attachments:[]).filter(a=>String(a?.type||'').startsWith('image/')).slice(0,3);
-    const form=new FormData();
-    form.append('prompt',attachments.length?'Edit the supplied image. Preserve its composition, subject identity and all details unless the user asks to change them. Apply only this requested change: '+prompt:'Follow this description precisely, including named objects, their appearance, counts and relationships: '+prompt);
+    const editing=p.imageTask==='edit'||p.imageTask!=='create'&&attachments.length>0;
+    const brief=p.grounding===false?imageBrief(prompt,editing):await groundedImageBrief(prompt,env,editing);
+    const inputs=[...attachments,...brief.references||[]].slice(0,4);
+    const form=new FormData();form.append('prompt',brief.prompt);
     form.append('width','1024');form.append('height','1024');
-    for(const [i,a] of attachments.entries()){
+    for(const [i,a] of inputs.entries()){
      const data=validImage(a.data),mime=data.slice(5,data.indexOf(';')),bytes=Uint8Array.from(atob(data.split(',')[1]),c=>c.charCodeAt(0));
      form.append('input_image_'+i,new Blob([bytes],{type:mime}),'reference-'+i+'.jpg');
     }
     const image=await generateImage(env,form);
-    return json({text:attachments.length?'Here is the edited image.':'Here is your image.',actions:['point','nod','idle'],images:[image],sources:[],provider:'cloudflare-workers-ai',free:true,resetAt:nextReset()});
+    return json({text:editing?'Here is the edited image.':'Here is your image.',actions:['point','nod','idle'],images:[image],sources:[],provider:'cloudflare-workers-ai',referenceCount:brief.references?.length||0,free:true,resetAt:nextReset()});
    }
    const directStudio=parseStudioRequest(p.text,p.studioState);
    if(directStudio.length)return json({text:'Adjusting the studio.',studio:directStudio,sources:[],images:[],free:true,provider:'local-studio'});
