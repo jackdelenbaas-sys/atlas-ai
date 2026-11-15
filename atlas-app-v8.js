@@ -259,7 +259,7 @@ function cleanReply(text){
  return {text,actions};
 }
 function actionReply(action){return action==='idle'?'Stopping. The dramatic pause is intentional.':action==='dance'?'Fine. The floor clearly needs my talent.':action==='walk'?'Taking a stroll. Very ambitious of me.':action==='back'?'Backing up. A rare strategic retreat.':action==='wave'?'A wave? Consider yourself acknowledged.':'On it. Try to contain your excitement.'}
-let syncTimer=0,syncRunning=false,syncRevision=0,lastPushed=-1,syncFirst=true;
+let syncTimer=0,syncRunning=false,syncRevision=0,lastPushed=-1,syncFirst=true,pairResumeId='';
 const uploadedMedia=new Set((()=>{try{return JSON.parse(localStorage.getItem('atlas-cloud-media')||'[]')}catch{return []}})());
 function syncStatus(text){for(const id of ['atlasSyncStatus','atlasPairInfo']){const el=$(id);if(el)el.textContent=text}}
 function scheduleSync(){syncRevision++;clearTimeout(syncTimer);if(ACCESS){syncStatus('Saving to your connected devices…');syncTimer=setTimeout(()=>void syncHistory(),800)}}
@@ -279,7 +279,8 @@ async function syncHistory(){
   for(const t of combined.threads)for(const m of t.msgs)if(images.has(m.id))m.images=images.get(m.id);
   data.threads=combined.threads;data.deleted=combined.deleted;
   if(syncFirst&&!busy&&!composer.value&&(!data.threads.find(t=>t.id===String(data.active))?.msgs.length)&&result.threads?.length)data.active=result.threads[0].id;
-  syncFirst=false;if(!data.threads.some(t=>t.id===String(data.active)))data.active=data.threads[0]?.id;
+  if(pairResumeId&&!busy&&!composer.value&&data.threads.some(t=>t.id===pairResumeId)){data.active=pairResumeId;pairResumeId=''}
+  if(result.threads?.length||data.threads.some(t=>t.msgs.length))syncFirst=false;if(!data.threads.some(t=>t.id===String(data.active)))data.active=data.threads[0]?.id;
   if(!data.threads.length){const id=crypto.randomUUID();data.threads=[{id,title:'New conversation',updatedAt:Date.now(),msgs:[]}];data.active=id}
   saveLocal();lastPushed=revision;
   if(before!==JSON.stringify(normalizeHistory(data))){render();void restoreImages()}
@@ -291,10 +292,10 @@ async function connectPairingLink(){
  const params=new URLSearchParams(location.hash.slice(1)),code=params.get('pair');if(!code)return false;
  const server=params.get('server')||BASE;history.replaceState(null,'',location.pathname+location.search);
  if(server!==BASE||!/^https:\/\/[^/]+$/.test(server)){syncStatus('This pairing link uses a different server. Use a link from your connected Atlas computer.');return false}
- try{const r=await fetch(server+'/atlas/api/pair/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})}),j=await r.json();if(!r.ok||!j.token)throw Error(j.error||'Pairing failed');ACCESS=j.token;sessionStorage.setItem('atlas-access-token',ACCESS);localStorage.setItem('atlas-access-token',ACCESS);if(tokenField)tokenField.value=ACCESS;syncStatus('Device connected. Loading your history…');return true}catch(e){syncStatus(e.message);open('settings');return false}
+ try{const r=await fetch(server+'/atlas/api/pair/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})}),j=await r.json();if(!r.ok||!j.token)throw Error(j.error||'Pairing failed');ACCESS=j.token;pairResumeId=j.activeThreadId||'';sessionStorage.setItem('atlas-access-token',ACCESS);localStorage.setItem('atlas-access-token',ACCESS);if(tokenField)tokenField.value=ACCESS;syncStatus('Device connected. Loading your history…');return true}catch(e){syncStatus(e.message);open('settings');return false}
 }
 $('atlasPairDevice').onclick=async()=>{
- try{if(!ACCESS)throw Error('Create the link on your already-connected computer.');const code=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');await api('/atlas/api/pair',{code});const url=new URL(location.href);url.search='?v=120';url.hash=new URLSearchParams({pair:code,server:BASE}).toString();$('atlasPairLink').value=url.href;$('atlasPairShare').hidden=false;syncStatus('Private one-use link, valid for 10 minutes. Open it on your phone.')}catch(e){syncStatus(e.message)}
+ try{if(!ACCESS)throw Error('Create the link on your already-connected computer.');const code=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');await api('/atlas/api/pair',{code,activeThreadId:data.active});const url=new URL(location.href);url.search='?v=120';url.hash=new URLSearchParams({pair:code,server:BASE}).toString();$('atlasPairLink').value=url.href;$('atlasPairShare').hidden=false;syncStatus('Private one-use link, valid for 10 minutes. Open it on your phone.')}catch(e){syncStatus(e.message)}
 };
 $('atlasPairShare').onclick=async()=>{const url=$('atlasPairLink').value;try{if(navigator.share)await navigator.share({title:'Connect my Atlas device',url});else{await navigator.clipboard.writeText(url);syncStatus('Pairing link copied. Open it on your other device.')}}catch{$('atlasPairLink').focus();$('atlasPairLink').select()}};
 window.addEventListener('online',()=>void syncHistory());
@@ -500,7 +501,7 @@ function modeFromText(t,attachments=[]){
  return 'chat';
 }
 async function send(){
- if(busy)return;if(!ACCESS){open('settings');syncStatus('This phone is not paired yet. Create a private pairing link in Atlas Settings on your connected computer, then open it here.');return}const text=composer.value.trim();if(!text&&!files.length)return;++pendingAction;
+ if(busy)return;pairResumeId='';if(!ACCESS){open('settings');syncStatus('This phone is not paired yet. Create a private pairing link in Atlas Settings on your connected computer, then open it here.');return}const text=composer.value.trim();if(!text&&!files.length)return;++pendingAction;
  composer.value='';dispatch('listen');if(text&&remember(text)){files=[];attachmentPreview();return}
  if(text&&memoryRequest(text)){files=[];attachmentPreview();return}
  summarizeMemory(text);

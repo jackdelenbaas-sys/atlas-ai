@@ -21,10 +21,10 @@ export class AtlasHistory{
  async fetch(request){
   const path=new URL(request.url).pathname,storage=this.state.storage;
   if(path==='/pair'){
-   const p=await request.json();await storage.put('pair',{hash:p.hash,expiresAt:p.expiresAt});return Response.json({expiresAt:p.expiresAt});
+   const p=await request.json();await storage.put('pair',{hash:p.hash,expiresAt:p.expiresAt,activeThreadId:String(p.activeThreadId||'').slice(0,100)});return Response.json({expiresAt:p.expiresAt});
   }
   if(path==='/claim'){
-   const p=await request.json();return storage.transaction(async tx=>{const code=await tx.get('pair');if(!code||code.hash!==p.hash||code.expiresAt<Date.now())return Response.json({error:'This private pairing link has expired. Make a new link on your computer.'},{status:410});await tx.delete('pair');return Response.json({token:this.env.ATLAS_ACCESS_TOKEN})});
+   const p=await request.json();return storage.transaction(async tx=>{const code=await tx.get('pair');if(!code||code.hash!==p.hash||code.expiresAt<Date.now())return Response.json({error:'This private pairing link has expired. Make a new link on your computer.'},{status:410});await tx.delete('pair');return Response.json({token:this.env.ATLAS_ACCESS_TOKEN,activeThreadId:code.activeThreadId||''})});
   }
   if(path.startsWith('/media/')){
    const id=path.slice(7);if(!/^[a-zA-Z0-9-]{8,100}$/.test(id))return Response.json({error:'Invalid media ID'},{status:400});

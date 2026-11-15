@@ -287,7 +287,7 @@ export default {async fetch(request,env){
  if(request.headers.get('Authorization')!=='Bearer '+env.ATLAS_ACCESS_TOKEN)return json({error:'Atlas access token does not match. Save the token in Atlas Settings.',code:'INVALID_ACCESS_TOKEN'},401);
  if(path.startsWith('/atlas/api/sync')||path.startsWith('/atlas/api/media/')||path==='/atlas/api/pair'){
   try{
-   if(path==='/atlas/api/pair'&&request.method==='POST'){const p=await request.json();if(!/^[a-f0-9]{64}$/.test(p.code||''))return json({error:'Invalid pairing code'},400);const r=await syncStore(env,'/pair',{hash:await pairingHash(p.code),expiresAt:Date.now()+600000});return json(await r.json(),r.status)}
+   if(path==='/atlas/api/pair'&&request.method==='POST'){const p=await request.json();if(!/^[a-f0-9]{64}$/.test(p.code||''))return json({error:'Invalid pairing code'},400);const r=await syncStore(env,'/pair',{hash:await pairingHash(p.code),expiresAt:Date.now()+600000,activeThreadId:String(p.activeThreadId||'').slice(0,100)});return json(await r.json(),r.status)}
    const media=path.startsWith('/atlas/api/media/');const target=media?'/media/'+path.split('/').at(-1):'/history';
    if(!['GET','POST'].includes(request.method))return json({error:'Method not allowed'},405);
    if(Number(request.headers.get('Content-Length')||0)>13000000)return json({error:'Sync payload too large'},413);
