@@ -163,6 +163,8 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 @media(max-width:760px){
  body.atlas-typing #app{grid-template-rows:minmax(0,43%) minmax(0,1fr)!important}
  body.atlas-typing #app .left{display:flex!important}
+ #app .right .voicebar,body.atlas-typing #app .right .voicebar{display:flex!important;min-height:32px;margin-top:6px}
+ #app .right .voicebar .circle{width:30px;height:30px;font-size:16px}
  body.atlas-typing #dividerHandle{display:block!important}
  body.atlas-typing #app .right{grid-row:auto!important;height:auto!important}
  #app .right .controls{padding-bottom:env(safe-area-inset-bottom)}

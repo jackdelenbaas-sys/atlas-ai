@@ -35,7 +35,7 @@ try{
  const phone=await device({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:1}),p=phone.page;
  await p.goto(link);await p.getByText('Hello desktop',{exact:true}).waitFor();assert.equal(new URL(p.url()).hash,'');assert.equal(await p.evaluate(()=>localStorage.getItem('atlas-access-token')),token);
  let left=await p.locator('#app > .left').boundingBox(),right=await p.locator('#app > .right').boundingBox();assert.ok(right.y>=left.y+left.height-2);assert.ok(right.height>200);
- await p.locator('#input').fill('Hello phone');assert.equal(await p.locator('#app > .left').isVisible(),true);await p.locator('#send').click();await p.waitForFunction(()=>!document.querySelector('#send').disabled);
+ await p.locator('#input').fill('Hello phone');assert.equal(await p.locator('#app > .left').isVisible(),true);await p.locator('#send').click();await p.getByText('Hello phone',{exact:true}).waitFor();await p.waitForFunction(()=>!document.querySelector('#send').disabled);
  await p.setViewportSize({width:844,height:390});await p.waitForFunction(()=>{const a=document.querySelector('#app>.left').getBoundingClientRect(),b=document.querySelector('#app>.right').getBoundingClientRect();return b.x>=a.right-2&&Math.abs(a.top-b.top)<2});
  left=await p.locator('#app > .left').boundingBox();right=await p.locator('#app > .right').boundingBox();assert.ok(left.height>300&&right.height>300);
  const composer=await p.locator('.inputglass').boundingBox();assert.ok(composer.y>=0&&composer.y+composer.height<=391);

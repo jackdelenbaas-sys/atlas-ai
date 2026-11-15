@@ -577,7 +577,7 @@ $('app').addEventListener('dragleave',e=>{if(!e.currentTarget.contains(e.related
 $('app').addEventListener('drop',e=>{e.preventDefault();document.body.classList.remove('atlas-dropping');void addFiles(e.dataTransfer.files)});
 composer.addEventListener('paste',e=>{const images=[...e.clipboardData.items].filter(i=>i.type.startsWith('image/')).map(i=>i.getAsFile()).filter(Boolean);if(images.length){e.preventDefault();void addFiles(images)}});
 
-$('send').onclick=send;
+$('send').onclick=send;$('send').addEventListener('pointerdown',e=>{if(document.activeElement===composer)e.preventDefault()});
 composer.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
 $('newChat').onclick=()=>{resetConversationScene();const id=crypto.randomUUID();data.threads.unshift({id,title:'New conversation',updatedAt:Date.now(),msgs:[]});data.active=id;save();render();close()};
 const open=id=>{$(id).classList.add('show');$('veil').classList.add('show')};
