@@ -1,4 +1,4 @@
-import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=115';
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=116';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';

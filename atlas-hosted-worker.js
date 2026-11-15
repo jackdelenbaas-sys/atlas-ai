@@ -64,18 +64,19 @@ async function webFacts(text){
  const j=await wikiJSON('en.wikipedia.org',{generator:'search',gsrsearch:String(text).slice(0,220),gsrnamespace:'0',gsrlimit:'3',prop:'extracts|info',inprop:'url',exintro:'1',explaintext:'1',exchars:'1200',exlimit:'3'});
  return (j.query?.pages||[]).filter(p=>p.extract&&p.fullurl?.startsWith('https://en.wikipedia.org/')).sort((a,b)=>a.index-b.index).slice(0,3).map(p=>({title:p.title,url:p.fullurl,excerpt:plain(p.extract),retrievedAt:new Date().toISOString()}));
 }
-const PHOTO_STOP=new Set('a an the of in on at with and or for to from me please can could you show find get pull give send search look photos photo pictures picture images image photographs photograph some multiple several few real actual genuine beautiful nice cool best high quality updated'.split(' '));
+const PHOTO_STOP=new Set('a an the of in on at with and or for to from me please can could you show find get pull give send search look photos photo pictures picture images image photographs photograph some multiple several few real actual genuine beautiful nice cool best high quality updated one two three four five six just only really awesome amazing please'.split(' '));
 const PHOTO_GROUPS=[['cow','cattle','bovine'],['car','automobile'],['bike','bicycle'],['dog','canine'],['cat','feline'],['house','home','villa','residence','dwelling'],['modern','contemporary','modernist','modernism'],['airplane','aircraft','aeroplane'],['ship','vessel'],['beach','seaside']];
 const photoWords=text=>(String(text||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').match(/[\p{L}\p{N}]+/gu)||[]).map(t=>t.length>3&&t.endsWith('s')&&!t.endsWith('ss')?t.slice(0,-1):t);
 function photoRequest(text,now=new Date()){
- let topic=searchTopic(text).replace(/^(?:a|an|the|some)\s+/i,'');
+ let topic=searchTopic(text).replace(/\bcyber\s+truck\b/gi,'cybertruck').replace(/\brobot\s+taxi\b/gi,'robotaxi').replace(/^(?:a|an|the|some)\s+/i,'');
+ if(/\btesla\b/i.test(topic)&&/\brobotaxi\b/i.test(topic)&&/\b(?:new|newest|latest|cybercab)\b/i.test(topic))topic=topic.replace(/\brobotaxi\b/gi,'cybercab');
  const exclusions=[];topic=topic.replace(/\b(?:without|excluding|not|no)\s+([^,;.]+)/gi,(_,part)=>{exclusions.push(...photoWords(part).filter(t=>!PHOTO_STOP.has(t)));return ''});
  const fresh=!/\b(?:historical|historic|archival|vintage|old photos?|old pictures?|old images?|from (?:19|20)\d{2})\b/i.test(topic)||/\b(?:latest|newest|recent|recently|current|updated|up to date|today|this week|this month|this year|new photos?|new pictures?|new images?|brand new)\b/i.test(topic)||/\bnew\b(?!\s+(?:york|zealand|orleans|delhi|jersey|hampshire|mexico|brunswick|south wales)\b)/i.test(topic);
  let since=null;
  if(fresh){since=new Date(now);if(/\btoday\b/i.test(topic))since.setUTCHours(0,0,0,0);else if(/this year/i.test(topic))since=new Date(Date.UTC(now.getUTCFullYear(),0,1));else since.setUTCDate(since.getUTCDate()-(/this week/i.test(topic)?7:/this month/i.test(topic)?31:365));}
  topic=topic.replace(/\b(?:latest|newest|recent|recently|current|updated|up to date|today|this week|this month|this year|brand new)\b/gi,'').replace(/\bnew\b(?!\s+(?:york|zealand|orleans|delhi|jersey|hampshire|mexico|brunswick|south wales)\b)/gi,'').replace(/\s+/g,' ').trim();
  const terms=[...new Set(photoWords(topic).filter(t=>!PHOTO_STOP.has(t)))];
- return {topic:terms.join(' '),terms,exclusions,since,until:now,photoOnly:! /\b(?:drawing|illustration|painting|cartoon|diagram|map|logo|render|artwork)\b/i.test(text)};
+ return {topic:terms.join(' '),terms,exclusions,since,until:now,limit:/\b(?:one|1|single|a picture|a photo|an image)\b/i.test(text)?1:6,photoOnly:! /\b(?:drawing|illustration|painting|cartoon|diagram|map|logo|render|artwork)\b/i.test(text)};
 }
 function photoTakenDate(page){
  const meta=page.imageinfo?.[0]?.extmetadata||{};
@@ -102,9 +103,13 @@ function photoMatch(request,page){
   if(/\b(?:construction|scaffolding|under construction|first aid kit|music festival|album cover|concert poster)\b/i.test(label)||/\b(?:church|temple|museum|tower|apartment|interior|kitchen|bedroom|bathroom|ruin|barn|gate|wall|copse|courtyard)s?\b/i.test(title))return -1;
  }
  const taken=photoTakenDate(page);
- if(request.since&&(!taken||taken<request.since||taken>request.until))return -1;
+ if(taken&&taken>request.until)return -1;
  const titleWords=new Set(photoWords(title));
  return request.terms.reduce((score,t)=>score+(titleWords.has(t)?3:1),0);
+}
+function photoRecency(page,until=new Date()){
+ const capture=photoTakenDate(page);if(capture)return capture<=until?capture.getTime():0;
+ const upload=new Date(page.imageinfo?.[0]?.timestamp||'');return Number.isFinite(upload.getTime())&&upload<=until?upload.getTime():0;
 }
 async function webImages(text){
  const request=photoRequest(text),q=request.topic;if(!q)throw Object.assign(Error('Tell me what pictures to find.'),{status:400});
@@ -113,12 +118,12 @@ async function webImages(text){
  const searches=await Promise.allSettled(queries.map(query=>wikiJSON('commons.wikimedia.org',{generator:'search',gsrsearch:query+' filetype:bitmap',gsrnamespace:'6',gsrlimit:request.since?'48':'24',gsrsort:request.since?'last_edit_desc':'relevance',prop:'imageinfo|categories',cllimit:'20',iiprop:'url|mime|extmetadata|timestamp',iiurlwidth:'800'})));
  const results=searches.filter(r=>r.status==='fulfilled').flatMap(r=>r.value.query?.pages||[]);
  if(!results.length&&searches.every(r=>r.status==='rejected'))throw searches[0].reason;
- const seen=new Set(),subjects=new Set();return results.map(p=>({p,score:photoMatch(request,p)})).filter(r=>r.score>=0).sort((a,b)=>b.score-a.score||(a.p.index||0)-(b.p.index||0)).flatMap(({p})=>{
+ const seen=new Set(),subjects=new Set();return results.map(p=>({p,score:photoMatch(request,p)})).filter(r=>r.score>=0).sort((a,b)=>(request.since?photoRecency(b.p,request.until)-photoRecency(a.p,request.until):0)||b.score-a.score||(a.p.index||0)-(b.p.index||0)).flatMap(({p})=>{
   const i=p.imageinfo?.[0];if(!i||!['image/jpeg','image/png','image/webp'].includes(i.mime))return [];
   const url=i.thumburl||i.url;if(!/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(url||'')||seen.has(url))return [];const subject=p.title.toLowerCase().replace(/\([^)]*\)|\.[a-z]{3,4}$/g,'').replace(/\s+/g,' ').trim();
   if(subjects.has(subject))return [];subjects.add(subject);seen.add(url);
   return [{url,title:p.title.replace(/^File:/,''),source:i.descriptionurl,license:plain(i.extmetadata?.LicenseShortName?.value||'See source for license'),author:plain(i.extmetadata?.Artist?.value||''),takenAt:photoTakenDate(p)?.toISOString().slice(0,10)||null,retrievedAt:new Date().toISOString()}];
- }).slice(0,6);
+ }).slice(0,request.limit);
 }
 async function remoteImage(data){
  let url;try{url=new URL(data)}catch{throw Object.assign(Error('Invalid web image.'),{status:400})}
@@ -199,7 +204,7 @@ export default {async fetch(request,env){
    if(Number(request.headers.get('Content-Length')||0)>6500000)return json({error:'This message is too large for image chat.'},413);
    const raw=await request.text();if(raw.length>6500000)return json({error:'This message is too large for image chat.'},413);
    const p=JSON.parse(raw);if(!p||typeof p!=='object'||Array.isArray(p))return json({error:'Invalid message.'},400);
-   if(path.endsWith('/web-images')){const images=await webImages(p.text);return json({text:images.length?(photoRequest(p.text).since?'Here are matching photos with recent source-recorded capture dates.':'Here are the matching photos.'):'I couldn’t verify matching photos'+(photoRequest(p.text).since?' with a recent capture date':'')+'. I won’t substitute unrelated or undated pictures.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),actions:['point','idle'],web:true,provider:'wikimedia',free:true})}
+   if(path.endsWith('/web-images')){const images=await webImages(p.text);return json({text:images.length?(images.length===1?'Here it is.':'Here are the photos.'):'I couldn’t find a matching picture. Try the specific name or model.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),actions:['point','idle'],web:true,provider:'wikimedia',free:true})}
    if(path.endsWith('/web-image'))return json({image:await remoteImage(p.url)});
    if(path.endsWith('/image')){
     let prompt=String(p.text||'').trim().slice(0,1500);

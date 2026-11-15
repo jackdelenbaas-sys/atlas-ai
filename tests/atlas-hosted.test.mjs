@@ -166,5 +166,10 @@ test('modern house search rejects unrelated towers, murals and traditional house
  const original=globalThis.fetch;
  const names=['Modern house exterior.jpg','Contemporary villa.jpg','Traditional cottage.jpg','Modern tower.jpg','Modern house mural.jpg'];
  globalThis.fetch=async url=>{const u=new URL(url);assert.ok(u.searchParams.get('gsrsearch').startsWith('"'));return new Response(JSON.stringify({query:{pages:names.map((name,i)=>({title:'File:'+name,index:i,imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/'+i+'.jpg',extmetadata:{DateTimeOriginal:{value:new Date().toISOString().slice(0,10)},ImageDescription:{value:name}}}]}))}}))};
- try{const r=await worker.fetch(req('web-images',{text:'find a picture of a modern house'}),env);const j=await r.json();assert.equal(r.status,200);assert.deepEqual(j.webImages.map(x=>x.title),['Modern house exterior.jpg','Contemporary villa.jpg'])}finally{globalThis.fetch=original}
+ try{const r=await worker.fetch(req('web-images',{text:'find photos of a modern house'}),env);const j=await r.json();assert.equal(r.status,200);assert.deepEqual(j.webImages.map(x=>x.title),['Modern house exterior.jpg','Contemporary villa.jpg'])}finally{globalThis.fetch=original}
+});
+test('one-picture request returns a relevant undated fallback with no date explanation',async()=>{
+ const original=globalThis.fetch;
+ globalThis.fetch=async()=>new Response(JSON.stringify({query:{pages:[{title:'File:Tesla Cybercab.jpg',index:1,imageinfo:[{mime:'image/jpeg',thumburl:'https://upload.wikimedia.org/cybercab.jpg',extmetadata:{}}]}]}}));
+ try{const r=await worker.fetch(req('web-images',{text:'show me one cool picture of the Tesla robot taxi the new one'}),env);const j=await r.json();assert.equal(r.status,200);assert.equal(j.webImages.length,1);assert.equal(j.text,'Here it is.');assert.ok(!/date|capture|verify/i.test(j.text))}finally{globalThis.fetch=original}
 });
