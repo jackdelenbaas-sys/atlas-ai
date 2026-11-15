@@ -3,7 +3,7 @@ import {mergeHistory,normalizeHistory} from './atlas-history.mjs?v=120';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
-let ACCESS=sessionStorage.getItem('atlas-access-token')||localStorage.getItem('atlas-access-token')||'';
+let ACCESS=sessionStorage.getItem('atlas-access-token')||localStorage.getItem('atlas-access-token')||'';if(ACCESS)localStorage.setItem('atlas-access-token',ACCESS);
 const STORE='atlas-v43-chat',MEM='atlas-v57-memory',PROFILE='atlas-personality-v1';
 const status=$('aiModeLabel'),feed=$('feed'),composer=$('input');
 const serverField=$('atlasCloudURL'),tokenField=$('atlasCloudToken');
@@ -262,7 +262,7 @@ function actionReply(action){return action==='idle'?'Stopping. The dramatic paus
 let syncTimer=0,syncRunning=false,syncRevision=0,lastPushed=-1,syncFirst=true;
 const uploadedMedia=new Set((()=>{try{return JSON.parse(localStorage.getItem('atlas-cloud-media')||'[]')}catch{return []}})());
 function syncStatus(text){for(const id of ['atlasSyncStatus','atlasPairInfo']){const el=$(id);if(el)el.textContent=text}}
-function scheduleSync(){syncRevision++;clearTimeout(syncTimer);if(ACCESS)syncTimer=setTimeout(()=>void syncHistory(),800)}
+function scheduleSync(){syncRevision++;clearTimeout(syncTimer);if(ACCESS){syncStatus('Saving to your connected devices…');syncTimer=setTimeout(()=>void syncHistory(),800)}}
 function syncDocument(){return normalizeHistory({...data,threads:data.threads.filter(t=>t.msgs.length)})}
 async function syncHistory(){
  if(!ACCESS||!BASE){syncStatus('Connect this device to see your shared history.');return}
@@ -283,7 +283,7 @@ async function syncHistory(){
   if(!data.threads.length){const id=crypto.randomUUID();data.threads=[{id,title:'New conversation',updatedAt:Date.now(),msgs:[]}];data.active=id}
   saveLocal();lastPushed=revision;
   if(before!==JSON.stringify(normalizeHistory(data))){render();void restoreImages()}
-  syncStatus('Synced across your connected devices.');
+  syncStatus(syncRevision===revision?'Synced across your connected devices.':'Syncing recent changes…');
  }catch(e){syncStatus('Saved on this device. Sync will retry. '+e.message)}
  finally{syncRunning=false;if(syncRevision!==revision){clearTimeout(syncTimer);syncTimer=setTimeout(()=>void syncHistory(),900)}}
 }
@@ -544,7 +544,7 @@ async function send(){
   const txt=cleaned.text||'Done.';
   if(!response.actions?.length)response.actions=cleaned.actions;
   if(current===data.active&&requestEpoch===activeRequest){const m=push('atlas',txt,{images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]});cacheImages(m);void presentReplyMedia(m)}
-  else {const thread=data.threads.find(x=>x.id===current);if(thread){const m={id:crypto.randomUUID(),createdAt:Date.now(),updatedAt:Date.now(),role:'atlas',text:txt,images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]};thread.msgs.push(m);cacheImages(m);save()}}
+  else {const thread=data.threads.find(x=>x.id===current);if(thread){const m={id:crypto.randomUUID(),createdAt:Date.now(),updatedAt:Date.now(),role:'atlas',text:txt,images:response.images||[],sources:response.sources||[],webImages:response.webImages||[]};thread.updatedAt=Date.now();thread.msgs.push(m);cacheImages(m);save()}}
   // Explicit user motions or model-selected actions take precedence over
   // a generic reply nod, so the body follows the intended movement.
   // The explicit user command always wins over an optional AI-selected gesture.

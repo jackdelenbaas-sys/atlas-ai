@@ -39,11 +39,11 @@ try{
  await p.setViewportSize({width:844,height:390});await p.waitForFunction(()=>{const a=document.querySelector('#app>.left').getBoundingClientRect(),b=document.querySelector('#app>.right').getBoundingClientRect();return b.x>=a.right-2&&Math.abs(a.top-b.top)<2});
  left=await p.locator('#app > .left').boundingBox();right=await p.locator('#app > .right').boundingBox();assert.ok(left.height>300&&right.height>300);
  const composer=await p.locator('.inputglass').boundingBox();assert.ok(composer.y>=0&&composer.y+composer.height<=391);
- await p.waitForFunction(()=>document.querySelector('#atlasSyncStatus').textContent.includes('Synced'));await d.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await d.getByText('Hello phone',{exact:true}).waitFor();
+ await p.waitForFunction(()=>document.querySelector('#atlasSyncStatus').textContent.includes('Synced'));await d.bringToFront();await d.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await d.getByText('Hello phone',{exact:true}).waitFor();
  await d.locator('#settings [data-close]').click();await d.locator('#historyBtn').click();d.once('dialog',dialog=>dialog.accept('Renamed on desktop'));await d.locator('.atlas-history-row').first().getByTitle('Rename conversation').click();
- await d.waitForFunction(()=>document.querySelector('#atlasSyncStatus').textContent.includes('Synced'));await p.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await p.waitForFunction(()=>document.querySelector('#threads').textContent.includes('Renamed on desktop'));
+ await d.waitForFunction(()=>document.querySelector('#atlasSyncStatus').textContent.includes('Synced'));await p.bringToFront();await p.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await p.waitForFunction(()=>document.querySelector('#threads').textContent.includes('Renamed on desktop'));
  await p.locator('#historyBtn').click();p.once('dialog',dialog=>dialog.accept());await p.locator('.atlas-history-row').first().getByTitle('Delete conversation').click();
- await p.waitForFunction(()=>document.querySelector('#atlasSyncStatus').textContent.includes('Synced'));await d.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await d.waitForFunction(()=>!document.querySelector('#threads').textContent.includes('Renamed on desktop'));
+ await p.waitForFunction(()=>document.querySelector('#atlasSyncStatus').textContent.includes('Synced'));await d.bringToFront();await d.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await d.waitForFunction(()=>!document.querySelector('#threads').textContent.includes('Renamed on desktop'));
  assert.deepEqual(errors,[]);console.log(JSON.stringify({portrait:true,landscape:true,composerInViewport:true,pairing:true,persistedConnection:true,bidirectionalHistory:true,renameSync:true,deleteSync:true,pageErrors:0}));
  await desktop.context.close();await phone.context.close();
 }finally{await browser.close()}
