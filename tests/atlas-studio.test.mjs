@@ -1,35 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import {screenHarness} from './helpers/studio-screen-harness.mjs';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from '../atlas-studio-controls.mjs';
 test('screen removal handles the reported request and does not require AI',()=>{assert.deepEqual(parseStudioRequest('can you remove the picture of the cow on the scree'),[{type:'screen',visible:false,clear:true}])});
 test('camera and screen geometry use bounded commands',()=>{assert.deepEqual(normalizeStudioCommands([{type:'screen',width:999,x:-999,url:'https://evil.test'},{type:'camera',distance:NaN,pitch:100},{type:'exec',code:'bad'}]),[{type:'screen',x:-2.6,width:4},{type:'camera',pitch:70}]);assert.equal(parseStudioRequest('zoom in',{camera:{distance:4}})[0].distance,3);assert.equal(parseStudioRequest('make the screen bigger',{screen:{width:2,height:1}})[0].width,2.6)});
 test('model metadata is separate from displayed text and malformed data is discarded',()=>{assert.deepEqual(extractStudioCommands('Moving it. <atlas_studio>[{"type":"screen","x":1}]</atlas_studio>'),{text:'Moving it.',studio:[{type:'screen',x:1}]});assert.deepEqual(extractStudioCommands('Okay <atlas_studio>bad</atlas_studio>'),{text:'Okay',studio:[]})});
-test('new conversation clears presentation and restores avatar even during pending actions',async()=>{
- const source=readFileSync(new URL('../index.html',import.meta.url),'utf8');let listener;const events=[];
- const context=vm.createContext({normalizeStudioCommands,window:{addEventListener:(n,f)=>{if(n==='atlas-studio-control')listener=f},dispatchEvent:e=>events.push(e)},CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail}},Object,Math,Error});
- vm.runInContext(`let presentationVersion=1,studioControlVersion=0,chatActionVersion=0,travelRequest=0,showRun={},travelPlan={},gesture='walk',speechActive=true,speechMouthLevel=1;const screenSurface={width:1024,height:680};const sc={fillRect(){}};const screenTex={};const screenRoot={visible:true,scale:{set(){}}};let screenBillboard=false;const screenPos={};const model={position:{x:2,z:1},rotation:{y:2}};function showScreen(v){screenRoot.visible=v}function applyScreenPosition(){}function playMixamo(){}function centerAtlasView(){}function emitStudioState(){};`,context);
- vm.runInContext(source.slice(source.indexOf('function clearStudioScreen()'),source.indexOf('async function installGLB')),context);
+test('new conversation clears every presentation and restores avatar during pending actions',async()=>{
+ const source=readFileSync(new URL('../index.html',import.meta.url),'utf8'),{api,images,window,context}=screenHarness();
+ api.makeStudioScreen();const s=api.active(),pending=api.presentStudioImage('data:image/jpeg;base64,QUJDRA==',false,s);
+ context.normalizeStudioCommands=normalizeStudioCommands;context.centerAtlasView=()=>{};context.playMixamo=()=>{};
+ context.model={position:{x:2,z:1},rotation:{y:2}};const events=[];
+ window.dispatchEvent=e=>events.push(e);
+ vm.createContext(context);
+ vm.runInContext("let chatActionVersion=0,travelRequest=0,showRun={},travelPlan={},gesture='walk',speechActive=true,speechMouthLevel=1;",context);
+ let listener;const original=window.addEventListener;window.addEventListener=(name,fn)=>{if(name==='atlas-studio-control')listener=fn;else original(name,fn)};
+ vm.runInContext(source.slice(source.indexOf('function clearStudioScreen('),source.indexOf('async function installGLB')),context);
  await listener({detail:{requestId:'reset',command:{type:'reset'}}});
- assert.equal(events.at(-1).detail.ok,true);assert.equal(vm.runInContext('screenRoot.visible',context),false);assert.equal(vm.runInContext('presentationVersion',context),2);assert.equal(vm.runInContext('model.position.x',context),0);assert.equal(vm.runInContext('travelPlan',context),null);
+ assert.equal(events.at(-1).detail.ok,true);images[0].resolve();await pending;
+ assert.equal(api.all().length,1);assert.equal(api.active().root.visible,false);
+ assert.equal(context.model.position.x,0);assert.equal(vm.runInContext('travelPlan',context),null);
 });
 test('put them on the screen starts photos rather than revealing an empty panel',()=>{assert.deepEqual(parseStudioRequest('put them on the screen',{photos:{count:6}}),[{type:'photos',action:'show'}]);assert.deepEqual(parseStudioRequest('show the screen',{photos:{count:6}}),[{type:'photos',action:'show'}])});
-test('decoded slideshow frames draw on the studio texture and become visible',async()=>{
- const html=readFileSync(new URL('../index.html',import.meta.url),'utf8'),drawn=[];
- const c=vm.createContext({Image:class{async decode(){}},drawPresentation:i=>drawn.push(i.src),showScreen:v=>drawn.push(v),arrangeStudioPresentation(){},fitStudioPresentation(){},screenPos:{},applyScreenPosition(){},center:{set(){}},mobileCanvas:()=>false,sliders(){},updateCam(){},$:()=>({}),window:{dispatchEvent(){},addEventListener(){}},CustomEvent:class{}});
- vm.runInContext('let presentationHiddenByUser=false,presentationVersion=0,screenContent={},yaw=0,pitch=0,distance=0;',c);
- vm.runInContext(html.slice(html.indexOf('async function presentStudioImage('),html.indexOf("window.addEventListener('atlas-studio-image'")),c);
- await c.presentStudioImage('data:image/jpeg;base64,QUJDRA==',true);await c.presentStudioImage('data:image/jpeg;base64,QUJDRA==',false);
- assert.deepEqual(drawn,['data:image/jpeg;base64,QUJDRA==',true,'data:image/jpeg;base64,QUJDRA==',true]);
- assert.equal(vm.runInContext('screenContent.kind',c),'image');
+test('decoded slideshow frames update their original screen texture and become visible',async()=>{
+ const {api,images}=screenHarness(),s=api.active();
+ for(let i=0;i<2;i++){const p=api.presentStudioImage('data:image/jpeg;base64,QUJDRA==',false,s);images[i].resolve();await p;assert.equal(s.root.visible,true);assert.equal(s.content.kind,'image');assert.equal(s.texture.needsUpdate,true)}
 });
-test('screen off prevents a pending decoded picture or timer from making the panel visible',async()=>{
- const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');let finish;const draws=[];
- const c=vm.createContext({Image:class{decode(){return new Promise(r=>finish=r)}},drawPresentation:()=>draws.push('draw'),arrangeStudioPresentation(){},$:()=>({}),window:{dispatchEvent(){}},CustomEvent:class{constructor(type,o){this.detail=o.detail}}});
- vm.runInContext('let presentationHiddenByUser=false,presentationVersion=0,screenContent={};const screenRoot={visible:true};',c);
- vm.runInContext(html.slice(html.indexOf('function showScreen('),html.indexOf("$('screenToggle').onclick")),c);
- vm.runInContext(html.slice(html.indexOf('async function presentStudioImage('),html.indexOf("window.addEventListener('atlas-presentation-start'")),c);
- const pending=c.presentStudioImage('data:image/jpeg;base64,QUJDRA==');c.setScreenVisibility(false);finish();await pending;c.showScreen(true);
- assert.equal(vm.runInContext('screenRoot.visible',c),false);assert.equal(draws.length,0);
+test('screen off prevents pending decoded pictures from making a panel visible',async()=>{
+ const {api,images}=screenHarness(),s=api.active();
+ const p=api.presentStudioImage('data:image/jpeg;base64,QUJDRA==',false,s);
+ api.setScreenVisibility(false,s);images[0].resolve();await p;
+ assert.equal(s.root.visible,false);assert.equal(s.content.kind,'empty');
 });
