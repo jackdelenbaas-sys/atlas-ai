@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {screenHarness} from './helpers/studio-screen-harness.mjs';
 import {stepTravel,smoothTurn,clampPoint} from '../atlas-motion.mjs';
-import {normalizeStudioCommands,parseStudioRequest,presentationTargets,MAX_STUDIO_STEPS,shouldDeferStudioCommands,studioActionSummary} from '../atlas-studio-controls.mjs';
+import {normalizeStudioCommands,parseStudioRequest,presentationTargets,MAX_STUDIO_STEPS,shouldDeferStudioCommands,studioActionSummary,authorizeStudioCommands} from '../atlas-studio-controls.mjs';
 const source=fs.readFileSync(new URL('../atlas-app-v8.js',import.meta.url),'utf8');
 const screens=Array.from({length:6},(_,i)=>({id:'screen-'+(i+1),visible:true}));
 const state={available:true,activeScreenId:'screen-3',screens,photos:{count:6}};
@@ -29,7 +29,7 @@ test('nested AI sequences are bounded, validated and retain target IDs and waits
 });
 function queueHarness(){
  const calls=[],pending=[],data={active:'one'};
- const context=vm.createContext({normalizeStudioCommands,studioActionSummary,recordStudioResult(){},data,window:{dispatchEvent(){}},CustomEvent:class{},sceneCommand:c=>{calls.push(c.motion||c.type);return new Promise(resolve=>pending.push(resolve))}});
+ const context=vm.createContext({normalizeStudioCommands,studioActionSummary,authorizeStudioCommands,recordStudioResult(){},data,window:{dispatchEvent(){}},CustomEvent:class{},sceneCommand:c=>{calls.push(c.motion||c.type);return new Promise(resolve=>pending.push(resolve))}});
  vm.runInContext('let studioRunVersion=0,mediaRunVersion=0;',context);
  const start=source.indexOf('async function applyStudioCommands('),end=source.indexOf('function resetConversationScene',start);
  vm.runInContext(source.slice(start,end),context);return {context,calls,pending,data};
@@ -47,7 +47,7 @@ test('a new conversation or canceled run stops the remaining sequence steps',asy
  }
 });
 test('failed movement stops the queue instead of pretending later steps worked',async()=>{
- const {context,calls,pending}=queueHarness(),run=context.applyStudioCommands([{type:'avatar',motion:'walk'},{type:'avatar',motion:'point'}]);
+ const {context,calls,pending}=queueHarness(),run=context.applyStudioCommands([{type:'avatar',motion:'walk'},{type:'avatar',motion:'point'}],'one','walk to the picture');
  pending.shift()({ok:false,error:'No safe movement'});await assert.rejects(run,/No safe movement/);assert.deepEqual(calls,['walk']);
 });
 function mediaHarness(){
@@ -97,7 +97,7 @@ function sceneHarness({blocked=false,cancel=false}={}){
  let now=100,canceled=false,listener,cancelListener;
  context.model={position:{x:0,z:0},rotation:{y:0}};context.normalizeStudioCommands=normalizeStudioCommands;context.clampToRoom=clampPoint;
  context.ensureAction=async()=>{};context.clipFor=()=>({duration:1});context.centerAtlasView=()=>{};
- context.playMixamo=motion=>motions.push({motion,now});context.travelRequest=0;context.chatActionVersion=0;
+ context.playMixamo=motion=>{motions.push({motion,now});return true};context.travelRequest=0;context.chatActionVersion=0;
  context.showRun=null;context.gesture='';context.manualMotionUntil=0;context.speechActive=false;context.speechMouthLevel=0;
  context.planTravel=(x,z)=>{context.travelPlan={toX:x,toZ:z,speed:1,velocity:0,turnVelocity:0}};
  context.performance.now=()=>now;
@@ -116,7 +116,7 @@ function sceneHarness({blocked=false,cancel=false}={}){
  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
  vm.runInContext(html.slice(html.indexOf('function clearStudioScreen('),html.indexOf('async function installGLB')),context);
  api.active().root.visible=true;
- return {...harness,results,motions,run:command=>listener({detail:{requestId:'test',command}})};
+ return {...harness,results,motions,run:command=>listener({detail:{requestId:'test',command:command.type==='avatar'?{...command,travel:command.travel??true}:command}})};
 }
 test('the real scene command walks, turns toward the target, points, then reports completion',async()=>{
  const {run,results,motions,context,api}=sceneHarness(),s=api.active(),before={...s.pos};
@@ -160,5 +160,27 @@ test('a real tour moves Atlas to every screen and executes the camera at each st
   else assert.equal(results.at(-1).effect.cameraChanged,true);
  }
  assert.equal(stops.length,2);assert.ok(stops[0].x>1);assert.ok(stops[1].x<-1);
+});
+
+test('stop interrupts an active walk and later pictures cannot restart it',async()=>{
+ const {run,api,context,results,images,motions}=sceneHarness({blocked:true});
+ const walking=run({type:'avatar',motion:'walk',targetScreen:api.active().id,placement:'front',travel:true});
+ await new Promise(setImmediate);await run({type:'stop'});await walking;
+ assert.equal(context.travelPlan,null);assert.ok(results.some(r=>r.effect?.stopped));
+ const before={...context.model.position},image=api.presentStudioImage('data:image/jpeg;base64,AAAA',true,api.active());
+ images.at(-1).resolve();await image;for(let i=0;i<10;i++)api.updateStudioScreens(.05,1000+i*1000);
+ assert.equal(context.travelPlan,null);assert.deepEqual({...context.model.position},before);assert.equal(motions.at(-1).motion,'idle');
+});
+test('stop cancels a walk whose animation is still downloading',async()=>{
+ const {run,api,context,motions}=sceneHarness();let ready;
+ context.ensureAction=()=>new Promise(resolve=>ready=resolve);
+ const walking=run({type:'avatar',motion:'walk',targetScreen:api.active().id,placement:'front',travel:true});
+ await Promise.resolve();await run({type:'stop'});ready();await walking;
+ assert.equal(context.travelPlan,null);assert.ok(!motions.some(m=>m.motion==='walk'));
+});
+test('pointing at a picture without travel permission leaves Atlas in place',async()=>{
+ const {run,api,context,motions}=sceneHarness(),before={...context.model.position};
+ await run({type:'avatar',motion:'point',targetScreen:api.active().id,travel:false,duration:.5});
+ assert.deepEqual({...context.model.position},before);assert.ok(!motions.some(m=>m.motion==='walk'));assert.ok(motions.some(m=>m.motion==='point'));
 });
 

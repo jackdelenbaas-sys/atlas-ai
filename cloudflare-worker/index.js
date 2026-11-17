@@ -1,5 +1,5 @@
 export {AtlasHistory} from '../atlas-history.mjs';
-import {STUDIO_CONTRACT,normalizeStudioCommands,parseStudioRequest,extractStudioCommands,studioConversation,studioRecallRequest,studioRecallReply,studioActionSummary,photoSubject,explicitPhotoSearch} from '../atlas-studio-controls.mjs';
+import {STUDIO_CONTRACT,normalizeStudioCommands,parseStudioRequest,extractStudioCommands,studioConversation,studioRecallRequest,studioRecallReply,studioActionSummary,photoSubject,explicitPhotoSearch,resolvePhotoSubject,photoSearchFollowup,stopRequested,authorizeStudioCommands} from '../atlas-studio-controls.mjs';
 // Atlas free daily chat. Requires Cloudflare Workers Free plan, AI binding and owner token.
 // Optional Groq and Gemini accounts must be on their free tiers with billing disabled. No OpenAI fallback.
 const ORIGIN='https://jackdelenbaas-sys.github.io';
@@ -76,7 +76,7 @@ async function webFacts(text){
  const j=await wikiJSON('en.wikipedia.org',{generator:'search',gsrsearch:String(text).slice(0,220),gsrnamespace:'0',gsrlimit:'3',prop:'extracts|info',inprop:'url',exintro:'1',explaintext:'1',exchars:'1200',exlimit:'3'});
  return (j.query?.pages||[]).filter(p=>p.extract&&p.fullurl?.startsWith('https://en.wikipedia.org/')).sort((a,b)=>a.index-b.index).slice(0,3).map(p=>({title:p.title,url:p.fullurl,excerpt:plain(p.extract),retrievedAt:new Date().toISOString()}));
 }
-const PHOTO_STOP=new Set('a an the of in on at with and or for to from me please can could you show find get pull give send search look photos photo pictures picture images image photographs photograph some multiple several few real actual genuine beautiful nice cool best high quality updated one two three four five six just only really awesome amazing please try trying thing something recently made looks like another it that this one but hd 4k professional sharp crisp highresolution good great pretty pic actually meant instead display put'.split(' '));
+const PHOTO_STOP=new Set('a an the of in on at with and or for to from me please can could you show find get pull give send search look photos photo pictures picture images image photographs photograph some multiple several few real actual genuine beautiful nice cool best high quality updated one two three four five six just only really awesome amazing please try trying thing something recently made looks like another it that this one but hd 4k professional sharp crisp highresolution good great pretty pic actually meant instead display put designed built manufactured created by'.split(' '));
 const PHOTO_GROUPS=[['cow','cattle','bovine'],['car','automobile'],['bike','bicycle'],['dog','canine'],['cat','feline'],['house','home','villa','residence','dwelling'],['modern','contemporary','modernist','modernism'],['airplane','aircraft','aeroplane'],['ship','vessel'],['beach','seaside']];
 const photoWords=text=>(String(text||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').match(/[\p{L}\p{N}]+/gu)||[]).map(t=>t.length>3&&t.endsWith('s')&&!t.endsWith('ss')?t.slice(0,-1):t);
 function photoRequest(text,now=new Date()){
@@ -108,6 +108,7 @@ function photoMatch(request,page){
  const words=new Set(photoWords(label));
  const matches=t=>{const group=PHOTO_GROUPS.find(g=>g.includes(t))||[t];return group.some(v=>words.has(v))};
  if(request.exclusions.some(matches)||!request.terms.length||!request.terms.every(matches))return -1;
+ if(request.photoOnly&&request.terms.some(t=>['car','automobile','truck','cybertruck','cybercab','motorcycle','bicycle','computer','phone'].includes(t))&&!request.terms.some(t=>['building','factory','dealership','showroom','office','shop','garage'].includes(t))&&/\b(?:headquarters|dealership|showroom|service cent(?:er|re)|factory|parking lot|car park|office building)\b/i.test(title))return -1;
  if(request.photoOnly){
   if(/\b(?:paintings|artworks|drawings|manuscripts|musical scores|sheet music|digitized books|scans|charts|graphs|plots|engravings|etchings|postcards|screenshots)\b/i.test(categories)||/\b(?:btv1b|concerto|margin loss|diagram|chart|graph|sheet music)\b/i.test(title))return -1;
   if(/\b(?:ai.generated|ai.generative|synthetic image|generative ai|generative art|text.to.image|stable diffusion|midjourney|computer.generated)\b/i.test(label))return -1;
@@ -138,13 +139,13 @@ async function wikipediaImages(request){
  });
 }
 async function webImages(text,env={},history=[]){
- const initial=photoRequest(text);if(!initial.terms.length)throw Object.assign(Error('What should the picture show?'),{status:400});
+ const resolved=resolvePhotoSubject(text,history),initial=photoRequest(resolved);initial.limit=/\b(?:them|those|these)\b/i.test(text)?6:photoRequest(text).limit;if(!initial.terms.length)throw Object.assign(Error('What should the picture show?'),{status:400});
  let images=await searchPhotoSources(initial).catch(()=>[]);if(images.length)return images;
  // Only failed lookups use one small query-refinement call. Returned words are
  // search terms, never image URLs or a claim that a photo was retrieved.
  try{
   if(!connections(env).some(p=>p.configured))return [];
-  const reply=await infer(env,[{role:'system',content:'Rewrite an unsuccessful photo search into at most three concise search queries. Return only a JSON array of strings. Resolve everyday wording, spacing and nicknames using context. Preserve the requested subject, colors, location and model; never substitute a different product (Cybercab is not Cybertruck). Remove filler like try to, thing, recently made. Do not return URLs or claim success.'},{role:'user',content:JSON.stringify({request:String(text).slice(0,400),context:(Array.isArray(history)?history:[]).slice(-4).map(m=>({role:m.role,text:String(m.text||'').slice(0,250)}))})}],160);
+  const reply=await infer(env,[{role:'system',content:'Rewrite an unsuccessful photo search into at most three concise search queries. Return only a JSON array of strings. Resolve everyday wording, spacing and nicknames using context. Preserve the requested subject, colors, location and model; never substitute a different product (Cybercab is not Cybertruck). Remove filler like try to, thing, recently made. Do not return URLs or claim success.'},{role:'user',content:JSON.stringify({request:resolved.slice(0,400),context:(Array.isArray(history)?history:[]).slice(-4).map(m=>({role:m.role,text:String(m.text||'').slice(0,250)}))})}],160);
   const queries=JSON.parse(reply.replace(/^```(?:json)?\s*|\s*```$/g,''));
   for(const query of (Array.isArray(queries)?queries:[]).filter(q=>typeof q==='string'&&q.length>1&&q.length<140).slice(0,3)){
    const refined=photoRequest(query);refined.limit=initial.limit;refined.exclusions=[...initial.exclusions,...refined.exclusions];refined.photoOnly=initial.photoOnly;
@@ -338,8 +339,11 @@ export default {async fetch(request,env){
     return json({text:editing?'Here is the edited image.':'Here is your image.',actions:['point','nod','idle'],images:[image],sources:[],provider:'cloudflare-workers-ai',referenceCount:brief.references?.length||0,free:true,resetAt:nextReset()});
    }
    if(studioRecallRequest(p.text))return json({text:studioRecallReply(p.studioState?.recentActions||[]),sources:[],images:[],free:true,provider:'studio-receipts'});
-   const directStudio=parseStudioRequest(p.text,p.studioState);
+   const directStudio=stopRequested(p.text,p.history)?[{type:'stop'}]:parseStudioRequest(p.text,p.studioState);
    if(directStudio.length)return json({text:studioActionSummary(directStudio),studio:directStudio,sources:[],images:[],free:true,provider:'local-studio'});
+   if(photoSearchFollowup(p.text,p.history)){
+    const images=await webImages(p.text,env,p.history);return json({text:images.length?'Here are the matching photos.':'I couldn’t retrieve a matching photo.',webImages:images,sources:images.map(i=>({title:i.title,url:i.source})),images:[],free:true,provider:'wikimedia'});
+   }
    let sources=[];
    if(!/\b(screen|camera|studio|avatar|slideshow|view of atlas)\b/i.test(String(p.text||''))&&needsWeb(String(p.text||''))&&!p.attachments?.some(a=>String(a.type||'').startsWith('image/'))){
     try{sources=await webFacts(p.text)}catch(e){return json({error:'I could not retrieve live sources, so I cannot verify this answer right now. Please retry.',code:'WEB_UNAVAILABLE'},503)}
@@ -349,11 +353,12 @@ export default {async fetch(request,env){
    const webContext=sources.map((s,i)=>(i+1)+'. '+s.title+' '+s.url+'\n'+s.excerpt).join('\n\n');
    const meta={};const text=await infer(env,messagesFor({...p,webContext}),/\b(detail(?:ed)?|thorough|step.by.step|sequence|choreograph|presentation|routine|long|full|explain|code|write|draft)\b/i.test(String(p.text||''))?900:320,meta);
    let cleaned=cleanChat(text);
+   cleaned.studio=authorizeStudioCommands(cleaned.studio,p.text);
    const requestedControl=studioConversation(p.text)&&/\b(?:go|move|walk|turn|face|show|hide|put|place|add|remove|close|open|zoom|fit|reposition|resize|enlarge|visit|tour|point|dance|wave)\b/i.test(String(p.text||''));
    if(requestedControl&&!cleaned.studio.length&&p.studioState?.available){
     try{
      const repair=await infer(env,[{role:'system',content:STUDIO_CONTRACT+' Return ONLY the JSON array of commands, no prose. Never invent screen IDs. If no safe command can perform the request, return []. Current scene: '+JSON.stringify(safeStudioState(p.studioState))},{role:'user',content:String(p.text).slice(0,1200)}],600);
-     cleaned.studio=normalizeStudioCommands(JSON.parse(repair.replace(/^[\x60]{3}(?:json)?\s*|\s*[\x60]{3}$/g,'')));
+     cleaned.studio=authorizeStudioCommands(normalizeStudioCommands(JSON.parse(repair.replace(/^[\x60]{3}(?:json)?\s*|\s*[\x60]{3}$/g,''))),p.text);
     }catch{}
     cleaned.text=cleaned.studio.length?studioActionSummary(cleaned.studio):'I couldn’t turn that into a safe studio action. Nothing has changed.';
     cleaned.actions=[];

@@ -66,6 +66,14 @@ try{
  assert.equal((await rp.evaluate(()=>window.recordedStudioCommands.at(-1))).preset,'fit');
  await rp.locator('#input').fill('move Atlas left');await rp.locator('#send').click();await rp.waitForFunction(()=>window.recordedStudioCommands.length===8);
  assert.equal((await rp.evaluate(()=>window.recordedStudioCommands.at(-1))).type,'avatar');assert.equal(wrongRequests.length,0);
+ let held,routeReady;const routed=new Promise(resolve=>routeReady=resolve);
+ await rp.route('**/atlas/api/chat',route=>{held=route;routeReady()});
+ await rp.locator('#input').fill('Hello, a slow reply please');await rp.locator('#send').click();
+ await rp.waitForFunction(()=>document.querySelector('#send').disabled);
+ await routed;await rp.locator('#input').fill('stop pacing');await rp.locator('#send').click();
+ await rp.waitForFunction(()=>window.recordedStudioCommands.at(-1)?.type==='stop');
+ await rp.locator('#feed').getByText('Stopped. I’ll stay here until you tell me to move.',{exact:true}).waitFor();
+ assert.ok(held);await held.fulfill({status:200,contentType:'application/json',body:JSON.stringify({text:'Slow reply completed.',images:[],sources:[]})});
  assert.deepEqual(errors,[]);console.log(JSON.stringify({portrait:true,landscape:true,composerInViewport:true,pairing:true,persistedConnection:true,bidirectionalHistory:true,renameSync:true,deleteSync:true,studioRouting:true,orderedTour:true,cameraCommands:true,receiptRecap:true,noAccidentalSearches:true,pageErrors:0}));
  await routing.context.close();
  await desktop.context.close();await phone.context.close();

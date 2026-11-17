@@ -186,7 +186,7 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
  #dividerHandle:before{width:2px!important;height:100%!important}#dividerHandle:after{content:'⋮'!important;padding:10px 3px!important}
 }
 </style></head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">10.21 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">10.22 STUDIO</span></header><div id="feed" class="feed"></div></div>
 <div class="right"><div class="stage"><canvas id="canvas"></canvas></div><details id="stageActions" class="studio-dock"><summary aria-label="Expand studio controls">Studio controls <span aria-hidden="true">⌄</span></summary><div class="studio-panel" aria-label="Atlas studio controls"><button id="studioUpload" title="Upload a picture">＋ Picture</button><button id="studioAddScreen" title="Add another presentation screen">＋ Screen</button><select id="studioScreenSelect" aria-label="Selected presentation screen"></select><button id="studioCloseScreen" title="Close selected screen">Close screen</button><button id="studioNormal" title="Restore the normal studio layout">↺ Normal view</button><button id="studioPresent" title="Show the latest image on the studio screen">▣ Screen</button><button data-motion="wave">Wave</button><button data-motion="walk">Walk</button><button data-motion="dance">Dance</button><button data-motion="idle">Stop</button></div></details><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div id="atlasFiles" class="atlas-files"></div><div class="inputglass"><button id="atlasAttach" class="circle" title="Upload an image or text file" aria-label="Attach files">＋</button><input id="input" autocomplete="off" placeholder="Ask anything, upload a photo, or create an image…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">ATLAS AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><input id="atlasHistorySearch" class="btn wide" placeholder="Search conversations" aria-label="Search conversations"><p id="atlasSyncStatus" class="hint">History saved on this device.</p><div id="threads"></div><p class="hint">Your chats stay available offline and sync across your connected devices.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
@@ -230,11 +230,11 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
 <p class="hint">Atlas's real motion clips control his limbs. The old manual joint sliders have been removed so they cannot interfere with natural animation.</p><div class="section">Model</div><label id="uploadModelBtn" class="btn wide">Replace Atlas body (optional)<input id="modelUpload" type="file" accept=".glb,model/gltf-binary"></label><p class="hint">The complete original Atlas model now loads automatically from the hosted library, even on a new device.</p><button id="repairAvatar" class="btn wide" style="margin:10px 0;text-align:center">↺ Reset Atlas body and animations</button>
 <p class="hint" id="modelDetails">Original full-body human model • securely hosted and cached</p></aside></div>
-<script type="module" src="atlas-app-v8.js?v=124"></script>
+<script type="module" src="atlas-app-v8.js?v=125"></script>
 <script type="module">
-import {normalizeStudioCommands,MAX_STUDIO_SCREENS} from './atlas-studio-controls.mjs?v=124';
-import {presentationFit,presentationSize,facingCameraYaw,clearWalkingLane,resizeScreen,screenApproach} from './atlas-presentation.mjs?v=124';
-import {clampPoint,stepTravel,stepGravity,smoothTurn} from './atlas-motion.mjs?v=124';
+import {normalizeStudioCommands,MAX_STUDIO_SCREENS} from './atlas-studio-controls.mjs?v=125';
+import {presentationFit,presentationSize,facingCameraYaw,clearWalkingLane,resizeScreen,screenApproach} from './atlas-presentation.mjs?v=125';
+import {clampPoint,stepTravel,stepGravity,smoothTurn} from './atlas-motion.mjs?v=125';
 import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 function createAtlasRenderer(){
  try{return new THREE.WebGLRenderer({canvas:document.getElementById('canvas'),antialias:true,alpha:true})}
@@ -525,20 +525,11 @@ function screenOverlapsAtlas(s){
 }
 // Layout may move Atlas; it never moves an existing screen.
 function clearanceKey(){const r=cameraRight();return [model?.position.x?.toFixed(2),model?.position.z?.toFixed(2),r.x.toFixed(2),r.z.toFixed(2),...screenLayoutItems().flatMap(s=>[s.id,s.x.toFixed(2),s.y.toFixed(2),s.z.toFixed(2),s.width.toFixed(2),s.height.toFixed(2)])].join('|')}
-function moveScreenClear(){void walkClearOfScreens()}
+function moveScreenClear(){return false}
 async function walkClearOfScreens(){
- if(!model||allowAvatarOverlap||scriptedActionActive||layoutWalkPending||travelPlan||showRun)return false;
- lastClearanceKey=clearanceKey();
- let target=clearWalkingLane(model.position,screenLayoutItems(),cameraRight(),ROOM_LIMITS);
- if(!target){if([...studioScreens.values()].some(screenOverlapsAtlas))$('showStatus').textContent='No clear walking lane. Atlas will stay here.';return false}
- const generation=++layoutWalkGeneration,request=++travelRequest;layoutWalkPending=true;
- try{await ensureAction('walk');if(generation!==layoutWalkGeneration||request!==travelRequest||allowAvatarOverlap||scriptedActionActive)return false;
-  target=clearWalkingLane(model.position,screenLayoutItems(),cameraRight(),ROOM_LIMITS);lastClearanceKey=clearanceKey();if(!target)return false;
-  planTravel(target.x,target.z);if(travelPlan){travelPlan.layout=true;gesture='';faceCameraRequested=true;playMixamo('walk',false,.6)}return Boolean(travelPlan);
- }catch{$('showStatus').textContent='Atlas will stay here until walking is ready.';return false}
- finally{if(generation===layoutWalkGeneration)layoutWalkPending=false}
+ // Kept as a compatibility no-op. Screen layout never authorizes walking.
+ return false;
 }
-
 function fitStudioPresentation(onlyScreen=null){
  const visible=[...studioScreens.values()].filter(s=>s.root.visible&&(!onlyScreen||s===onlyScreen));if(!visible.length)return;
  // Work in the current camera's orientation. Resizing never forces a front view.
@@ -564,7 +555,7 @@ function fitAtlasView(){
 window.addEventListener('orientationchange',()=>{phonePointers.clear();drag=false;setTimeout(()=>{if([...studioScreens.values()].some(s=>s.root.visible))fitStudioPresentation();else fitAtlasView()},180)});
 function arrangeStudioPresentation(reframe=false,s=activeScreen){
  // Loading content is not a placement operation. Preserve position, size and camera.
- if(s.root.visible)void walkClearOfScreens();
+ // Loading or resizing content must never move Atlas.
 }
 
 function cancelLayoutWalk(){++layoutWalkGeneration;layoutWalkPending=false}
@@ -573,7 +564,7 @@ function normalStudioView(){
  yaw=0;pitch=0;
  const visible=[...studioScreens.values()].filter(s=>s.root.visible);
  for(const [i,s] of visible.entries()){s.root.scale.set(1,1,1);s.envelope={...s.base};s.billboard=true;Object.assign(s.pos,{x:i%2===0?1.2:-1.2,y:1.3+(i>1?1.5:0),z:-.3});applyScreenPosition(s)}
- if(model){playMixamo('idle',false,.65);if(Math.hypot(model.position.x,model.position.z)>.08)void walkTo(0,0)}
+ if(model){playMixamo('idle',false,.65);}
  if(visible.length){lastClearanceKey='';fitStudioPresentation()}else centerAtlasView(false);
 }
 $('studioNormal').onclick=normalStudioView;
@@ -596,7 +587,7 @@ function addStudioScreen(){
  }
  Object.assign(s.pos,{x:best.x,y:best.y,z:best.z});s.placed=true;
  s.root.scale.set(.85,.85,1);s.envelope={width:1.275,height:.901};drawPresentation(null,s);
- showScreen(true,s);applyScreenPosition(s,true);orientScreen();fitStudioPresentation();void walkClearOfScreens();emitStudioState();return s;
+ showScreen(true,s);applyScreenPosition(s,true);orientScreen();fitStudioPresentation();emitStudioState();return s;
 }
 
 $('studioAddScreen').onclick=addStudioScreen;$('studioCloseScreen').onclick=()=>removeStudioScreen();
@@ -630,10 +621,7 @@ function updateStudioScreens(dt,now){
   s.root.position.lerp(new THREE.Vector3(s.pos.x,s.pos.y,s.pos.z),1-Math.exp(-dt*9));
  }
  orientScreen();
- // Clear projected overlap by walking, with a stable no-route fallback.
- if(!draggingScreen&&!drag&&!travelPlan&&!layoutWalkPending&&!presentationCameraTween&&now>nextClearanceCheck){
-  nextClearanceCheck=now+650;if(!allowAvatarOverlap&&!scriptedActionActive&&clearanceKey()!==lastClearanceKey)void walkClearOfScreens();
- }
+ // Screen updates never schedule avatar travel.
 }
 const screenRay=new THREE.Raycaster(),pointerNDC=new THREE.Vector2(),movePlane=new THREE.Plane();
 const startHit=new THREE.Vector3(),screenStart=new THREE.Vector3();
@@ -676,7 +664,7 @@ function finishScreenDrag(e){
  if(!draggingScreen||e.pointerId!==screenDragId)return;
  const s=screenDrag.screen;draggingScreen=false;screenDrag=null;canvas.style.cursor='';drag=false;phonePointers.clear();
  if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);
- screenSelectionUntil=performance.now()+3000;void walkClearOfScreens();emitStudioState();e.stopImmediatePropagation();
+ screenSelectionUntil=performance.now()+3000;emitStudioState();e.stopImmediatePropagation();
 }
 for(const ev of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(ev,finishScreenDrag,true);
 document.addEventListener('pointerdown',e=>{if(e.target!==canvas&&!$('stageActions').contains(e.target))clearScreenSelection()},{passive:true});
@@ -871,11 +859,11 @@ async function initializeAtlasMotions(){
  }
 }
 $('playSelectedAction').onclick=async()=>{
- const name=$('actionSelect').value;if(!name)return;
+ const name=$('actionSelect').value;if(!name)return;const request=++travelRequest;
  showRun=null;travelPlan=null;
  $('motionStatus').textContent='Loading '+name+'…';
  try{
-  const clip=await ensureMotion(name);
+  const clip=await ensureMotion(name);if(request!==travelRequest)return;
   if(clip?.isLocomotion&&model){
    // New locomotion clips automatically advance Atlas instead of walking
    // in place; end the action at the first physically reachable wall.
@@ -1276,6 +1264,7 @@ async function naturalGesture(now){
 
 window.addEventListener('atlas-action',e=>{
  const kind=e.detail?.type;
+ if(kind==='stop'){stopAtlasMotion();return}
  if(['listen','think','respond','sequence'].includes(kind)&&!scriptedActionActive){faceCameraRequested=true;avatarFacingTarget=null}
  if(kind==='speech'){
    speechActive=Boolean(e.detail?.active??e.detail?.action);
@@ -1293,7 +1282,7 @@ window.addEventListener('atlas-action',e=>{
  if(kind==='motion'){cancelScriptedActions();cancelLayoutWalk();}
  if(kind==='sequence'){
   ++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;
-  const actions=(e.detail?.action||[]).filter(x=>Object.hasOwn(ACTION_LIBRARY,x)).slice(0,4);
+  const actions=(e.detail?.action||[]).filter(x=>Object.hasOwn(ACTION_LIBRARY,x)&&!['walk','back'].includes(x)).slice(0,4);
   if(!actions.length)return;
   manualMotionUntil=0;nextNaturalAt=performance.now()+30000;
   showRun={show:{title:'Atlas response',returnHome:false,steps:actions.map(a=>[a,a==='idle'?1.5:2.8])},index:-1,at:0,seconds:0,loading:false};
@@ -1354,6 +1343,16 @@ async function waitStudioStep(version,seconds=0,done=null,timeout=15000){
   await new Promise(resolve=>setTimeout(resolve,40));
  }
 }
+function stopAtlasMotion(){
+ ++studioControlVersion;++chatActionVersion;++travelRequest;cancelLayoutWalk();
+ showRun=null;travelPlan=null;scriptedActionActive=false;avatarFacingTarget=null;avatarTurnVelocity=0;
+ gesture='';faceCameraRequested=true;manualMotionUntil=performance.now()+700;nextNaturalAt=performance.now()+30000;
+ if(!playMixamo('idle',false,.12)){
+  mixamoMixer?.stopAllAction();mixamoCurrent=null;const version=studioControlVersion;
+  void ensureAction('idle').then(()=>{if(version===studioControlVersion&&!travelPlan&&!showRun)playMixamo('idle',false,.12)}).catch(()=>{});
+ }
+ $('showStatus').textContent='Atlas stopped. Walking requires your instruction.';
+}
 function cancelScriptedActions(invalidate=true){
  if(invalidate)++studioControlVersion;
  if(scriptedActionActive||travelPlan?.scripted){
@@ -1373,7 +1372,7 @@ window.addEventListener('atlas-studio-control',async e=>{
    for(let i=0;i<count;i++)addStudioScreen();
   }
   if(c.type==='screen'&&c.action!=='add'&&c.id){const selected=studioScreens.get(c.id);if(!selected)throw Error('That screen is closed.');selectStudioScreen(selected)}
-  if(c.type==='normal'){normalStudioView()}else if(c.type==='reset'){
+  if(c.type==='stop'){stopAtlasMotion();effect={stopped:true};}else if(c.type==='normal'){normalStudioView()}else if(c.type==='reset'){
    cancelScriptedActions(false);allowAvatarOverlap=false;avatarFacingTarget=null;avatarTurnVelocity=0;lastClearanceKey='';cancelLayoutWalk();for(const s of [...studioScreens.values()]){s.hidden=true;s.version++;s.root.visible=false;if(s!==activeScreen){studio.remove(s.root);studioScreens.delete(s.id);s.image=null;s.texture.dispose();s.frame.material.dispose();s.panel.material.dispose();for(const handle of s.handles)handle.material.dispose()}}selectStudioScreen(activeScreen);presentationScreenId=null;activeScreen.hidden=false;faceCameraRequested=true;
    ++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;gesture='';speechActive=false;speechMouthLevel=0;
    clearStudioScreen();activeScreen.root.scale.set(1,1,1);activeScreen.envelope=null;activeScreen.billboard=true;Object.assign(activeScreen.pos,{x:1.6,y:1.3,z:-.3});applyScreenPosition(activeScreen,true);activeScreen.placed=false;
@@ -1429,7 +1428,8 @@ window.addEventListener('atlas-studio-control',async e=>{
      destination=screenApproach(model.position,{...screen.pos,width:screen.base.width*screen.root.scale.x,normalX:Math.sin(screen.root.rotation.y),normalZ:Math.cos(screen.root.rotation.y)},screenLayoutItems(),cameraRight(),ROOM_LIMITS,c.placement==='front');
      allowAvatarOverlap=c.placement==='front';faceCameraRequested=false;avatarFacingTarget=null;
     }else if(c.x!==undefined||c.z!==undefined)destination=clampToRoom(c.x??model.position.x,c.z??model.position.z);
-    if(screen&&!destination)effect={blocked:true,moved:false,reason:'There is no clear walking route to screen '+screen.id.split('-')[1]+'. Atlas stayed in place.'};
+    if(screen&&!destination&&c.travel===true)effect={blocked:true,moved:false,reason:'There is no clear walking route to screen '+screen.id.split('-')[1]+'. Atlas stayed in place.'};
+    if(c.travel!==true)destination=null;
     if(c.rotation!==undefined){faceCameraRequested=false;avatarFacingTarget=c.rotation*Math.PI/180;}
     if(c.face==='viewer'){avatarFacingTarget=Math.atan2(camera.position.x-model.position.x,camera.position.z-model.position.z);faceCameraRequested=true;}
     if(destination&&Math.hypot(destination.x-model.position.x,destination.z-model.position.z)>.05){

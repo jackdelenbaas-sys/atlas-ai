@@ -80,14 +80,11 @@ test('drag adjustments preserve the screen, body and camera; walking owns any bo
  assert.equal(context.model.position.x,.2);assert.equal(context.model.position.z,0);
  assert.equal(context.yaw,37);assert.equal(context.pitch,-12);assert.deepEqual({...s.pos},before);
 });
-test('automatic clearance starts gait travel and leaves body translation to the movement engine',async()=>{
- const {api,context}=screenHarness(),s=api.active(),planned=[];
- context.model={position:{x:2.5,z:0}};s.root.visible=true;Object.assign(s.pos,{x:2.6,y:1.2,z:0});
- context.travelRequest=0;context.showRun=null;context.ensureAction=async()=>{};
- context.planTravel=(x,z)=>{planned.push({x,z});context.travelPlan={toX:x,toZ:z}};context.playMixamo=()=>{};
- await api.walkClearOfScreens();
- assert.equal(planned.length,1);assert.ok(planned[0].x<2.5);assert.equal(context.travelPlan.layout,true);
- assert.equal(context.model.position.x,2.5);assert.equal(context.model.position.z,0);
+test('automatic screen clearance never schedules travel even when a lane is available',async()=>{
+ const {api,context}=screenHarness(),s=api.active();s.root.visible=true;s.pos.x=0;
+ context.model={position:{x:0,z:0}};let walks=0;context.planTravel=()=>{walks++};context.ensureAction=async()=>{};
+ assert.equal(await api.walkClearOfScreens(),false);assert.equal(walks,0);
+ assert.equal(context.model.position.x,0);assert.equal(s.pos.x,0);
 });
 
 test('selection fades automatically and clicking elsewhere clears only the handles',()=>{
@@ -115,3 +112,4 @@ test('screen presentations select a clear approach and stay put when every lane 
  const crowded=[{x:0,z:0,y:1,width:20,height:2}];assert.equal(screenApproach(avatar,target,crowded,{x:1,z:0},bounds),null);
  const front=screenApproach(avatar,target,crowded,{x:1,z:0},bounds,true);assert.equal(front.x,1);assert.equal(front.z,.65);
 });
+

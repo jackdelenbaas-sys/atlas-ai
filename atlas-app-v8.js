@@ -1,5 +1,5 @@
-import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands,presentationTargets,shouldDeferStudioCommands,studioConversation,explicitPhotoSearch,photoSearchFollowup,studioRecallRequest,studioRecallReply,studioActionSummary,photoSubject} from './atlas-studio-controls.mjs?v=124';
-import {mergeHistory,normalizeHistory} from './atlas-history.mjs?v=124';
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands,presentationTargets,shouldDeferStudioCommands,studioConversation,explicitPhotoSearch,photoSearchFollowup,studioRecallRequest,studioRecallReply,studioActionSummary,photoSubject,resolvePhotoSubject,stopRequested,movementRequested,authorizeStudioCommands} from './atlas-studio-controls.mjs?v=125';
+import {mergeHistory,normalizeHistory} from './atlas-history.mjs?v=125';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
@@ -118,7 +118,8 @@ function sceneCommand(command){return new Promise(resolve=>{
 })}
 let studioRunVersion=0,mediaRunVersion=0;const screenMediaVersion=new Map();
 function cancelStudioPlan(){const previous=studioReceipts().at(-1);if(previous?.status==='running')recordStudioResult(data.active,{status:'canceled',summary:'Stopped the previous sequence.'});++studioRunVersion;++mediaRunVersion;window.dispatchEvent(new CustomEvent('atlas-studio-cancel'))}
-async function applyStudioCommands(commands,threadId=data.active){
+async function applyStudioCommands(commands,threadId=data.active,requestText=''){
+ commands=authorizeStudioCommands(commands,requestText);
  const version=++studioRunVersion;window.dispatchEvent(new CustomEvent('atlas-studio-cancel'));
  const completed=[];
  for(const c of normalizeStudioCommands(commands)){
@@ -151,6 +152,7 @@ async function applyStudioCommands(commands,threadId=data.active){
  return completed;
 }
 function completedStudioAction(c){
+ if(c.type==='avatar'&&c.targetScreen&&c.motion==='point'&&!c.travel)return 'Pointed toward screen '+c.targetScreen.split('-')[1]+' without moving.';
  if(c.type==='avatar'&&c.targetScreen)return 'Reached screen '+c.targetScreen.split('-')[1]+(c.motion==='point'?' and pointed to it.':'.');
  if(c.type==='avatar'&&(c.x!==undefined||c.z!==undefined))return 'Moved Atlas to the requested position.';
  if(c.type==='camera')return 'Repositioned the camera.';
@@ -304,7 +306,7 @@ function bubble(m){
  if(m.role==='user')linkify(el,m.text||'');else formatAnswer(el,cleanReply(m.text||'').text);mediaBubble(el,m);return el;
 }
 function render(){
- const t=active();$('send').disabled=busy;$('send').setAttribute('aria-busy',String(busy));feed.replaceChildren();for(const m of t.msgs)feed.append(bubble(m));
+ const t=active();$('send').disabled=busy&&!stopRequested(composer.value.trim(),active().msgs);$('send').setAttribute('aria-busy',String(busy));feed.replaceChildren();for(const m of t.msgs)feed.append(bubble(m));
  if(busy&&t.id===busyThread){const el=document.createElement('div');el.className='bubble atlas typing';el.id='atlasTyping';el.innerHTML='<i></i><i></i><i></i>';feed.append(el)}
  const threads=$('threads');threads.replaceChildren();
  const filter=($('atlasHistorySearch')?.value||'').toLowerCase();
@@ -365,7 +367,7 @@ async function connectPairingLink(){
  try{const r=await fetch(server+'/atlas/api/pair/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})}),j=await r.json();if(!r.ok||!j.token)throw Error(j.error||'Pairing failed');ACCESS=j.token;pairResumeId=j.activeThreadId||'';sessionStorage.setItem('atlas-access-token',ACCESS);localStorage.setItem('atlas-access-token',ACCESS);if(tokenField)tokenField.value=ACCESS;syncStatus('Device connected. Loading your history…');return true}catch(e){syncStatus(e.message);open('settings');return false}
 }
 $('atlasPairDevice').onclick=async()=>{
- try{if(!ACCESS)throw Error('Create the link on your already-connected computer.');const code=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');await api('/atlas/api/pair',{code,activeThreadId:data.active});const url=new URL(location.href);url.search='?v=124';url.hash=new URLSearchParams({pair:code,server:BASE}).toString();$('atlasPairLink').value=url.href;$('atlasPairShare').hidden=false;syncStatus('Private one-use link, valid for 10 minutes. Open it on your phone.')}catch(e){syncStatus(e.message)}
+ try{if(!ACCESS)throw Error('Create the link on your already-connected computer.');const code=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');await api('/atlas/api/pair',{code,activeThreadId:data.active});const url=new URL(location.href);url.search='?v=125';url.hash=new URLSearchParams({pair:code,server:BASE}).toString();$('atlasPairLink').value=url.href;$('atlasPairShare').hidden=false;syncStatus('Private one-use link, valid for 10 minutes. Open it on your phone.')}catch(e){syncStatus(e.message)}
 };
 $('atlasPairShare').onclick=async()=>{const url=$('atlasPairLink').value;try{if(navigator.share)await navigator.share({title:'Connect my Atlas device',url});else{await navigator.clipboard.writeText(url);syncStatus('Pairing link copied. Open it on your other device.')}}catch{$('atlasPairLink').focus();$('atlasPairLink').select()}};
 window.addEventListener('online',()=>void syncHistory());
@@ -378,6 +380,7 @@ async function afterReply(run){
  if(id===pendingAction)run(id);
 }
 function performMotion(action){
+ if(action==='idle'){void stopMovement();return}
  cancelStudioPlan();$('stageActions').open=false;push('atlas',actionReply(action));
  void afterReply(()=>dispatch('motion',action));
 }
@@ -562,7 +565,16 @@ function modeFromText(t,attachments=[]){
  // Other vague requests remain chat rather than starting an expensive generation.
  return 'chat';
 }
+async function stopMovement(urgentText=''){
+  if(urgentText)composer.value='';cancelStudioPlan();++pendingAction;
+  if(urgentText)push('user',urgentText);const message=push('atlas','Stopping movement…');
+  const result=await sceneCommand({type:'stop'});
+  message.text=result.ok?'Stopped. I’ll stay here until you tell me to move.':(result.error||'The movement controls are unavailable.');
+  message.updatedAt=Date.now();recordStudioResult(data.active,{status:result.ok?'completed':'failed',summary:'Stopped Atlas.',reason:result.error||''});save();render();
+}
 async function send(){
+ const urgentText=composer.value.trim();
+ if(urgentText&&stopRequested(urgentText,active().msgs)){await stopMovement(urgentText);return}
  if(busy)return;pairResumeId='';if(!ACCESS){open('settings');syncStatus('This phone is not paired yet. Create a private pairing link in Atlas Settings on your connected computer, then open it here.');return}const text=composer.value.trim();if(!text&&!files.length)return;
  if(!files.length&&studioRecallRequest(text)){composer.value='';push('user',text);push('atlas',studioRecallReply(studioReceipts()));return}
  cancelStudioPlan();++pendingAction;
@@ -578,7 +590,7 @@ async function send(){
  if(t.title==='New conversation')t.title=(text||'Attachments').slice(0,52);
  const filenames=files.map(x=>x.name);const history=t.msgs.slice(-35).filter(x=>x.role==='user'||x.role==='atlas').map(x=>({role:x.role==='atlas'?'assistant':'user',text:x.text}));
  push('user',(text||'Analyze these attachments')+(filenames.length?'\n📎 '+filenames.join(', '):''));
- if(localStudio.length&&!files.length&&!shouldDeferStudioCommands(mode,text)){push('atlas',studioActionSummary(localStudio));const id=current;void afterReply(()=>applyStudioCommands(localStudio,id).catch(e=>{if(id===data.active&&!/canceled/i.test(e.message))push('atlas',e.message)}));return}
+ if(localStudio.length&&!files.length&&!shouldDeferStudioCommands(mode,text)){push('atlas',studioActionSummary(localStudio));const id=current;void afterReply(()=>applyStudioCommands(localStudio,id,text).catch(e=>{if(id===data.active&&!/canceled/i.test(e.message))push('atlas',e.message)}));return}
  const action=mode==='chat'?requestedMotion(text):null;
  if(action&&!files.length&&text.length<90&&!/\b(?:why|how|explain|what|image|picture|photo|create|generate|screen|presentation|center|home)\b/i.test(text)){performMotion(action);return}
  const destination=/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text)?'walkToScreen':/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text)?'walkHome':null;
@@ -600,7 +612,7 @@ async function send(){
   if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);cacheImages(sent);if(sent.images[0]&&current===data.active)studioImage(sent.images[0],mediaTargets[0]);render()}
   const memory=selectedMemories(text);
   const related=relevantHistory(text,t.id);
-  const payload={text:mode==='web-images'?photoSubject(text):text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],personality,grounding:true,imageTask:mode==='image'&&(followup||selection.some(f=>f.type.startsWith('image/'))&&isImageEdit(text))?'edit':'create',studioState:state,model:modelSetting?.value||'cloudflare-free'};
+  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],personality,grounding:true,imageTask:mode==='image'&&(followup||selection.some(f=>f.type.startsWith('image/'))&&isImageEdit(text))?'edit':'create',studioState:state,model:modelSetting?.value||'cloudflare-free'};
   response=await api('/atlas/api/'+mode,payload,mode==='image'?210000:150000);
   if(mode==='image'){if(!response.images?.length)throw Error('No image was returned. Your prompt is saved so you can retry.');for(const src of response.images)await decodeStudioPhoto(src)}
   const studioReply=extractStudioCommands(response.text||'');
@@ -614,7 +626,7 @@ async function send(){
   // Explicit user motions or model-selected actions take precedence over
   // a generic reply nod, so the body follows the intended movement.
   // The explicit user command always wins over an optional AI-selected gesture.
-  if(current===data.active&&requestActionVersion===pendingAction)void afterReply(async actionId=>{await mediaReady;if(actionId!==pendingAction||current!==data.active||requestEpoch!==activeRequest)return;return sceneActions.length?applyStudioCommands(sceneActions,current).catch(e=>{if(current===data.active&&!/canceled/i.test(e.message))push('atlas',e.message)}):action?dispatch('motion',action):dispatch('sequence',mode==='web-images'&&!hasNewMedia?['idle']:responseActions(text,txt,response.actions,mode))});
+  if(current===data.active&&requestActionVersion===pendingAction)void afterReply(async actionId=>{await mediaReady;if(actionId!==pendingAction||current!==data.active||requestEpoch!==activeRequest)return;return sceneActions.length?applyStudioCommands(sceneActions,current,text).catch(e=>{if(current===data.active&&!/canceled/i.test(e.message))push('atlas',e.message)}):action?dispatch('motion',action):dispatch('sequence',mode==='web-images'&&!hasNewMedia?['idle']:responseActions(text,txt,response.actions,mode))});
   if(speaking&&window.speechSynthesis&&current===data.active&&requestEpoch===activeRequest){
     speechSynthesis.cancel();
     dispatch('speech',false);
@@ -644,6 +656,7 @@ $('app').addEventListener('drop',e=>{e.preventDefault();document.body.classList.
 composer.addEventListener('paste',e=>{const images=[...e.clipboardData.items].filter(i=>i.type.startsWith('image/')).map(i=>i.getAsFile()).filter(Boolean);if(images.length){e.preventDefault();void addFiles(images)}});
 
 $('send').onclick=send;$('send').addEventListener('pointerdown',e=>{if(document.activeElement===composer)e.preventDefault()});
+composer.addEventListener('input',()=>{$('send').disabled=busy&&!stopRequested(composer.value.trim(),active().msgs)});
 composer.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
 $('newChat').onclick=()=>{resetConversationScene();const id=crypto.randomUUID();data.threads.unshift({id,title:'New conversation',updatedAt:Date.now(),msgs:[]});data.active=id;save();render();close()};
 const open=id=>{$(id).classList.add('show');$('veil').classList.add('show')};

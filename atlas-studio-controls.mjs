@@ -22,6 +22,7 @@ export function normalizeStudioCommands(input){
    if(typeof raw.targetScreen==='string'&&/^screen-\d{1,6}$/.test(raw.targetScreen))c.targetScreen=raw.targetScreen;
    if(['beside','front'].includes(raw.placement))c.placement=raw.placement;
    if(raw.face==='viewer')c.face='viewer';
+   if(typeof raw.travel==='boolean')c.travel=raw.travel;
    const duration=number(raw.duration,.3,10);if(duration!==undefined)c.duration=duration;
   }
   else if(raw.type==='photos'){
@@ -32,8 +33,8 @@ export function normalizeStudioCommands(input){
   }else if(raw.type==='scene'){
    for(const k of ['roomVisible','autoRotate','naturalMotion','allowAvatarOverlap'])if(typeof raw[k]==='boolean')c[k]=raw[k];
   }else if(raw.type==='wait'){const duration=number(raw.duration,.1,8);if(duration!==undefined)c.duration=duration}
-  else if(raw.type!=='reset'&&raw.type!=='normal')continue;
-  if(Object.keys(c).length>1||c.type==='reset'||c.type==='normal')out.push(c);
+  else if(!['reset','normal','stop'].includes(raw.type))continue;
+  if(Object.keys(c).length>1||['reset','normal','stop'].includes(c.type))out.push(c);
  }return out;
 }
 
@@ -52,6 +53,7 @@ function requestedScreenCount(text){
 }
 export function parseStudioRequest(text,state={}){
  const q=String(text||'').trim(),lower=q.toLowerCase();const out=[];
+ if(stopRequested(q))return [{type:'stop'}];
  const clauses=q.split(/\s*(?:,?\s+then\s+|;\s*)/i);if(clauses.length>1)return normalizeStudioCommands(clauses.slice(0,MAX_STUDIO_STEPS).flatMap(part=>parseStudioRequest(part,state)));
  const plan=directStudioPlan(q,state);if(plan!==null)return normalizeStudioCommands(plan);
  const targets=presentationTargets(q,state),hasScreens=Array.isArray(state.screens)&&state.screens.length>0;
@@ -99,7 +101,7 @@ export function extractStudioCommands(text){
  const raw=[];const clean=String(text||'').replace(/<atlas_studio>\s*([\s\S]*?)(?:<\/atlas_studio>|$)/gi,(_,json)=>{try{raw.push(...JSON.parse(json.replace(/^```(?:json)?\s*|\s*```$/g,'')))}catch{}return ''});
  return {text:clean.trim(),studio:normalizeStudioCommands(raw)};
 }
-export const STUDIO_CONTRACT="Control Atlas through ordered data commands, not claims. Reply briefly first, then append <atlas_studio>[JSON commands]</atlas_studio>. Up to 32 steps execute sequentially, waiting for walking/gestures. A sequence may use {type:\"sequence\",steps:[commands]}. For explicit visits use placement front so Atlas actually walks to each screen; frame each stop with a camera presentation command and its screenId. Use camera fit to frame the whole studio. The avatar face field viewer turns toward the user. Read recentActions for actual outcomes; never guess what just happened. Design useful multi-step presentations: show photos, walk beside a specific screen, point at it, enlarge that screen, pause, then move to the next. Never point by searching the web for the word point. Up to 12 independent screens. CURRENT STUDIO STATE lists their real IDs, content labels and placement. Commands: {type:\"screen\",action:\"add|remove|select\",count:1..12,id:\"screen-2\",visible:boolean,clear:boolean,text:string,x:number,y:number,z:number,width:number,height:number,billboard:boolean,rotation:number}; {type:\"photos\",action:\"show|fill|next|previous|pause|resume|remove\",screenIds:[\"screen-1\",\"screen-2\"],index:0-based number,match:string}; fill places available photos across target screens, without moving them. Use show for one screen/slideshow. Images are loaded into the requested screen, never URLs invented by you. {type:\"avatar\",motion:\"idle|wave|greet|point|think|nod|walk|back|dance|hiphop|sillydance|breakdance|flair\",targetScreen:\"screen-2\",placement:\"beside|front\",duration:seconds,x:number,z:number,rotation:degrees}. targetScreen with point walks beside it, turns toward it and points; placement front explicitly permits standing in front of a picture. {type:\"wait\",duration:seconds}; {type:\"camera\",preset:\"head|body|studio|screen|presentation|fit|left|right|reset\",screenId:\"screen-2\",yaw:number,pitch:number,distance:number,x:number,y:number,z:number}; {type:\"scene\",roomVisible:boolean,autoRotate:boolean,naturalMotion:boolean,allowAvatarOverlap:boolean}; {type:\"normal\"} restores normal view; {type:\"reset\"} clears the scene. Screen positions stay fixed unless explicitly moved. Atlas walks to clear space; if none exists he stays still. Use only actual IDs from state. Only include needed fields. Camera angles are degrees. Respect unavailable state. For new photo subjects use photo search, not stale photos. Short intent before actions; never report actions as successful before execution. Studio commands need no web citations." ;
+export const STUDIO_CONTRACT="Control Atlas through ordered data commands, not claims. Reply briefly first, then append <atlas_studio>[JSON commands]</atlas_studio>. Up to 32 steps execute sequentially, waiting for walking/gestures. A sequence may use {type:\"sequence\",steps:[commands]}. For explicit visits use placement front so Atlas actually walks to each screen; frame each stop with a camera presentation command and its screenId. Use camera fit to frame the whole studio. The avatar face field viewer turns toward the user. Read recentActions for actual outcomes; never guess what just happened. Design useful multi-step presentations: show photos, walk beside a specific screen, point at it, enlarge that screen, pause, then move to the next. Never point by searching the web for the word point. Up to 12 independent screens. CURRENT STUDIO STATE lists their real IDs, content labels and placement. Commands: {type:\"screen\",action:\"add|remove|select\",count:1..12,id:\"screen-2\",visible:boolean,clear:boolean,text:string,x:number,y:number,z:number,width:number,height:number,billboard:boolean,rotation:number}; {type:\"photos\",action:\"show|fill|next|previous|pause|resume|remove\",screenIds:[\"screen-1\",\"screen-2\"],index:0-based number,match:string}; fill places available photos across target screens, without moving them. Use show for one screen/slideshow. Images are loaded into the requested screen, never URLs invented by you. {type:\"avatar\",motion:\"idle|wave|greet|point|think|nod|walk|back|dance|hiphop|sillydance|breakdance|flair\",targetScreen:\"screen-2\",placement:\"beside|front\",duration:seconds,x:number,z:number,rotation:degrees}. targetScreen with point turns toward the screen and points without walking; placement front explicitly permits standing in front of a picture. {type:\"wait\",duration:seconds}; {type:\"camera\",preset:\"head|body|studio|screen|presentation|fit|left|right|reset\",screenId:\"screen-2\",yaw:number,pitch:number,distance:number,x:number,y:number,z:number}; {type:\"scene\",roomVisible:boolean,autoRotate:boolean,naturalMotion:boolean,allowAvatarOverlap:boolean}; {type:\"normal\"} restores normal view; {type:\"reset\"} clears the scene. Screen positions stay fixed unless explicitly moved. Atlas NEVER walks, paces or relocates automatically, including for photos and screen changes. Walking requires an explicit user movement request. Pointing by itself does not authorize walking. Stop cancels all movement immediately. Use only actual IDs from state. Only include needed fields. Camera angles are degrees. Respect unavailable state. For new photo subjects use photo search, not stale photos. Short intent before actions; never report actions as successful before execution. Studio commands need no web citations." ;
 
 export function shouldDeferStudioCommands(mode,text){
  return mode==='image'||mode==='video'||mode==='web-images'&&/\b(?:of|showing|about)\s+\S/i.test(String(text||''));
@@ -110,7 +112,7 @@ export function studioRecallRequest(text){
 }
 export function studioConversation(text){
  const q=String(text||'');
- return studioRecallRequest(q)||/\b(?:atlas|screens?|studio|camera|slideshow|zoom|your (?:body|position|movement)|look at me|face me|turn around|come (?:back|here)|go back)\b/i.test(q)
+ return stopRequested(q)||studioRecallRequest(q)||/\b(?:atlas|screens?|studio|camera|slideshow|zoom|your (?:body|position|movement)|look at me|face me|turn around|come (?:back|here)|go back)\b/i.test(q)
   ||/^(?:(?:please|can you|could you)\s+)?(?:wave|dance|stop|freeze|stand still|move (?:left|right|forward|back)|walk (?:left|right|forward|back))\b/i.test(q);
 }
 export function explicitPhotoSearch(text){
@@ -126,9 +128,47 @@ export function explicitPhotoSearch(text){
 }
 export function photoSearchFollowup(text,history=[]){
  const q=String(text||'').trim();
+ if(photoRetryRequest(q)&&previousPhotoSubject(history))return true;
  if(studioConversation(q)||/^(?:what|why|how|where|when|who|did|do|can|could|is|are|go|move|walk|come|turn|point|add|remove|delete|close|open|stop|wave|dance|make|create|generate|edit|remember|forget|thanks|hello|hey)\b/i.test(q)||/[?]/.test(q))return false;
  const last=history.at(-1);if(!last||!/(?:couldn.t find|could not find|couldn.t retrieve|specific name|matching picture|matching photo)/i.test(last.text||''))return false;
  return q.length<140&&/\w/.test(q)&&history.slice(-6).some(m=>m.role==='user'&&explicitPhotoSearch(m.text||''));
+}
+
+export function stopRequested(text,history=[]){
+ const q=String(text||'').trim();
+ if(/^(?:(?:please|can you|could you|atlas)\s+)*(?:stop|freeze|stand still|stay still|don't move|do not move|quit pacing|stop pacing)\b/i.test(q))return true;
+ if(/\b(?:you (?:have )?not stopp?ed|you haven't stopp?ed|still (?:pacing|walking|moving)|stop moving)\b/i.test(q))return true;
+ return /^(?:no[,]?\s+)?(?:you(?:'re| are)?\s+not|you(?:'re| are)\s+still)[.!?]*$/i.test(q)&&history.slice(-5).some(m=>m.role==='user'&&/\b(?:stop|freeze|pacing|stand still)\b/i.test(m.text||''));
+}
+export function movementRequested(text){
+ const q=String(text||'');
+ if(stopRequested(q))return false;
+ return /\b(?:walk|walking|pace|pacing|stroll|run|jog|visit|tour|come here|come back|(?:go|move) (?:to|toward|towards|back|home|left|right|forward|backward)|head (?:to|over)|return to (?:the )?(?:center|middle)|take (?:a|some|\d+) steps?)\b/i.test(q)
+  ||/\b(?:move|shift|bring|reposition|relocate|put)\s+(?:atlas|him|yourself|you|(?:the\s+)?(?:person|body))\b/i.test(q)
+  ||/^(?:(?:please|can you|could you)\s+)?move (?:left|right|forward|backwards?|back)\b/i.test(q);
+}
+export function authorizeStudioCommands(commands,text){
+ const allow=movementRequested(text);
+ return normalizeStudioCommands(commands).flatMap(c=>{
+  if(c.type!=='avatar')return [c];
+  if(!allow&&['walk','back'].includes(c.motion))return [];
+  return [{...c,travel:allow}];
+ });
+}
+function photoRetryRequest(text){
+ return /^(?:(?:please|can you|could you|would you)\s+)?(?:try (?:again|finding (?:them|it))|(?:find|get|show|fetch|search for)(?:\s+me)?\s+(?:them|it|those|these|the pictures|the photos|the images))(?:\s+(?:again|please|now))?[.!?]*$/i.test(String(text||'').trim());
+}
+function previousPhotoSubject(history){
+ for(const m of history.slice(-16).reverse()){
+  if(m.role!=='user'||!explicitPhotoSearch(m.text||''))continue;
+  const subject=photoSubject(m.text);if(subject&&!photoRetryRequest(m.text))return subject;
+ }
+ return '';
+}
+export function resolvePhotoSubject(text,history=[]){
+ const prior=previousPhotoSubject(history),q=String(text||'');
+ if(prior&&(photoRetryRequest(q)||/\b(?:image|picture|photo)\s+of\s+(?:the|that|this)?\s*(?:car|vehicle|truck|product|animal|house)\s+(?:designed|made|built|created)\s+by\b/i.test(q)))return prior;
+ return photoSubject(q);
 }
 export function photoSubject(text){
  return String(text||'').split(/\s+(?:then|and then)\s+/i)[0]
@@ -138,6 +178,7 @@ export function photoSubject(text){
   .replace(/\s+(?:in|into|on|onto|to)\s+(?:the\s+)?(?:studio\s+)?(?:screen|display)(?:\s*#?\d+)?\s*[.!?]*$/i,'').trim();
 }
 export function studioActionSummary(commands){
+ if(commands?.some(c=>c.type==='stop'))return 'Stop Atlas.';
  const list=normalizeStudioCommands(commands),visits=list.filter(c=>c.type==='avatar'&&c.targetScreen),moves=list.filter(c=>c.type==='avatar'&&(c.x!==undefined||c.z!==undefined||c.targetScreen));
  if(visits.length>1)return 'Visit '+visits.length+' screens in order.';
  if(visits.length)return 'Head to screen '+visits[0].targetScreen.split('-')[1]+'.';
