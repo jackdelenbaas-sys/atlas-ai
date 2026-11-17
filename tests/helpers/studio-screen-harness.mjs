@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {clearWalkingLane,resizeScreen,presentationSize} from '../../atlas-presentation.mjs';
 export function screenHarness(){
+ const bounds={minX:-3.71,maxX:3.71,minZ:-3.72,maxZ:1.93};
  const html=fs.readFileSync(new URL('../../index.html',import.meta.url),'utf8');
  const start=html.indexOf('const studioScreens=new Map()'),end=html.indexOf('let studioTargetX=0',start);
  assert.ok(start>0&&end>start);
