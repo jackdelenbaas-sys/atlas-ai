@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {screenHarness} from './helpers/studio-screen-harness.mjs';
+import {stepTravel,smoothTurn,clampPoint} from '../atlas-motion.mjs';
 import {normalizeStudioCommands,parseStudioRequest,presentationTargets,MAX_STUDIO_STEPS} from '../atlas-studio-controls.mjs';
 const source=fs.readFileSync(new URL('../atlas-app-v8.js',import.meta.url),'utf8');
 const screens=Array.from({length:6},(_,i)=>({id:'screen-'+(i+1),visible:true}));
@@ -88,4 +90,52 @@ test('a failed picture falls back to another result while still filling all targ
  const {context,events}=mediaHarness();context.loadStudioPhoto=async item=>{if(item.url==='broken')throw Error('unavailable');return 'data:image/jpeg;base64,AAAA'};
  const success=await context.fillStudioScreens({webImages:[{url:'broken'},{url:'working'}]},['screen-1','screen-2','screen-3']);
  assert.equal(success,3);assert.equal(events.length,3);
+});
+
+function sceneHarness({blocked=false,cancel=false}={}){
+ const harness=screenHarness(),{context,api,window}=harness,results=[],motions=[];
+ let now=100,canceled=false,listener,cancelListener;
+ context.model={position:{x:0,z:0},rotation:{y:0}};context.normalizeStudioCommands=normalizeStudioCommands;context.clampToRoom=clampPoint;
+ context.ensureAction=async()=>{};context.clipFor=()=>({duration:1});context.centerAtlasView=()=>{};
+ context.playMixamo=motion=>motions.push({motion,now});context.travelRequest=0;context.chatActionVersion=0;
+ context.showRun=null;context.gesture='';context.manualMotionUntil=0;context.speechActive=false;context.speechMouthLevel=0;
+ context.planTravel=(x,z)=>{context.travelPlan={toX:x,toZ:z,speed:1,velocity:0,turnVelocity:0}};
+ context.performance.now=()=>now;
+ context.setTimeout=callback=>setImmediate(()=>{
+  now+=40;
+  if(cancel&&!canceled){canceled=true;cancelListener?.()}
+  if(!blocked){
+   const p=context.travelPlan,m=context.model;
+   if(p){const next=stepTravel(p,m.position.x,m.position.z,m.rotation.y,.04);Object.assign(m.position,{x:next.x,z:next.z});m.rotation.y=next.yaw;p.velocity=next.speed;p.turnVelocity=next.turnVelocity;if(next.done)context.travelPlan=null}
+   else{const target=vm.runInContext('avatarFacingTarget',context);if(target!==null)m.rotation.y=smoothTurn(m.rotation.y,target,vm.runInContext('avatarTurnVelocity',context),.04).yaw}
+  }
+  callback();
+ });
+ const add=window.addEventListener;window.addEventListener=(type,fn)=>{if(type==='atlas-studio-control')listener=fn;else if(type==='atlas-studio-cancel')cancelListener=fn;else add(type,fn)};
+ window.dispatchEvent=e=>{if(e.type==='atlas-studio-result')results.push(e.detail)};
+ const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ vm.runInContext(html.slice(html.indexOf('function clearStudioScreen('),html.indexOf('async function installGLB')),context);
+ api.active().root.visible=true;
+ return {...harness,results,motions,run:command=>listener({detail:{requestId:'test',command}})};
+}
+test('the real scene command walks, turns toward the target, points, then reports completion',async()=>{
+ const {run,results,motions,context,api}=sceneHarness(),s=api.active(),before={...s.pos};
+ await run({type:'avatar',motion:'point',targetScreen:s.id,placement:'beside',duration:1});
+ assert.equal(results.at(-1).ok,true);assert.ok(motions.some(m=>m.motion==='walk'));assert.ok(motions.some(m=>m.motion==='point'));
+ assert.equal(motions.at(-1).motion,'idle');assert.ok(Math.hypot(context.model.position.x,context.model.position.z)>.1);assert.deepEqual({...s.pos},before);
+ const point=motions.find(m=>m.motion==='point');assert.ok(point.now>1000);
+});
+test('explicit front placement is permitted without moving the picture',async()=>{
+ const {run,results,api,context}=sceneHarness(),s=api.active(),before={...s.pos};
+ await run({type:'avatar',motion:'walk',targetScreen:s.id,placement:'front'});
+ assert.equal(results.at(-1).ok,true);assert.equal(vm.runInContext('allowAvatarOverlap',context),true);
+ assert.ok(Math.abs(context.model.position.x-s.pos.x)<.02);assert.deepEqual({...s.pos},before);
+});
+test('a frozen movement times out safely, while cancellation stops a pending movement',async()=>{
+ for(const options of [{blocked:true},{cancel:true}]){
+  const {run,results,context,api}=sceneHarness(options),before={...api.active().pos};
+  await run({type:'avatar',motion:'point',targetScreen:api.active().id,duration:1});
+  assert.equal(results.at(-1).ok,false);assert.match(results.at(-1).error,/stopped|canceled/i);
+  assert.equal(context.travelPlan,null);assert.deepEqual({...api.active().pos},before);
+ }
 });
