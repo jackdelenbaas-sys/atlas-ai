@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import {authorizeStudioCommands,movementRequested,stopRequested,photoSearchFollowup,resolvePhotoSubject,parseStudioRequest} from '../atlas-studio-controls.mjs';
 const history=[{role:'user',text:'put pictures of Cybertruck in each'},{role:'atlas',text:'I couldn’t find a matching picture.'}];
 test('photos, resizing, camera changes and pointing never authorize walking',()=>{
- for(const text of ['find pictures of Cybertrucks','put it on the screen','resize the screen','move the screen left','reposition the camera','point to each picture','show me a picture of Atlas']){
+ for(const text of ['find pictures of Cybertrucks','put it on the screen','resize the screen','move the screen left','reposition the camera','point to each picture','show me a picture of Atlas','create an image of a walking dog']){
   assert.equal(movementRequested(text),false,text);
   const commands=authorizeStudioCommands([{type:'avatar',motion:'walk',x:2},{type:'avatar',motion:'point',targetScreen:'screen-1',travel:true}],text);
   assert.equal(commands.length,1);assert.equal(commands[0].motion,'point');assert.equal(commands[0].travel,false);
@@ -49,4 +49,9 @@ test('vehicle searches reject dealership or service-building scenes',()=>{
  const page=title=>({title:'File:'+title,imageinfo:[{extmetadata:{Categories:{value:'Tesla cars'}}}]});
  assert.equal(context.photoMatch(request,page('Tesla service center with parked cars.jpg')),-1);
  assert.ok(context.photoMatch(request,page('Tesla car closeup.jpg'))>=0);
+});
+
+test('coreference keeps the model through several photo retries',()=>{
+ const chain=[...history,{role:'user',text:'an image of the car designed by tesla'},{role:'atlas',text:'Here it is.'}];
+ assert.equal(resolvePhotoSubject('can you find them',chain),'Cybertruck');
 });

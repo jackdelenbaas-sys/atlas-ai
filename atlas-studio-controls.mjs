@@ -143,6 +143,9 @@ export function stopRequested(text,history=[]){
 export function movementRequested(text){
  const q=String(text||'');
  if(stopRequested(q))return false;
+ const parts=q.split(/\s+(?:then|and then|and(?=\s+(?:walk|go|move|visit|come|pace|stroll)\b))\s+/i);
+ if(parts.length>1)return parts.some(movementRequested);
+ if(/^(?:(?:please|can you|could you)\s+)?(?:find|show|get|create|make|generate|draw)\b/i.test(q)&&/\b(?:photos?|pictures?|images?|videos?)\b/i.test(q))return false;
  return /\b(?:walk|walking|pace|pacing|stroll|run|jog|visit|tour|come here|come back|(?:go|move) (?:to|toward|towards|back|home|left|right|forward|backward)|head (?:to|over)|return to (?:the )?(?:center|middle)|take (?:a|some|\d+) steps?)\b/i.test(q)
   ||/\b(?:move|shift|bring|reposition|relocate|put)\s+(?:atlas|him|yourself|you|(?:the\s+)?(?:person|body))\b/i.test(q)
   ||/^(?:(?:please|can you|could you)\s+)?move (?:left|right|forward|backwards?|back)\b/i.test(q);
@@ -159,17 +162,20 @@ function photoRetryRequest(text){
  return /^(?:(?:please|can you|could you|would you)\s+)?(?:try (?:again|finding (?:them|it))|(?:find|get|show|fetch|search for)(?:\s+me)?\s+(?:them|it|those|these|the pictures|the photos|the images))(?:\s+(?:again|please|now))?[.!?]*$/i.test(String(text||'').trim());
 }
 function previousPhotoSubject(history){
- for(const m of history.slice(-16).reverse()){
+ for(let i=history.length-1;i>=Math.max(0,history.length-16);i--){
+  const m=history[i];
   if(m.role!=='user'||!explicitPhotoSearch(m.text||''))continue;
+  if(genericPhotoReference(m.text)){const earlier=previousPhotoSubject(history.slice(0,i));if(earlier)return earlier}
   const subject=photoSubject(m.text);if(subject&&!photoRetryRequest(m.text))return subject;
  }
  return '';
 }
 export function resolvePhotoSubject(text,history=[]){
  const prior=previousPhotoSubject(history),q=String(text||'');
- if(prior&&(photoRetryRequest(q)||/\b(?:image|picture|photo)\s+of\s+(?:the|that|this)?\s*(?:car|vehicle|truck|product|animal|house)\s+(?:designed|made|built|created)\s+by\b/i.test(q)))return prior;
+ if(prior&&(photoRetryRequest(q)||genericPhotoReference(q)))return prior;
  return photoSubject(q);
 }
+function genericPhotoReference(q){return /\b(?:image|picture|photo)\s+of\s+(?:the|that|this)?\s*(?:car|vehicle|truck|product|animal|house)\s+(?:designed|made|built|created)\s+by\b/i.test(q)}
 export function photoSubject(text){
  return String(text||'').split(/\s+(?:then|and then)\s+/i)[0]
   .replace(/^(?:(?:please|can you|could you|would you)\s+)*(?:put|display|place|fill|show|find|get|pull|give|send|search(?: for)?|look for)(?:\s+me)?\s+/i,'')

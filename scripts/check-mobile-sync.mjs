@@ -68,7 +68,7 @@ try{
  assert.equal((await rp.evaluate(()=>window.recordedStudioCommands.at(-1))).type,'avatar');assert.equal(wrongRequests.length,0);
  let held,routeReady;const routed=new Promise(resolve=>routeReady=resolve);
  await rp.route('**/atlas/api/chat',route=>{held=route;routeReady()});
- await rp.locator('#input').fill('Hello, a slow reply please');await rp.locator('#send').click();
+ await rp.locator('#input').fill('Explain a sorting algorithm');await rp.locator('#send').click();
  await rp.waitForFunction(()=>document.querySelector('#send').disabled);
  await routed;await rp.locator('#input').fill('stop pacing');await rp.locator('#send').click();
  await rp.waitForFunction(()=>window.recordedStudioCommands.at(-1)?.type==='stop');

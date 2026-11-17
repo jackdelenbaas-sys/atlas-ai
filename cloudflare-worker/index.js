@@ -108,6 +108,13 @@ function photoMatch(request,page){
  const words=new Set(photoWords(label));
  const matches=t=>{const group=PHOTO_GROUPS.find(g=>g.includes(t))||[t];return group.some(v=>words.has(v))};
  if(request.exclusions.some(matches)||!request.terms.length||!request.terms.every(matches))return -1;
+ // In numbered vehicle-parade files, the first named vehicle is the subject.
+ // A requested vehicle appearing only after the comma is incidental/background.
+ if(/\briding\s+\d+\b/i.test(title)&&title.includes(',')){
+  const vehicles=title.slice(title.search(/\briding\s+\d+\b/i)).split(',');
+  const primaryWords=new Set(photoWords(vehicles[0]));
+  if(request.terms.some(t=>!primaryWords.has(t)&&photoWords(vehicles.slice(1).join(' ')).includes(t)))return -1;
+ }
  if(request.photoOnly&&request.terms.some(t=>['car','automobile','truck','cybertruck','cybercab','motorcycle','bicycle','computer','phone'].includes(t))&&!request.terms.some(t=>['building','factory','dealership','showroom','office','shop','garage'].includes(t))&&/\b(?:headquarters|dealership|showroom|service cent(?:er|re)|factory|parking lot|car park|office building)\b/i.test(title))return -1;
  if(request.photoOnly){
   if(/\b(?:paintings|artworks|drawings|manuscripts|musical scores|sheet music|digitized books|scans|charts|graphs|plots|engravings|etchings|postcards|screenshots)\b/i.test(categories)||/\b(?:btv1b|concerto|margin loss|diagram|chart|graph|sheet music)\b/i.test(title))return -1;

@@ -49,3 +49,9 @@ test('a named photo requested on the screen keeps the subject out of the studio-
  assert.deepEqual(Array.from(ctx.photoRequest('put a picture of a golden retriever on the screen',now).terms),['golden','retriever']);
 });
 
+
+test('a requested vehicle in the background list is not the primary parade subject',()=>{
+ const r=ctx.photoRequest('Cybertruck',now);
+ assert.equal(ctx.photoMatch(r,page('2026 Moscow vehicle parade, riding 23 ZAZ, Cybertruck.jpg')),-1);
+ assert.ok(ctx.photoMatch(r,page('2026 Moscow vehicle parade, riding 24 Cybertruck.jpg'))>=0);
+});
