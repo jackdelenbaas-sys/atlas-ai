@@ -47,9 +47,9 @@ test('AI can create, select and close bounded screen IDs',()=>{
  assert.deepEqual(parseStudioRequest('add another screen'),[{type:'screen',action:'add'}]);
  assert.deepEqual(parseStudioRequest('close the screen'),[{type:'screen',action:'remove'}]);
 });
-test('four screens have independent canvases and visibility',()=>{
- const {api}=screenHarness();for(let i=0;i<3;i++)api.makeStudioScreen();assert.equal(api.makeStudioScreen(),null);
- const screens=api.all();assert.equal(screens.length,4);assert.equal(new Set(screens.map(s=>s.surface)).size,4);
+test('twelve screens have independent canvases and visibility',()=>{
+ const {api}=screenHarness();for(let i=0;i<11;i++)api.makeStudioScreen();assert.equal(api.makeStudioScreen(),null);
+ const screens=api.all();assert.equal(screens.length,12);assert.equal(new Set(screens.map(s=>s.surface)).size,12);
  api.setScreenVisibility(true,screens[0]);api.setScreenVisibility(true,screens[1]);api.setScreenVisibility(false,screens[0]);
  assert.equal(screens[0].root.visible,false);assert.equal(screens[1].root.visible,true);
 });
@@ -72,12 +72,13 @@ test('slideshow aspect changes keep the chosen display envelope without cumulati
  assert.ok(Math.abs(s.base.width*s.root.scale.x-envelope.width)<1e-9);
 });
 
-test('drag adjustments shift the screen without teleporting Atlas or changing camera angles',()=>{
+test('drag adjustments preserve the screen, body and camera; walking owns any body translation',async()=>{
  const {api,context}=screenHarness(),s=api.active();
  context.model={position:{x:.2,z:0}};context.yaw=37;context.pitch=-12;s.root.visible=true;Object.assign(s.pos,{x:.2,y:1.2,z:0});
- api.arrangeStudioPresentation(false,s);
+ context.travelRequest=0;context.showRun=null;context.ensureAction=async()=>{};context.planTravel=()=>{};context.playMixamo=()=>{};
+ const before={...s.pos};api.arrangeStudioPresentation(false,s);await Promise.resolve();
  assert.equal(context.model.position.x,.2);assert.equal(context.model.position.z,0);
- assert.equal(context.yaw,37);assert.equal(context.pitch,-12);assert.ok(Math.abs(s.pos.x-.2)>.8);
+ assert.equal(context.yaw,37);assert.equal(context.pitch,-12);assert.deepEqual({...s.pos},before);
 });
 test('automatic clearance starts gait travel and leaves body translation to the movement engine',async()=>{
  const {api,context}=screenHarness(),s=api.active(),planned=[];
@@ -87,4 +88,23 @@ test('automatic clearance starts gait travel and leaves body translation to the 
  await api.walkClearOfScreens();
  assert.equal(planned.length,1);assert.ok(planned[0].x<2.5);assert.equal(context.travelPlan.layout,true);
  assert.equal(context.model.position.x,2.5);assert.equal(context.model.position.z,0);
+});
+
+test('selection fades automatically and clicking elsewhere clears only the handles',()=>{
+ const {api}=screenHarness(),s=api.active();s.root.visible=true;api.selectStudioScreen(s);
+ api.updateScreenHandles(s,100);assert.ok(s.handles.every(h=>h.visible));
+ api.updateScreenHandles(s,4000);assert.ok(s.handles.every(h=>!h.visible));assert.equal(s.frame.visible,false);assert.equal(s.root.visible,true);
+ api.selectStudioScreen(s);api.clearScreenSelection();assert.ok(s.handles.every(h=>!h.visible));assert.equal(api.active(),s);
+});
+test('a room filled with screens leaves Atlas standing and never relocates the screens',async()=>{
+ const {api,context}=screenHarness(),s=api.active();s.root.visible=true;s.root.scale.x=10;
+ context.model={position:{x:0,z:0}};context.showRun=null;context.travelRequest=0;
+ const before={...s.pos};let walks=0;context.ensureAction=async()=>{walks++};
+ assert.equal(await api.walkClearOfScreens(),false);assert.equal(walks,0);assert.deepEqual({...s.pos},before);assert.equal(context.model.position.x,0);
+});
+test('replacing an image retains the exact screen position and dimensions',async()=>{
+ const {api,context,images}=screenHarness(),s=api.active();Object.assign(s.pos,{x:-2,y:2,z:-1});s.root.scale.set(1.4,.8,1);
+ const before={...s.pos},width=s.base.width*s.root.scale.x,height=s.base.height*s.root.scale.y;
+ for(let i=0;i<2;i++){const p=api.presentStudioImage('data:image/jpeg;base64,AAAA',true,s);images[i].width=i?500:1600;images[i].height=i?1600:900;images[i].resolve();await p}
+ assert.deepEqual({...s.pos},before);assert.equal(s.base.width*s.root.scale.x,width);assert.equal(s.base.height*s.root.scale.y,height);
 });

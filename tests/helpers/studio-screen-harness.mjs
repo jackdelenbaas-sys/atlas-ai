@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {MAX_STUDIO_SCREENS} from '../../atlas-studio-controls.mjs';
 import {clearWalkingLane,resizeScreen,presentationSize} from '../../atlas-presentation.mjs';
 export function screenHarness(){
  const bounds={minX:-3.71,maxX:3.71,minZ:-3.72,maxZ:1.93};
@@ -13,18 +14,18 @@ export function screenHarness(){
  class Material{dispose(){this.disposed=true}}
  class Texture extends Material{constructor(image){super();this.image=image}}
  class Geometry{}
- const ctx={fillRect(){},fillText(){},drawImage(){}},elements=new Map();
- const element=id=>{if(!elements.has(id))elements.set(id,{value:'',textContent:'',replaceChildren(){},append(){}});return elements.get(id)};
+ const ctx={fillRect(){},fillText(){},drawImage(){},measureText:()=>({width:0})},elements=new Map();
+ const element=id=>{if(!elements.has(id))elements.set(id,{value:'',textContent:'',replaceChildren(){},append(){},contains(){return false}});return elements.get(id)};
  const listeners=new Map(),images=[];
  const window={addEventListener(name,fn){listeners.set(name,fn)},dispatchEvent(e){listeners.get(e.type)?.(e);return true}};
  class CE{constructor(type,options={}){this.type=type;this.detail=options.detail}}
  const context={console,Map,Image:class{constructor(){this.width=1600;this.height=900;this.naturalWidth=1600;this.naturalHeight=900;images.push(this)}decode(){return new Promise(resolve=>this.resolve=resolve)}},
   THREE:{Group:Obj,Mesh:Obj,BoxGeometry:Geometry,PlaneGeometry:Geometry,MeshBasicMaterial:Material,CanvasTexture:Texture,Vector3:V,Vector2:V,Quaternion:Q,Euler:Geometry,Plane:Geometry,Raycaster:Geometry,Box3:class{setFromPoints(){this.min={x:-2,y:0,z:0};this.max={x:2,y:2,z:0};return this}},MathUtils:{clamp:(x,a,b)=>Math.max(a,Math.min(b,x))}},
-  document:{createElement(type){return type==='canvas'?{getContext:()=>ctx}:{} }},window,CustomEvent:CE,$:element,studio:new Obj(),mat:()=>new Material(),model:null,camera:{matrixWorld:{},position:new V(0,1,4),quaternion:new Q(),aspect:1.5,fov:35},
-  canvas:{addEventListener(){},style:{}},performance:{now:()=>100},ROOM_LIMITS:bounds,clearWalkingLane,resizeScreen,presentationSize,presentationFit:()=>({x:0,y:1,z:0,distance:4}),
+  document:{addEventListener(){},createElement(type){return type==='canvas'?{getContext:()=>ctx}:{} }},window,CustomEvent:CE,$:element,studio:new Obj(),mat:()=>new Material(),model:null,camera:{matrixWorld:{},position:new V(0,1,4),quaternion:new Q(),aspect:1.5,fov:35},
+  canvas:{addEventListener(){},style:{}},performance:{now:()=>100},MAX_STUDIO_SCREENS,ROOM_LIMITS:bounds,clearWalkingLane,resizeScreen,presentationSize,presentationFit:()=>({x:0,y:1,z:0,distance:4}),
   yaw:0,pitch:0,center:new V(),distance:4,auto:false,sliders(){},updateCam(){},orientScreen(){},emitStudioState(){},setTimeout(){},phonePointers:new Map(),drag:false,travelPlan:null,presentationCameraTween:null,studioObjects:{visible:true},spotlight:{},rim:{}
  };
  const api=vm.runInNewContext(html.slice(start,end)+
- ';({makeStudioScreen,selectStudioScreen,removeStudioScreen,presentStudioImage,setScreenVisibility,drawPresentation,arrangeStudioPresentation,walkClearOfScreens,all:()=>[...studioScreens.values()],active:()=>activeScreen})',context);
+ ';({makeStudioScreen,selectStudioScreen,clearScreenSelection,updateStudioScreens,updateScreenHandles,removeStudioScreen,presentStudioImage,setScreenVisibility,drawPresentation,arrangeStudioPresentation,walkClearOfScreens,all:()=>[...studioScreens.values()],active:()=>activeScreen})',context);
  return {api,images,window,context};
 }

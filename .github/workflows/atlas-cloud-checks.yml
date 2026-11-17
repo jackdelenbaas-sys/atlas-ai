@@ -1,7 +1,7 @@
 name: Atlas Cloud Quality Checks
 on:
   push:
-    branches: [main, atlas-studio-screens-121]
+    branches: [main, atlas-studio-screens-121, atlas-studio-polish-122]
     paths:
       - "index.html"
       - "atlas-app-v8.js"

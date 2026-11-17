@@ -18,7 +18,7 @@ for(const hz of [20,30,60,120])test(`walk turns, accelerates and arrives without
   assert.ok(p.speed<=1.00001);
   assert.ok(p.speed-previous<=1.4/hz+.00001);
   maxSpeed=Math.max(p.speed,maxSpeed);previous=p.speed;
-  x=p.x;z=p.z;yaw=p.yaw;plan.velocity=p.speed;
+  x=p.x;z=p.z;yaw=p.yaw;plan.velocity=p.speed;plan.turnVelocity=p.turnVelocity;
   if(p.done){arrived=true;break}
  }
  assert.ok(arrived);assert.ok(Math.hypot(x-target.x,z-target.z)<.02);assert.ok(maxSpeed>.9);
@@ -41,4 +41,12 @@ test('gravity settles an elevated body onto the floor without tunnelling',()=>{
 });
 test('floor contact corrects an animated shoe penetration immediately',()=>{
  assert.deepEqual(stepGravity(0,0,.14,1/60),{height:.14,velocity:0,grounded:true});
+});
+
+test('turning accelerates smoothly and takes the shortest path at different frame rates',async()=>{
+ const {smoothTurn}=await import('../atlas-motion.mjs');
+ for(const hz of [30,60,120]){let yaw=0,velocity=0;
+  for(let i=0;i<hz*6;i++){const next=smoothTurn(yaw,Math.PI*.9,velocity,1/hz);assert.ok(Math.abs(next.velocity)<=1.650001);assert.ok(Math.abs(next.velocity-velocity)<=4/hz+.00001);assert.ok(Math.abs(next.yaw-yaw)<=1.65/hz+.00001);yaw=next.yaw;velocity=next.velocity}
+  assert.ok(Math.abs(yaw-Math.PI*.9)<.01);
+ }
 });

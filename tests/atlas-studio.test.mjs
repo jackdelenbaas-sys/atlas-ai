@@ -10,7 +10,7 @@ test('model metadata is separate from displayed text and malformed data is disca
 test('new conversation clears every presentation and restores avatar during pending actions',async()=>{
  const source=readFileSync(new URL('../index.html',import.meta.url),'utf8'),{api,images,window,context}=screenHarness();
  api.makeStudioScreen();const s=api.active(),pending=api.presentStudioImage('data:image/jpeg;base64,QUJDRA==',false,s);
- context.normalizeStudioCommands=normalizeStudioCommands;context.centerAtlasView=()=>{};context.playMixamo=()=>{};
+ context.normalizeStudioCommands=normalizeStudioCommands;context.cancelScriptedActions=()=>{};context.centerAtlasView=()=>{};context.playMixamo=()=>{};
  context.model={position:{x:2,z:1},rotation:{y:2}};const events=[];
  window.dispatchEvent=e=>events.push(e);
  vm.createContext(context);

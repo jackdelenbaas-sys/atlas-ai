@@ -6,20 +6,29 @@ export function clampPoint(x,z,radius=BODY_RADIUS){
  return {x:clamp(Number.isFinite(x)?x:0,ROOM_BOUNDS.minX+radius,ROOM_BOUNDS.maxX-radius),
  z:clamp(Number.isFinite(z)?z:0,ROOM_BOUNDS.minZ+radius,ROOM_BOUNDS.maxZ-radius)};
 }
+
+export function smoothTurn(yaw,target,velocity,dt,maxSpeed=1.65){
+ dt=clamp(dt,0,.05);const angle=Math.atan2(Math.sin(target-yaw),Math.cos(target-yaw));
+ const wanted=clamp(angle*4,-maxSpeed,maxSpeed);
+ velocity=(Number.isFinite(velocity)?velocity:0)+clamp(wanted-(Number.isFinite(velocity)?velocity:0),-4*dt,4*dt);
+ let step=velocity*dt;
+ if(Math.sign(step)===Math.sign(angle)&&Math.abs(step)>Math.abs(angle)){step=angle;velocity=0}
+ return {yaw:yaw+step,velocity:Math.abs(angle)<.0002?0:velocity};
+}
+
 export function stepTravel(state,x,z,yaw,dt){
  dt=clamp(dt,0,.05);
  const dx=state.toX-x,dz=state.toZ-z,remaining=Math.hypot(dx,dz);
  if(remaining<.012)return {x:state.toX,z:state.toZ,yaw,speed:0,done:true};
  const heading=Math.atan2(dx,dz)+(state.backward?Math.PI:0);
  const angle=Math.atan2(Math.sin(heading-yaw),Math.cos(heading-yaw));
- const turn=clamp(angle,-2.8*dt,2.8*dt);
- yaw+=turn;
+ const turn=smoothTurn(yaw,heading,state.turnVelocity||0,dt);yaw=turn.yaw;
  // Turn on the spot before advancing; brake using v²=2ad near the destination.
  const desired=Math.min(state.speed,Math.sqrt(2*1.8*remaining))*Math.max(0,Math.cos(angle));
  const speed=Math.max(0,(state.velocity||0)+clamp(desired-(state.velocity||0),-2.4*dt,1.4*dt));
  const step=Math.min(remaining,speed*dt);
  const point=clampPoint(x+dx/remaining*step,z+dz/remaining*step);
- return {...point,yaw,speed,done:remaining-step<.012};
+ return {...point,yaw,turnVelocity:turn.velocity,speed,done:remaining-step<.012};
 }
 export function stepGravity(height,velocity,minimum,dt){
  dt=clamp(dt,0,.05);
