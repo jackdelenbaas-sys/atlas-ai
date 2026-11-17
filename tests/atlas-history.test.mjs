@@ -38,4 +38,3 @@ test('expired pairing links cannot release a token',async()=>{
 test('image history stores and retrieves chunked media on another device',async()=>{
  const env=environment(),data='data:image/png;base64,'+'QUJD'.repeat(100000),id='test-image-12345678';assert.equal((await worker.fetch(request('media/'+id,{data}),env)).status,200);const r=await worker.fetch(request('media/'+id),env);assert.equal((await r.json()).data,data);assert.equal((await worker.fetch(request('media/'+id,undefined,'bad'),env)).status,401);
 });
-

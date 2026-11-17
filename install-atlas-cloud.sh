@@ -75,4 +75,3 @@ if [ -s "$KEY" ]; then
 fi
 echo "Open https://jackdelenbaas-sys.github.io/atlas-ai/?v=84"
 echo "The old Ollama model is no longer used by Atlas. It has NOT been deleted from your Mac."
-

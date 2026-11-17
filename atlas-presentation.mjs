@@ -49,4 +49,3 @@ export function screenApproach(avatar,target,screens,right,bounds,front=false){
  candidates.sort((a,b)=>Math.hypot(a.x-avatar.x,a.z-avatar.z)-Math.hypot(b.x-avatar.x,b.z-avatar.z));
  return candidates[0]||clearWalkingLane(avatar,screens,right,bounds);
 }
-

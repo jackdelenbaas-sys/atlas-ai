@@ -33,4 +33,3 @@ test('screen off prevents pending decoded pictures from making a panel visible',
  api.setScreenVisibility(false,s);images[0].resolve();await p;
  assert.equal(s.root.visible,false);assert.equal(s.content.kind,'empty');
 });
-

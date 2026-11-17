@@ -115,4 +115,3 @@ test('screen presentations select a clear approach and stay put when every lane 
  const crowded=[{x:0,z:0,y:1,width:20,height:2}];assert.equal(screenApproach(avatar,target,crowded,{x:1,z:0},bounds),null);
  const front=screenApproach(avatar,target,crowded,{x:1,z:0},bounds,true);assert.equal(front.x,1);assert.equal(front.z,.65);
 });
-

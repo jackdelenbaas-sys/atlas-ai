@@ -283,4 +283,3 @@ class Handler(BaseHTTPRequestHandler):
 if __name__=='__main__':
     print('Atlas research bridge ready on 127.0.0.1:11435',flush=True)
     ThreadingHTTPServer(('127.0.0.1',11435),Handler).serve_forever()
-

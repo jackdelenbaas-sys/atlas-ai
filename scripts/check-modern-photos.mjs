@@ -8,4 +8,3 @@ const req=(path,body)=>new Request('https://atlas.test/atlas/api/'+path,{method:
 const r=await worker.fetch(req('web-images',{text:'find a picture of a modern house'}),env),j=await r.json();
 console.log(JSON.stringify({status:r.status,photos:j.webImages?.map(i=>({title:i.title,url:i.url})),error:j.error}));
 if(!r.ok||!j.webImages?.length)process.exitCode=1;
-

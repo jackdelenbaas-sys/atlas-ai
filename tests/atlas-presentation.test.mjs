@@ -32,4 +32,3 @@ test('facing the viewer turns smoothly through the shortest angle',async()=>{
  for(let i=0;i<120;i++)yaw=facingCameraYaw(yaw,p,camera,1/60);assert.ok(Math.abs(yaw)<.001);
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');assert.match(html,/walkHome'\).onclick=\(\)=>\{faceCameraRequested=true/);assert.match(html,/generation===chatActionVersion/);
 });
-
