@@ -29,3 +29,4 @@ export function screenHarness(){
  ';({makeStudioScreen,selectStudioScreen,clearScreenSelection,updateStudioScreens,updateScreenHandles,removeStudioScreen,presentStudioImage,setScreenVisibility,drawPresentation,arrangeStudioPresentation,walkClearOfScreens,all:()=>[...studioScreens.values()],active:()=>activeScreen})',context);
  return {api,images,window,context};
 }
+

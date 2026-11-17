@@ -1,7 +1,7 @@
 name: Mobile layouts and private history
 on:
   push:
-    branches: [main, atlas-mobile-sync-120, atlas-studio-screens-121, atlas-studio-polish-122]
+    branches: [main, atlas-mobile-sync-120, atlas-studio-screens-121, atlas-studio-polish-122, atlas-intent-124]
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,3 +22,4 @@ jobs:
         env:
           ATLAS_TEST_PLAYWRIGHT: ${{ runner.temp }}/atlas-browser/node_modules/playwright
         run: node scripts/check-mobile-sync.mjs
+

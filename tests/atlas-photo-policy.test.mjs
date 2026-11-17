@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import {photoSubject} from '../atlas-studio-controls.mjs';
 import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../cloudflare-worker/index.js',import.meta.url),'utf8');
-const ctx=vm.createContext({searchTopic:t=>t,plain:t=>String(t||'').replace(/<[^>]*>/g,''),Date});
+const ctx=vm.createContext({photoSubject,searchTopic:t=>t,plain:t=>String(t||'').replace(/<[^>]*>/g,''),Date});
 vm.runInContext(source.slice(source.indexOf('const PHOTO_STOP='),source.indexOf('async function webImages(')),ctx);
 const page=(title,description='',taken='2026-11-15',uploaded='')=>({title:'File:'+title,imageinfo:[{timestamp:uploaded,extmetadata:{ImageDescription:{value:description},DateTimeOriginal:{value:taken}}}]});
 const now=new Date('2026-11-15T12:00:00Z');
@@ -47,3 +48,4 @@ test('query wording preserves city and product names while matching normalized w
 test('a named photo requested on the screen keeps the subject out of the studio-control trap',()=>{
  assert.deepEqual(Array.from(ctx.photoRequest('put a picture of a golden retriever on the screen',now).terms),['golden','retriever']);
 });
+

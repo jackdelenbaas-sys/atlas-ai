@@ -37,3 +37,4 @@ export function stepGravity(height,velocity,minimum,dt){
  if(height<minimum)return {height:minimum,velocity:Math.max(0,velocity),grounded:true};
  return {height,velocity,grounded:false};
 }
+

@@ -29,3 +29,4 @@ test('list failure and invalid output do not attempt uploads',()=>{
  assert.throws(()=>seedRuntimeSecrets(env,()=>({status:1,stdout:'private upstream output'})),/Cannot check/);
  assert.throws(()=>seedRuntimeSecrets(env,()=>({status:0,stdout:'bad json'})),/no secrets were changed/);
 });
+

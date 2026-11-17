@@ -1,14 +1,15 @@
+const cleanStudioResults=items=>(Array.isArray(items)?items:[]).slice(-12).filter(a=>a&&['completed','failed','skipped','canceled','running'].includes(a.status)).map(a=>({id:String(a.id||'').slice(0,100),status:a.status,summary:String(a.summary||'').slice(0,220),reason:String(a.reason||'').slice(0,300),at:Number.isFinite(Number(a.at))?Number(a.at):0}));
 const stamp=v=>Number.isFinite(Number(v))?Number(v):0;
 export function normalizeHistory(input={}){
  const deleted={};for(const [id,date] of Object.entries(input.deleted||{}).slice(-1000))if(stamp(date)>0)deleted[id]=stamp(date);
- const threads=(Array.isArray(input.threads)?input.threads:[]).slice(0,100).filter(t=>t&&t.id!==undefined).map(t=>({id:String(t.id).slice(0,100),title:String(t.title||'New conversation').slice(0,120),updatedAt:stamp(t.updatedAt)||stamp(t.id),msgs:(Array.isArray(t.msgs)?t.msgs:[]).slice(-200).filter(m=>m&&['user','atlas'].includes(m.role)).map((m,i)=>({id:String(m.id||'legacy:'+t.id+':'+i+':'+m.role).slice(0,160),role:m.role,text:String(m.text||'').slice(0,18000),createdAt:stamp(m.createdAt)||stamp(t.id)+i,updatedAt:stamp(m.updatedAt)||stamp(m.createdAt)||stamp(t.id)+i,imageIds:(m.imageIds||[]).filter(id=>/^[a-zA-Z0-9-]{8,100}$/.test(id)).slice(0,4),sources:(m.sources||[]).slice(0,8),webImages:(m.webImages||[]).slice(0,6)}))}));
+ const threads=(Array.isArray(input.threads)?input.threads:[]).slice(0,100).filter(t=>t&&t.id!==undefined).map(t=>({id:String(t.id).slice(0,100),title:String(t.title||'New conversation').slice(0,120),updatedAt:stamp(t.updatedAt)||stamp(t.id),msgs:(Array.isArray(t.msgs)?t.msgs:[]).slice(-200).filter(m=>m&&['user','atlas'].includes(m.role)).map((m,i)=>({id:String(m.id||'legacy:'+t.id+':'+i+':'+m.role).slice(0,160),role:m.role,text:String(m.text||'').slice(0,18000),createdAt:stamp(m.createdAt)||stamp(t.id)+i,updatedAt:stamp(m.updatedAt)||stamp(m.createdAt)||stamp(t.id)+i,imageIds:(m.imageIds||[]).filter(id=>/^[a-zA-Z0-9-]{8,100}$/.test(id)).slice(0,4),sources:(m.sources||[]).slice(0,8),webImages:(m.webImages||[]).slice(0,6),studioResults:cleanStudioResults(m.studioResults)}))}));
  return {threads,deleted};
 }
 export function mergeHistory(left,right){
  const a=normalizeHistory(left),b=normalizeHistory(right),deleted={...a.deleted};for(const [id,date] of Object.entries(b.deleted))deleted[id]=Math.max(deleted[id]||0,date);
  const map=new Map();for(const t of [...a.threads,...b.threads]){
   if(deleted[t.id])continue;const previous=map.get(t.id);if(!previous){map.set(t.id,t);continue}
-  const messages=new Map(previous.msgs.map(m=>[m.id,m]));for(const m of t.msgs){const old=messages.get(m.id);if(!old||m.updatedAt>=old.updatedAt)messages.set(m.id,{...old,...m,imageIds:m.imageIds.length?m.imageIds:old?.imageIds||[]})}
+  const messages=new Map(previous.msgs.map(m=>[m.id,m]));for(const m of t.msgs){const old=messages.get(m.id);if(!old||m.updatedAt>=old.updatedAt)messages.set(m.id,{...old,...m,imageIds:m.imageIds.length?m.imageIds:old?.imageIds||[],studioResults:cleanStudioResults([...new Map([...(old?.studioResults||[]),...(m.studioResults||[])].map(a=>[a.id,a])).values()].sort((a,b)=>a.at-b.at))})}
   map.set(t.id,{...previous,...(t.updatedAt>=previous.updatedAt?t:{}),updatedAt:Math.max(t.updatedAt,previous.updatedAt),msgs:[...messages.values()].sort((x,y)=>x.createdAt-y.createdAt||x.id.localeCompare(y.id)).slice(-200)});
  }
  return {threads:[...map.values()].sort((x,y)=>y.updatedAt-x.updatedAt||x.id.localeCompare(y.id)).slice(0,100),deleted};
@@ -37,3 +38,4 @@ export class AtlasHistory{
   const raw=await storage.transaction(tx=>readLarge(tx,'history'));return Response.json(raw?JSON.parse(raw):{threads:[],deleted:{}});
  }
 }
+

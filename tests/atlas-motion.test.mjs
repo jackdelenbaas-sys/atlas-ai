@@ -50,3 +50,4 @@ test('turning accelerates smoothly and takes the shortest path at different fram
   assert.ok(Math.abs(yaw-Math.PI*.9)<.01);
  }
 });
+

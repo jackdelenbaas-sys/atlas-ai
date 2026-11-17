@@ -44,6 +44,30 @@ try{
  await d.waitForFunction(()=>document.querySelector('#atlasSyncStatus').textContent.includes('Synced'));await p.bringToFront();await p.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await p.waitForFunction(()=>document.querySelector('#threads').textContent.includes('Renamed on desktop'));
  await p.locator('#historyBtn').click();p.once('dialog',dialog=>dialog.accept());await p.locator('.atlas-history-row').first().getByTitle('Delete conversation').click();
  await p.waitForFunction(()=>document.querySelector('#atlasSyncStatus').textContent.includes('Synced'));await d.bringToFront();await d.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await d.waitForFunction(()=>!document.querySelector('#threads').textContent.includes('Renamed on desktop'));
- assert.deepEqual(errors,[]);console.log(JSON.stringify({portrait:true,landscape:true,composerInViewport:true,pairing:true,persistedConnection:true,bidirectionalHistory:true,renameSync:true,deleteSync:true,pageErrors:0}));
+ const routing=await device({viewport:{width:1365,height:900}},true),rp=routing.page,wrongRequests=[];
+ rp.on('request',r=>{if(/\/atlas\/api\/(?:chat|web-images)$/.test(new URL(r.url()).pathname))wrongRequests.push(r.url())});
+ await rp.goto(origin);await rp.waitForFunction(()=>document.querySelector('#atlasSyncStatus').textContent.includes('Synced'));
+ await rp.evaluate(()=>{
+  const state={available:true,activeScreenId:'screen-1',screens:[1,2,3].map(n=>({id:'screen-'+n,visible:true,x:n-2,y:1.3,z:-.5,width:1.5,height:1})),avatar:{x:0,z:0,rotation:0},camera:{yaw:0,pitch:0,distance:5}};
+  window.recordedStudioCommands=[];
+  window.addEventListener('atlas-studio-state-request',()=>window.dispatchEvent(new CustomEvent('atlas-studio-state',{detail:state})));
+  window.addEventListener('atlas-studio-control',e=>{
+   const c=e.detail.command;window.recordedStudioCommands.push(c);
+   if(c.type==='avatar'){state.avatar.x=c.x??state.screens.find(s=>s.id===c.targetScreen)?.x??state.avatar.x;state.avatar.z=c.z??.15;}
+   window.dispatchEvent(new CustomEvent('atlas-studio-result',{detail:{requestId:e.detail.requestId,ok:true,effect:c.type==='camera'?{cameraChanged:true}:{moved:true}}}));
+  });
+ });
+ await rp.locator('#input').fill('go to all the screens');await rp.locator('#send').click();
+ await rp.waitForFunction(()=>window.recordedStudioCommands.length===6);
+ const tour=await rp.evaluate(()=>window.recordedStudioCommands);assert.equal(tour.filter(c=>c.type==='avatar').length,3);assert.equal(tour.filter(c=>c.type==='camera'&&c.preset==='presentation').length,3);
+ await rp.locator('#input').fill('what did you just do');await rp.locator('#send').click();
+ await rp.locator('#feed').getByText(/What actually completed:/).waitFor();assert.equal(wrongRequests.length,0);
+ await rp.locator('#input').fill('reposition the camera');await rp.locator('#send').click();await rp.waitForFunction(()=>window.recordedStudioCommands.length===7);
+ assert.equal((await rp.evaluate(()=>window.recordedStudioCommands.at(-1))).preset,'fit');
+ await rp.locator('#input').fill('move Atlas left');await rp.locator('#send').click();await rp.waitForFunction(()=>window.recordedStudioCommands.length===8);
+ assert.equal((await rp.evaluate(()=>window.recordedStudioCommands.at(-1))).type,'avatar');assert.equal(wrongRequests.length,0);
+ assert.deepEqual(errors,[]);console.log(JSON.stringify({portrait:true,landscape:true,composerInViewport:true,pairing:true,persistedConnection:true,bidirectionalHistory:true,renameSync:true,deleteSync:true,studioRouting:true,orderedTour:true,cameraCommands:true,receiptRecap:true,noAccidentalSearches:true,pageErrors:0}));
+ await routing.context.close();
  await desktop.context.close();await phone.context.close();
 }finally{await browser.close()}
+

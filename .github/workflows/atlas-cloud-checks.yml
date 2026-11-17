@@ -1,11 +1,12 @@
 name: Atlas Cloud Quality Checks
 on:
   push:
-    branches: [main, atlas-studio-screens-121, atlas-studio-polish-122]
+    branches: [main, atlas-studio-screens-121, atlas-studio-polish-122, atlas-intent-124]
     paths:
       - "index.html"
       - "atlas-app-v8.js"
       - "atlas-motion.mjs"
+      - "atlas-history.mjs"
       - "atlas-presentation.mjs"
       - "atlas-studio-controls.mjs"
       - "cloudflare-worker/**"
@@ -46,3 +47,4 @@ jobs:
         run: bash -n install-atlas-cloud.sh
       - name: Backend unit tests (no secrets or API calls)
         run: python3 -m unittest discover -s tests -p "test_atlas_cloud.py" -v
+

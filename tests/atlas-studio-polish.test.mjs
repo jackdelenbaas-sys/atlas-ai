@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {screenHarness} from './helpers/studio-screen-harness.mjs';
 import {stepTravel,smoothTurn,clampPoint} from '../atlas-motion.mjs';
-import {normalizeStudioCommands,parseStudioRequest,presentationTargets,MAX_STUDIO_STEPS,shouldDeferStudioCommands} from '../atlas-studio-controls.mjs';
+import {normalizeStudioCommands,parseStudioRequest,presentationTargets,MAX_STUDIO_STEPS,shouldDeferStudioCommands,studioActionSummary} from '../atlas-studio-controls.mjs';
 const source=fs.readFileSync(new URL('../atlas-app-v8.js',import.meta.url),'utf8');
 const screens=Array.from({length:6},(_,i)=>({id:'screen-'+(i+1),visible:true}));
 const state={available:true,activeScreenId:'screen-3',screens,photos:{count:6}};
@@ -29,7 +29,7 @@ test('nested AI sequences are bounded, validated and retain target IDs and waits
 });
 function queueHarness(){
  const calls=[],pending=[],data={active:'one'};
- const context=vm.createContext({normalizeStudioCommands,data,window:{dispatchEvent(){}},CustomEvent:class{},sceneCommand:c=>{calls.push(c.motion||c.type);return new Promise(resolve=>pending.push(resolve))}});
+ const context=vm.createContext({normalizeStudioCommands,studioActionSummary,recordStudioResult(){},data,window:{dispatchEvent(){}},CustomEvent:class{},sceneCommand:c=>{calls.push(c.motion||c.type);return new Promise(resolve=>pending.push(resolve))}});
  vm.runInContext('let studioRunVersion=0,mediaRunVersion=0;',context);
  const start=source.indexOf('async function applyStudioCommands('),end=source.indexOf('function resetConversationScene',start);
  vm.runInContext(source.slice(start,end),context);return {context,calls,pending,data};
@@ -148,3 +148,17 @@ test('new photo and generation tasks finish before their requested follow-up act
  assert.equal(shouldDeferStudioCommands('chat','wave then dance'),false);
  assert.equal(shouldDeferStudioCommands('web-images','show those pictures on the screen'),false);
 });
+
+test('a real tour moves Atlas to every screen and executes the camera at each stop',async()=>{
+ const {run,results,api,context}=sceneHarness(),first=api.active();first.pos.x=1.5;first.root.position.x=1.5;
+ const second=api.makeStudioScreen();second.root.visible=true;second.pos.x=-1.5;second.root.position.x=-1.5;
+ const commands=parseStudioRequest('go to all the screens',{available:true,screens:api.all().map(s=>({id:s.id,visible:true})),activeScreenId:first.id});
+ const stops=[];
+ for(const command of commands){
+  await run(command);assert.equal(results.at(-1).ok,true,results.at(-1).error);
+  if(command.type==='avatar'){assert.equal(results.at(-1).effect.blocked,undefined);stops.push({...context.model.position})}
+  else assert.equal(results.at(-1).effect.cameraChanged,true);
+ }
+ assert.equal(stops.length,2);assert.ok(stops[0].x>1);assert.ok(stops[1].x<-1);
+});
+

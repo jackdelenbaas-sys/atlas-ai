@@ -1,5 +1,5 @@
-import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands,presentationTargets,shouldDeferStudioCommands} from './atlas-studio-controls.mjs?v=123';
-import {mergeHistory,normalizeHistory} from './atlas-history.mjs?v=123';
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands,presentationTargets,shouldDeferStudioCommands,studioConversation,explicitPhotoSearch,photoSearchFollowup,studioRecallRequest,studioRecallReply,studioActionSummary,photoSubject} from './atlas-studio-controls.mjs?v=124';
+import {mergeHistory,normalizeHistory} from './atlas-history.mjs?v=124';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
@@ -98,7 +98,18 @@ function formatAnswer(node,text){
 }
 let studioState={available:false};
 window.addEventListener('atlas-studio-state',e=>{studioState=e.detail||{available:false}});
-function currentStudioState(){window.dispatchEvent(new CustomEvent('atlas-studio-state-request'));return {...studioState,photos:studioSlides?{count:studioSlides.items.length,index:(studioSlides.index+studioSlides.items.length-1)%studioSlides.items.length,paused:!slideTimer,titles:studioSlides.items.map(i=>i.title)}:{count:0}}}
+const studioJournal=new Map();
+function studioReceipts(threadId=data.active){
+ const saved=data.threads.find(t=>t.id===threadId)?.msgs.flatMap(m=>m.studioResults||[])||[];
+ return [...new Map([...saved,...studioJournal.get(threadId)||[]].map(r=>[r.id,r])).values()].sort((a,b)=>a.at-b.at).slice(-24);
+}
+function recordStudioResult(threadId,result){
+ const entry={...result,id:crypto.randomUUID(),at:Date.now()},list=studioJournal.get(threadId)||[];list.push(entry);studioJournal.set(threadId,list.slice(-24));
+ if(studioJournal.size>40)studioJournal.delete(studioJournal.keys().next().value);
+ const thread=data.threads.find(t=>t.id===threadId),message=thread?.msgs.findLast(m=>m.role==='atlas');
+ if(message){message.studioResults=[...message.studioResults||[],entry].slice(-12);message.updatedAt=Date.now();thread.updatedAt=message.updatedAt;save()}
+}
+function currentStudioState(){window.dispatchEvent(new CustomEvent('atlas-studio-state-request'));return {...studioState,recentActions:studioReceipts().slice(-5),photos:studioSlides?{count:studioSlides.items.length,index:(studioSlides.index+studioSlides.items.length-1)%studioSlides.items.length,paused:!slideTimer,titles:studioSlides.items.map(i=>i.title)}:{count:0}}}
 function sceneCommand(command){return new Promise(resolve=>{
  const requestId=crypto.randomUUID();let timer;
  const listener=e=>{if(e.detail?.requestId!==requestId)return;clearTimeout(timer);window.removeEventListener('atlas-studio-result',listener);resolve(e.detail)};
@@ -106,14 +117,16 @@ function sceneCommand(command){return new Promise(resolve=>{
  window.dispatchEvent(new CustomEvent('atlas-studio-control',{detail:{requestId,command}}));
 })}
 let studioRunVersion=0,mediaRunVersion=0;const screenMediaVersion=new Map();
-function cancelStudioPlan(){++studioRunVersion;++mediaRunVersion;window.dispatchEvent(new CustomEvent('atlas-studio-cancel'))}
+function cancelStudioPlan(){const previous=studioReceipts().at(-1);if(previous?.status==='running')recordStudioResult(data.active,{status:'canceled',summary:'Stopped the previous sequence.'});++studioRunVersion;++mediaRunVersion;window.dispatchEvent(new CustomEvent('atlas-studio-cancel'))}
 async function applyStudioCommands(commands,threadId=data.active){
  const version=++studioRunVersion;window.dispatchEvent(new CustomEvent('atlas-studio-cancel'));
+ const completed=[];
  for(const c of normalizeStudioCommands(commands)){
   if(threadId!==data.active||version!==studioRunVersion)return;
+  recordStudioResult(threadId,{status:'running',summary:studioActionSummary([c])});
   if(c.type==='photos'){
    const targets=c.screenIds?.length?c.screenIds:presentationTargets('',currentStudioState());
-   if(c.action==='fill'){await fillStudioScreens(latestStudioMedia(),targets,c.index||0);continue}
+   if(c.action==='fill'){const count=await fillStudioScreens(latestStudioMedia(),targets,c.index||0);recordStudioResult(threadId,{status:count?'completed':'failed',summary:'Displayed pictures on '+count+' screen(s).',reason:count?'':'The requested pictures could not load.'});continue}
    if(c.action==='show'&&targets.length>1){await fillStudioScreens(latestStudioMedia(),targets);continue}
    const items=studioSlides?.items||active().msgs.flatMap(m=>m.webImages||[]).slice(-6);
    if(c.action==='pause'){clearInterval(slideTimer);slideTimer=null;continue}
@@ -129,8 +142,22 @@ async function applyStudioCommands(commands,threadId=data.active){
    await startStudioSlideshow(items,index,targets[0]);continue;
   }
   if(c.type==='reset')stopStudioSlides();else if(c.type==='screen'&&(c.clear||c.visible===false)&&(!c.id||!studioSlides?.screenId||studioSlides.screenId===c.id))stopStudioSlides();
-  const result=await sceneCommand(c);if(!result.ok)throw Error(result.error||'That studio control could not be applied.');
+  const result=await sceneCommand(c);
+  const summary=studioActionSummary([c]);
+  if(!result.ok){recordStudioResult(threadId,{status:'failed',summary,reason:result.error});throw Error(result.error||'That studio control could not be applied.')}
+  if(result.effect?.blocked){recordStudioResult(threadId,{status:'skipped',summary,reason:result.effect.reason});continue}
+  recordStudioResult(threadId,{status:'completed',summary:completedStudioAction(c),effect:result.effect});completed.push(c);
  }
+ return completed;
+}
+function completedStudioAction(c){
+ if(c.type==='avatar'&&c.targetScreen)return 'Reached screen '+c.targetScreen.split('-')[1]+(c.motion==='point'?' and pointed to it.':'.');
+ if(c.type==='avatar'&&(c.x!==undefined||c.z!==undefined))return 'Moved Atlas to the requested position.';
+ if(c.type==='camera')return 'Repositioned the camera.';
+ if(c.type==='screen'&&c.action==='add')return 'Added '+(c.count||1)+' screen(s).';
+ if(c.type==='screen')return 'Updated the requested screen.';
+ if(c.type==='avatar')return 'Performed '+(c.motion||'the requested movement')+'.';
+ return 'Completed the requested studio action.';
 }
 function resetConversationScene(){
  cancelStudioPlan();++pendingAction;++activeRequest;stopStudioSlides();window.speechSynthesis?.cancel();dispatch('speech',false);
@@ -338,7 +365,7 @@ async function connectPairingLink(){
  try{const r=await fetch(server+'/atlas/api/pair/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})}),j=await r.json();if(!r.ok||!j.token)throw Error(j.error||'Pairing failed');ACCESS=j.token;pairResumeId=j.activeThreadId||'';sessionStorage.setItem('atlas-access-token',ACCESS);localStorage.setItem('atlas-access-token',ACCESS);if(tokenField)tokenField.value=ACCESS;syncStatus('Device connected. Loading your history…');return true}catch(e){syncStatus(e.message);open('settings');return false}
 }
 $('atlasPairDevice').onclick=async()=>{
- try{if(!ACCESS)throw Error('Create the link on your already-connected computer.');const code=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');await api('/atlas/api/pair',{code,activeThreadId:data.active});const url=new URL(location.href);url.search='?v=123';url.hash=new URLSearchParams({pair:code,server:BASE}).toString();$('atlasPairLink').value=url.href;$('atlasPairShare').hidden=false;syncStatus('Private one-use link, valid for 10 minutes. Open it on your phone.')}catch(e){syncStatus(e.message)}
+ try{if(!ACCESS)throw Error('Create the link on your already-connected computer.');const code=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');await api('/atlas/api/pair',{code,activeThreadId:data.active});const url=new URL(location.href);url.search='?v=124';url.hash=new URLSearchParams({pair:code,server:BASE}).toString();$('atlasPairLink').value=url.href;$('atlasPairShare').hidden=false;syncStatus('Private one-use link, valid for 10 minutes. Open it on your phone.')}catch(e){syncStatus(e.message)}
 };
 $('atlasPairShare').onclick=async()=>{const url=$('atlasPairLink').value;try{if(navigator.share)await navigator.share({title:'Connect my Atlas device',url});else{await navigator.clipboard.writeText(url);syncStatus('Pairing link copied. Open it on your other device.')}}catch{$('atlasPairLink').focus();$('atlasPairLink').select()}};
 window.addEventListener('online',()=>void syncHistory());
@@ -517,16 +544,8 @@ function responseActions(question,answer,proposed,mode,legacy){
  if(/\b(sorry|sad|worried|anxious|hurt)\b/i.test(question+' '+answer))return ['nod','idle'];
  return ['nod','idle'];
 }
-function wantsWebImages(text){
- const t=(text||'').trim();if(/\b(?:make|create|generate|draw|paint|edit|modify|recolor|retouch)\b/i.test(t))return false;
- return /^(?:(?:a|an|one|some)\s+)?(?:pictures?|pics?|photos?|images?)\s+(?:of|showing)\b/i.test(t)||/\b(?:find|show|get|pull|search|look for|give|send|display|put)\b.*\b(?:images?|pictures?|pics?|photos?|photographs?)\b/i.test(t)||/^(?:I want|I need|I'd like)\b.*\b(?:photos?|pictures?|images?)\b/i.test(t)||/^show me (?!how|why|what|your|my|the code|a list)[^?]{2,90}$/i.test(t);
-}
-function continuePhotoSearch(text,messages){
- if(wantsWebImages(text))return true;
- const last=messages?.at(-1);if(!last||last.role!=='atlas'||!/(?:picture|photo|image|matching|specific name)/i.test(last.text||''))return false;
- const previous=(messages||[]).slice(-6).some(m=>m.role==='user'&&wantsWebImages(m.text||''));
- return previous&&String(text).length<180&&!/^(?:hi|hello|hey|thanks|thank|how|what|why|when|where|can|could|do|does|is|are|stop|wave|dance|walk|remember|forget|make|create|generate|edit)\b/i.test(text)&&!/[?]/.test(text)&&/\w+\s+\w+/.test(text);
-}
+function wantsWebImages(text){return explicitPhotoSearch(text)}
+function continuePhotoSearch(text,messages){return explicitPhotoSearch(text)||photoSearchFollowup(text,messages)}
 function modeFromText(t,attachments=[]){
  const q=(t||'').trim();
  if(wantsWebImages(q))return 'web-images';
@@ -544,7 +563,9 @@ function modeFromText(t,attachments=[]){
  return 'chat';
 }
 async function send(){
- if(busy)return;cancelStudioPlan();pairResumeId='';if(!ACCESS){open('settings');syncStatus('This phone is not paired yet. Create a private pairing link in Atlas Settings on your connected computer, then open it here.');return}const text=composer.value.trim();if(!text&&!files.length)return;++pendingAction;
+ if(busy)return;pairResumeId='';if(!ACCESS){open('settings');syncStatus('This phone is not paired yet. Create a private pairing link in Atlas Settings on your connected computer, then open it here.');return}const text=composer.value.trim();if(!text&&!files.length)return;
+ if(!files.length&&studioRecallRequest(text)){composer.value='';push('user',text);push('atlas',studioRecallReply(studioReceipts()));return}
+ cancelStudioPlan();++pendingAction;
  composer.value='';dispatch('listen');if(text&&remember(text)){files=[];attachmentPreview();return}
  if(text&&memoryRequest(text)){files=[];attachmentPreview();return}
  summarizeMemory(text);
@@ -553,17 +574,17 @@ async function send(){
  const latest=[...t.msgs].reverse().find(m=>m.images?.length)?.images?.at(-1);
  const recentVisual=t.msgs.at(-1)?.images?.length||/\b(?:image|picture|photo|photograph)\b/i.test(text);
  const followup=Boolean(latest&&recentVisual&&isImageEdit(text));
- const mode=followup?'image':!files.length&&continuePhotoSearch(text,t.msgs)?'web-images':modeFromText(text,files);const current=t.id;
+ const requestedMode=followup?'image':!files.length&&continuePhotoSearch(text,t.msgs)?'web-images':modeFromText(text,files);const mode=localStudio.length&&!explicitPhotoSearch(text)&&!files.length&&!['image','video'].includes(requestedMode)?'chat':requestedMode;const current=t.id;
  if(t.title==='New conversation')t.title=(text||'Attachments').slice(0,52);
  const filenames=files.map(x=>x.name);const history=t.msgs.slice(-35).filter(x=>x.role==='user'||x.role==='atlas').map(x=>({role:x.role==='atlas'?'assistant':'user',text:x.text}));
  push('user',(text||'Analyze these attachments')+(filenames.length?'\n📎 '+filenames.join(', '):''));
- if(localStudio.length&&!files.length&&!shouldDeferStudioCommands(mode,text)){push('atlas','Adjusting the studio.');const id=current;void afterReply(()=>applyStudioCommands(localStudio,id).catch(e=>{if(id===data.active&&!/canceled/i.test(e.message))push('atlas',e.message)}));return}
+ if(localStudio.length&&!files.length&&!shouldDeferStudioCommands(mode,text)){push('atlas',studioActionSummary(localStudio));const id=current;void afterReply(()=>applyStudioCommands(localStudio,id).catch(e=>{if(id===data.active&&!/canceled/i.test(e.message))push('atlas',e.message)}));return}
  const action=mode==='chat'?requestedMotion(text):null;
  if(action&&!files.length&&text.length<90&&!/\b(?:why|how|explain|what|image|picture|photo|create|generate|screen|presentation|center|home)\b/i.test(text)){performMotion(action);return}
  const destination=/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text)?'walkToScreen':/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text)?'walkHome':null;
  if(mode==='chat'&&destination&&!files.length&&text.length<110){push('atlas',destination==='walkHome'?'Back to center. My natural habitat.':'Heading to the screen. Presentation mode: mildly impressive.');void afterReply(()=>$(destination)?.click());return}
  const requestEpoch=++activeRequest;busy=true;busyThread=current;render();dispatch('think');setStatus(mode==='chat'?'ATLAS · THINKING':mode==='video'?'ATLAS · CHECKING VIDEO AVAILABILITY':mode==='web-images'?'ATLAS · FINDING WEB PHOTOS':'ATLAS · CREATING IMAGE');
- if(mode==='web-images'){stopStudioSlides();void sceneCommand({type:'screen',clear:true,visible:false})}
+ if(mode==='web-images')stopStudioSlides();
  const requestActionVersion=pendingAction;
  const selection=files;files=[];attachmentPreview();
  let response;
@@ -579,11 +600,12 @@ async function send(){
   if(sent){sent.images=attachments.filter(a=>a.type.startsWith('image/')).map(a=>a.data);cacheImages(sent);if(sent.images[0]&&current===data.active)studioImage(sent.images[0],mediaTargets[0]);render()}
   const memory=selectedMemories(text);
   const related=relevantHistory(text,t.id);
-  const payload={text:text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],personality,grounding:true,imageTask:mode==='image'&&(followup||selection.some(f=>f.type.startsWith('image/'))&&isImageEdit(text))?'edit':'create',studioState:state,model:modelSetting?.value||'cloudflare-free'};
+  const payload={text:mode==='web-images'?photoSubject(text):text||'Describe the files I attached.',history,attachments,memories:[...memory,...related],personality,grounding:true,imageTask:mode==='image'&&(followup||selection.some(f=>f.type.startsWith('image/'))&&isImageEdit(text))?'edit':'create',studioState:state,model:modelSetting?.value||'cloudflare-free'};
   response=await api('/atlas/api/'+mode,payload,mode==='image'?210000:150000);
   if(mode==='image'){if(!response.images?.length)throw Error('No image was returned. Your prompt is saved so you can retry.');for(const src of response.images)await decodeStudioPhoto(src)}
   const studioReply=extractStudioCommands(response.text||'');
-  const sceneActions=normalizeStudioCommands(shouldDeferStudioCommands(mode,text)&&localStudio.length?localStudio:response.studio||studioReply.studio);
+  const hasNewMedia=Boolean(response.images?.length||response.webImages?.length);
+  const sceneActions=normalizeStudioCommands(shouldDeferStudioCommands(mode,text)&&localStudio.length?(hasNewMedia?localStudio:[]):response.studio||studioReply.studio);
   const cleaned=cleanReply(studioReply.text||'Done. Consider the dramatic entrance complete.');
   const txt=cleaned.text||'Done.';
   if(!response.actions?.length)response.actions=cleaned.actions;
@@ -592,7 +614,7 @@ async function send(){
   // Explicit user motions or model-selected actions take precedence over
   // a generic reply nod, so the body follows the intended movement.
   // The explicit user command always wins over an optional AI-selected gesture.
-  if(current===data.active&&requestActionVersion===pendingAction)void afterReply(async actionId=>{await mediaReady;if(actionId!==pendingAction||current!==data.active||requestEpoch!==activeRequest)return;return sceneActions.length?applyStudioCommands(sceneActions,current).catch(e=>{if(current===data.active&&!/canceled/i.test(e.message))push('atlas',e.message)}):action?dispatch('motion',action):dispatch('sequence',responseActions(text,txt,response.actions,mode))});
+  if(current===data.active&&requestActionVersion===pendingAction)void afterReply(async actionId=>{await mediaReady;if(actionId!==pendingAction||current!==data.active||requestEpoch!==activeRequest)return;return sceneActions.length?applyStudioCommands(sceneActions,current).catch(e=>{if(current===data.active&&!/canceled/i.test(e.message))push('atlas',e.message)}):action?dispatch('motion',action):dispatch('sequence',mode==='web-images'&&!hasNewMedia?['idle']:responseActions(text,txt,response.actions,mode))});
   if(speaking&&window.speechSynthesis&&current===data.active&&requestEpoch===activeRequest){
     speechSynthesis.cancel();
     dispatch('speech',false);
@@ -651,4 +673,5 @@ $('atlasHistorySearch').oninput=()=>render();
 render();void (async()=>{await connectPairingLink();await check();void syncHistory()})();void restoreImages();
 if(new URLSearchParams(location.search).has('setup'))open('settings');
 })();
+
 

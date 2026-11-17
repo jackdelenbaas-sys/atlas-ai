@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
+import {explicitPhotoSearch,photoSearchFollowup} from '../atlas-studio-controls.mjs';
 const source=readFileSync(new URL('../atlas-app-v8.js',import.meta.url),'utf8');
 const start=source.indexOf('function requestedMotion('),end=source.indexOf('async function send(',start);
-const ctx=vm.createContext({});vm.runInContext(source.slice(start,end),ctx);
+const ctx=vm.createContext({explicitPhotoSearch,photoSearchFollowup});vm.runInContext(source.slice(start,end),ctx);
 test('image requests route to generation, picture questions route to vision chat',()=>{
  const attachments=[{type:'image/jpeg'}];
  assert.equal(ctx.modeFromText('Create an image of a castle'),'image');
@@ -146,3 +147,4 @@ test('photo corrections continue a real search, while greetings and new question
 test('bare picture requests and pic wording use real image search',()=>{
  for(const text of ['a picture of a golden retriever','find me a pic of Paris','photo of Mount Fuji'])assert.equal(ctx.modeFromText(text),'web-images');
 });
+

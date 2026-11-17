@@ -9,3 +9,4 @@ const result=await worker.fetch(request('web-images',{text:'Show me photos of co
 console.log(JSON.stringify({test:'live photo retrieval',status:result.status,photos:images.webImages?.length,error:images.error}));
 if(images.webImages?.[0]){const r=await worker.fetch(request('web-image',{url:images.webImages[0].url}),env);const j=await r.json();console.log(JSON.stringify({test:'live photo bytes',status:r.status,bytes:j.image?.length,error:j.error}));}
 const r=await worker.fetch(request('chat',{text:'What are cattle?'}),env);const j=await r.json();console.log(JSON.stringify({test:'live article retrieval with mock summary',status:r.status,sources:j.sources?.map(x=>x.title),error:j.error}));
+

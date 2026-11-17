@@ -37,3 +37,4 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   console.log('Atlas runtime setup: '+result.state+(result.names.length?' ('+result.names.join(', ')+')':''));
  }catch(error){console.error('Atlas runtime setup: '+error.message+' Existing runtime configuration was preserved.')}
 }
+
