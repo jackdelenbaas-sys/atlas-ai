@@ -146,7 +146,7 @@ export function movementRequested(text){
  const parts=q.split(/\s+(?:then|and then|and(?=\s+(?:walk|go|move|visit|come|pace|stroll)\b))\s+/i);
  if(parts.length>1)return parts.some(movementRequested);
  if(/^(?:(?:please|can you|could you)\s+)?(?:find|show|get|create|make|generate|draw)\b/i.test(q)&&/\b(?:photos?|pictures?|images?|videos?)\b/i.test(q))return false;
- return /\b(?:walk|walking|pace|pacing|stroll|run|jog|visit|tour|come here|come back|(?:go|move) (?:to|toward|towards|back|home|left|right|forward|backward)|head (?:to|over)|return to (?:the )?(?:center|middle)|take (?:a|some|\d+) steps?)\b/i.test(q)
+ return /\b(?:stand (?:in front|beside|next to|to the left|to the right)|walk|walking|pace|pacing|stroll|run|jog|visit|tour|come here|come back|(?:go|move) (?:to|toward|towards|back|home|left|right|forward|backward)|head (?:to|over)|return to (?:the )?(?:center|middle)|take (?:a|some|\d+) steps?)\b/i.test(q)
   ||/\b(?:move|shift|bring|reposition|relocate|put)\s+(?:atlas|him|yourself|you|(?:the\s+)?(?:person|body))\b/i.test(q)
   ||/^(?:(?:please|can you|could you)\s+)?move (?:left|right|forward|backwards?|back)\b/i.test(q);
 }

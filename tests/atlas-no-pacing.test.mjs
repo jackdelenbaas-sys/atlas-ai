@@ -10,7 +10,7 @@ test('photos, resizing, camera changes and pointing never authorize walking',()=
   const commands=authorizeStudioCommands([{type:'avatar',motion:'walk',x:2},{type:'avatar',motion:'point',targetScreen:'screen-1',travel:true}],text);
   assert.equal(commands.length,1);assert.equal(commands[0].motion,'point');assert.equal(commands[0].travel,false);
  }
- for(const text of ['walk to the screen','go to all the screens','move Atlas left','move to screen 2','reposition Atlas dramatically'])assert.equal(movementRequested(text),true,text);
+ for(const text of ['walk to the screen','go to all the screens','move Atlas left','move to screen 2','reposition Atlas dramatically','stand in front of screen 2'])assert.equal(movementRequested(text),true,text);
 });
 test('stop and repeated stop complaints are deterministic commands, including the screenshot typo',()=>{
  for(const text of ['stop','stop pacing','stop moving','you have not stoped yety','you have not stopped yet']){
