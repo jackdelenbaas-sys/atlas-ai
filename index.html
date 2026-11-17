@@ -224,7 +224,7 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 <p class="hint">Atlas downloads professional animations automatically and saves them in its cache. No file import required.</p>
 <details style="margin-top:14px"><summary class="hint" style="cursor:pointer">Advanced: import a custom FBX</summary>
 <label id="animationsUploadLabel" class="btn">Import an additional FBX<input id="animationsUpload" type="file" accept=".fbx" multiple></label></details>
-<div class="section">Camera</div><label>Horizontal rotation <input class="range" type="range" id="yaw" min="-720" max="720" value="0"></label><label>Vertical viewing angle <input class="range" type="range" id="pitch" min="-720" max="720" value="0"></label><label>Zoom <input class="range" type="range" id="zoom" min=".72" max="12" step=".05" value="3.5"></label>
+<div class="section">Camera</div><label>Horizontal rotation <input class="range" type="range" id="yaw" min="-720" max="720" value="0"></label><label>Vertical viewing angle <input class="range" type="range" id="pitch" min="-720" max="720" value="0"></label><label>Zoom <input class="range" type="range" id="zoom" min=".72" max="24" step=".05" value="3.5"></label>
 <p class="hint">Scroll over Atlas to zoom toward that body part without panning away. Double-click Atlas to focus. Use the ⌖ button by the message box to reset the view.</p>
 <div class="section">Avatar and camera</div>
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
@@ -296,7 +296,7 @@ canvas.addEventListener('pointermove',e=>{
    const pts=[...phonePointers.values()],now=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
    if(pinchDistance>8&&now>8){
     const ratio=THREE.MathUtils.clamp(pinchDistance/now,.80,1.25);
-    distance=THREE.MathUtils.clamp(distance*ratio,1.05,12);
+    distance=THREE.MathUtils.clamp(distance*ratio,1.05,24);
     sliders();updateCam();
    }
    pinchDistance=now;drag=false;return;
@@ -353,7 +353,7 @@ function clampCameraPivot(point){
  return point;
 }
 function zoomAtPointer(clientX,clientY,zoomFactor){
- const next=THREE.MathUtils.clamp(distance*zoomFactor,.72,12);
+ const next=THREE.MathUtils.clamp(distance*zoomFactor,.72,24);
  const inward=next<distance;
  if(Math.abs(next-distance)<.00001)return;
  if(inward){
@@ -553,7 +553,7 @@ function fitStudioPresentation(){
  if(walkingTarget)for(const x of [-.43,.43])for(const y of [0,1.95])points.push(new THREE.Vector3(walkingTarget.x+x,y,walkingTarget.z).applyQuaternion(inverse));
  const bounds=new THREE.Box3().setFromPoints(points),fit=presentationFit(bounds,camera.aspect,camera.fov);
  const fromPosition=camera.position.clone(),fromQuaternion=camera.quaternion.clone();
- center.set(fit.x,fit.y,fit.z).applyQuaternion(q);distance=Math.min(12,fit.distance);auto=false;$('auto').checked=false;sliders();updateCam();
+ center.set(fit.x,fit.y,fit.z).applyQuaternion(q);distance=Math.min(24,fit.distance);auto=false;$('auto').checked=false;sliders();updateCam();
  if(fromPosition.distanceTo(camera.position)>.01){presentationCameraTween={at:performance.now(),fromPosition,fromQuaternion,toPosition:camera.position.clone(),toQuaternion:camera.quaternion.clone()};camera.position.copy(fromPosition);camera.quaternion.copy(fromQuaternion)}
 }
 function fitAtlasView(){
@@ -606,7 +606,7 @@ async function presentStudioImage(src,reframe=false,s=activeScreen,title=''){
  if(typeof src!=='string'||!/^data:image\/(jpeg|png|webp);base64,/.test(src))return;
  const version=++s.version,im=new Image();im.src=src;
  try{await im.decode();if(version!==s.version||s.hidden||!studioScreens.has(s.id))return;
-  drawPresentation(im,s);s.title=String(title||'Picture').slice(0,100);s.content={kind:'image',title:s.title};showScreen(true,s);arrangeStudioPresentation(false,s);emitStudioState();return true;
+  drawPresentation(im,s);s.title=String(title||'Picture').slice(0,100);s.content={kind:'image',title:s.title};showScreen(true,s);arrangeStudioPresentation(false,s);if(!s.placed){s.placed=true;fitStudioPresentation()}emitStudioState();return true;
   $('showStatus').textContent='Drag a screen to move it. Drag a corner to resize.';
  }catch{if(version===s.version){showScreen(false,s);$('showStatus').textContent='That picture could not be displayed. Try another photo.';window.dispatchEvent(new CustomEvent('atlas-studio-image-error'))}}
 }

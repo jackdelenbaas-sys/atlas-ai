@@ -8,7 +8,7 @@ export function normalizeStudioCommands(input){
  const flattened=[];function collect(items,depth=0){if(depth>3||!Array.isArray(items))return;for(const item of items){if(flattened.length>=MAX_STUDIO_STEPS)break;if(item?.type==='sequence')collect(item.steps,depth+1);else flattened.push(item)}}collect(input);
  const out=[];for(const raw of flattened){
   if(!raw||typeof raw!=='object')continue;const c={type:raw.type};
-  const nums=raw.type==='screen'?{x:[-2.6,2.6],y:[.75,2.7],z:[-2.6,1.5],width:[.6,4],height:[.4,2.8],rotation:[-180,180]}:raw.type==='camera'?{yaw:[-360,360],pitch:[-70,70],distance:[.8,12],x:[-3,3],y:[.3,2.8],z:[-3,3]}:raw.type==='avatar'?{x:[-2.5,2.5],z:[-2,1.4],rotation:[-360,360]}:{};
+  const nums=raw.type==='screen'?{x:[-2.6,2.6],y:[.75,2.7],z:[-2.6,1.5],width:[.6,4],height:[.4,2.8],rotation:[-180,180]}:raw.type==='camera'?{yaw:[-360,360],pitch:[-70,70],distance:[.8,24],x:[-3,3],y:[.3,2.8],z:[-3,3]}:raw.type==='avatar'?{x:[-2.5,2.5],z:[-2,1.4],rotation:[-360,360]}:{};
   for(const [k,range] of Object.entries(nums)){const n=number(raw[k],...range);if(n!==undefined)c[k]=n}
   if(raw.type==='screen'){
    if(['add','remove','select'].includes(raw.action))c.action=raw.action;
