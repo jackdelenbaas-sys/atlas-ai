@@ -529,10 +529,11 @@ function moveScreenClear(){void walkClearOfScreens()}
 async function walkClearOfScreens(){
  if(!model||allowAvatarOverlap||scriptedActionActive||layoutWalkPending||travelPlan||showRun)return false;
  lastClearanceKey=clearanceKey();
- const target=clearWalkingLane(model.position,screenLayoutItems(),cameraRight(),ROOM_LIMITS);
+ let target=clearWalkingLane(model.position,screenLayoutItems(),cameraRight(),ROOM_LIMITS);
  if(!target){if([...studioScreens.values()].some(screenOverlapsAtlas))$('showStatus').textContent='No clear walking lane. Atlas will stay here.';return false}
  const generation=++layoutWalkGeneration,request=++travelRequest;layoutWalkPending=true;
  try{await ensureAction('walk');if(generation!==layoutWalkGeneration||request!==travelRequest||allowAvatarOverlap||scriptedActionActive)return false;
+  target=clearWalkingLane(model.position,screenLayoutItems(),cameraRight(),ROOM_LIMITS);lastClearanceKey=clearanceKey();if(!target)return false;
   planTravel(target.x,target.z);if(travelPlan){travelPlan.layout=true;gesture='';faceCameraRequested=true;playMixamo('walk',false,.6)}return Boolean(travelPlan);
  }catch{$('showStatus').textContent='Atlas will stay here until walking is ready.';return false}
  finally{if(generation===layoutWalkGeneration)layoutWalkPending=false}

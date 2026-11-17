@@ -20,8 +20,8 @@ test('movement commands retain explicit intent',()=>{
  assert.equal(ctx.requestedMotion('Please dance'),'dance');assert.equal(ctx.requestedMotion('What is gravity?'),null);
 });
 test('only local image data reaches the studio image event',()=>{
- const events=[];const c=vm.createContext({stopStudioSlides:()=>{},window:{dispatchEvent:e=>{if(e.type==='atlas-studio-image')events.push(e)}},CustomEvent:class{constructor(type,o={}){this.type=type;this.detail=o.detail}}});
- const fn=source.slice(source.indexOf('function studioImage('),source.indexOf('function mediaBubble('));vm.runInContext(fn,c);
+ const events=[];const c=vm.createContext({mediaRunVersion:0,stopStudioSlides:()=>{},window:{dispatchEvent:e=>{if(e.type==='atlas-studio-image')events.push(e)}},CustomEvent:class{constructor(type,o={}){this.type=type;this.detail=o.detail}}});
+ const fn=source.slice(source.indexOf('async function showStudioFrame('),source.indexOf('function mediaBubble('));vm.runInContext(fn,c);
  c.studioImage('https://example.com/image.jpg');c.studioImage('data:text/html;base64,AAA');assert.equal(events.length,0);
  c.studioImage('data:image/jpeg;base64,QUJDRA==');assert.equal(events.length,1);assert.equal(events[0].type,'atlas-studio-image');
 });
@@ -93,13 +93,13 @@ test('web image finding is separate from generation and editing',()=>{
  assert.equal(ctx.modeFromText('make a cow'),'image');
  assert.equal(ctx.modeFromText('What is in this image?',[{type:'image/jpeg'}]),'chat');
 });
-test('slideshow rotates, caches photos and only reframes the camera once',async()=>{
+test('slideshow rotates and caches photos without repositioning the screen or camera',async()=>{
  const events=[];let tick,calls=0;
  const c=vm.createContext({Image:class{async decode(){}},Map,CustomEvent:class{constructor(type,o={}){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>{if(e.type==='atlas-studio-image')events.push(e)},addEventListener:()=>{}},document:{hidden:false},$:()=>null,api:async()=>{calls++;return {image:'data:image/jpeg;base64,QUJDRA==' }},setStatus:()=>{},setInterval:f=>{tick=f;return 1},clearInterval:()=>{}});
  vm.runInContext(source.slice(source.indexOf('let studioState='),source.indexOf('function studioImage(')),c);
  await c.startStudioSlideshow([{url:'https://upload.wikimedia.org/a.jpg'},{url:'https://thumb.wikimedia.org/b.jpg'}]);await new Promise(setImmediate);
  tick();await new Promise(setImmediate);
- assert.equal(events.length,2);assert.equal(events[0].detail.reframe,true);assert.equal(events[1].detail.reframe,false);
+ assert.equal(events.length,2);assert.equal(events[0].detail.reframe,false);assert.equal(events[1].detail.reframe,false);
  tick();await new Promise(setImmediate);assert.equal(calls,2);
  c.stopStudioSlides();tick();await Promise.resolve();assert.equal(events.length,3);
 });
@@ -108,14 +108,14 @@ test('photo replies start presenting automatically without a second request',asy
  const shown=[];const c=vm.createContext({studioImage:x=>shown.push(x),startStudioSlideshow:async x=>shown.push(x)});
  vm.runInContext(source.slice(source.indexOf('async function presentReplyMedia('),source.indexOf('function openImageEditor(')),c);
  const photos=[{url:'https://upload.wikimedia.org/house.jpg'}];await c.presentReplyMedia({webImages:photos});assert.equal(shown[0],photos);
- assert.match(source,/void presentReplyMedia\(m\)/);
+ assert.match(source,/mediaReady=presentReplyMedia\(m,mediaTargets\)/);
 });
 test('slideshow skips failed downloads and keeps rotating successful photos',async()=>{
  const events=[];let tick;
  const c=vm.createContext({Image:class{async decode(){}},Map,Set,CustomEvent:class{constructor(type,o={}){this.type=type;this.detail=o.detail}},window:{dispatchEvent:e=>{if(e.type==='atlas-studio-image')events.push(e)},addEventListener:()=>{}},document:{hidden:false},$:()=>null,api:async(p,{url})=>{if(url.includes('broken'))throw Error('blocked');return {image:'data:image/jpeg;base64,QUJDRA=='}},setStatus:()=>{},setInterval:f=>{tick=f;return 1},clearInterval:()=>{}});
  vm.runInContext(source.slice(source.indexOf('let studioState='),source.indexOf('function studioImage(')),c);
  await c.startStudioSlideshow([{url:'https://upload.wikimedia.org/broken.jpg'},{url:'https://upload.wikimedia.org/house.jpg'},{url:'https://upload.wikimedia.org/villa.jpg'}]);
- assert.equal(events.length,1);assert.equal(events[0].detail.reframe,true);tick();await new Promise(setImmediate);assert.equal(events.length,2);assert.equal(events[1].detail.reframe,false);
+ assert.equal(events.length,1);assert.equal(events[0].detail.reframe,false);tick();await new Promise(setImmediate);assert.equal(events.length,2);assert.equal(events[1].detail.reframe,false);
 });
 test('browser photo download avoids the authenticated proxy when CORS succeeds',async()=>{
  let requests=0;const c=vm.createContext({Image:class{async decode(){}},fetch:async()=>({ok:true,blob:async()=>({type:'image/jpeg',size:123})}),AbortSignal:{timeout:()=>null},imageData:async()=> 'data:image/jpeg;base64,QUJDRA==',api:()=>{requests++;throw Error('No proxy needed')}});

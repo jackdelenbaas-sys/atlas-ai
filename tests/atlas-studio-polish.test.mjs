@@ -34,8 +34,8 @@ function queueHarness(){
 }
 test('sequence waits for every movement result before starting the next action',async()=>{
  const {context,calls,pending}=queueHarness(),run=context.applyStudioCommands([{type:'avatar',motion:'wave'},{type:'avatar',motion:'dance'},{type:'avatar',motion:'point'}]);
- assert.deepEqual(calls,['wave']);pending.shift()({ok:true});await Promise.resolve();await Promise.resolve();
- assert.deepEqual(calls,['wave','dance']);pending.shift()({ok:true});await Promise.resolve();await Promise.resolve();
+ assert.deepEqual(calls,['wave']);pending.shift()({ok:true});await new Promise(setImmediate);
+ assert.deepEqual(calls,['wave','dance']);pending.shift()({ok:true});await new Promise(setImmediate);
  assert.deepEqual(calls,['wave','dance','point']);pending.shift()({ok:true});await run;
 });
 test('a new conversation or canceled run stops the remaining sequence steps',async()=>{
@@ -50,7 +50,7 @@ test('failed movement stops the queue instead of pretending later steps worked',
 });
 function mediaHarness(){
  const events=[],data={active:'one'},current={screens:[...screens],activeScreenId:'screen-3'},downloads=[];
- const context=vm.createContext({Map,Promise,Set,Array,Boolean,Error,mediaRunVersion:0,data,presentationTargets,stopStudioSlides(){},currentStudioState:()=>current,active:()=>({msgs:[]}),setStatus(){},loadStudioPhoto:async item=>{downloads.push(item.url);return 'data:image/jpeg;base64,AAAA'},window:{dispatchEvent(e){if(e.type==='atlas-presentation-start'&&!e.detail.screenId)e.detail.screenId=current.activeScreenId;if(e.type==='atlas-studio-image'){events.push(e.detail);e.detail.promise=Promise.resolve(true)}}},CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail}}});
+ const context=vm.createContext({Map,Promise,Set,Array,Boolean,Error,mediaRunVersion:0,screenMediaVersion:new Map(),data,presentationTargets,stopStudioSlides(){},currentStudioState:()=>current,active:()=>({msgs:[]}),setStatus(){},loadStudioPhoto:async item=>{downloads.push(item.url);return 'data:image/jpeg;base64,AAAA'},window:{dispatchEvent(e){if(e.type==='atlas-presentation-start'&&!e.detail.screenId)e.detail.screenId=current.activeScreenId;if(e.type==='atlas-studio-image'){events.push(e.detail);e.detail.promise=Promise.resolve(true)}}},CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail}}});
  vm.runInContext(source.slice(source.indexOf('function latestStudioMedia('),source.indexOf('function openImageEditor')),context);
  return {context,events,current,data,downloads};
 }
@@ -77,4 +77,15 @@ test('a closed target or changed conversation is skipped after a late download',
   if(close)current.screens=current.screens.filter(s=>s.id!=='screen-2');else data.active='two';
   finish('data:image/jpeg;base64,AAAA');await run;assert.equal(events.length,0);
  }
+});
+
+test('switching a screen off during a fill cannot reopen it after its download finishes',async()=>{
+ const {context,events}=mediaHarness();let finish;context.loadStudioPhoto=()=>new Promise(resolve=>finish=resolve);
+ const run=context.fillStudioScreens({webImages:[{url:'one'}]},['screen-2']);context.screenMediaVersion.set('screen-2',1);
+ finish('data:image/jpeg;base64,AAAA');await run;assert.equal(events.length,0);
+});
+test('a failed picture falls back to another result while still filling all target screens',async()=>{
+ const {context,events}=mediaHarness();context.loadStudioPhoto=async item=>{if(item.url==='broken')throw Error('unavailable');return 'data:image/jpeg;base64,AAAA'};
+ const success=await context.fillStudioScreens({webImages:[{url:'broken'},{url:'working'}]},['screen-1','screen-2','screen-3']);
+ assert.equal(success,3);assert.equal(events.length,3);
 });

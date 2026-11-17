@@ -105,7 +105,7 @@ function sceneCommand(command){return new Promise(resolve=>{
  window.addEventListener('atlas-studio-result',listener);timer=setTimeout(()=>{window.removeEventListener('atlas-studio-result',listener);resolve({ok:false,error:'3D controls are unavailable or still loading in this browser.'})},40000);
  window.dispatchEvent(new CustomEvent('atlas-studio-control',{detail:{requestId,command}}));
 })}
-let studioRunVersion=0,mediaRunVersion=0;
+let studioRunVersion=0,mediaRunVersion=0;const screenMediaVersion=new Map();
 function cancelStudioPlan(){++studioRunVersion;++mediaRunVersion;window.dispatchEvent(new CustomEvent('atlas-studio-cancel'))}
 async function applyStudioCommands(commands,threadId=data.active){
  const version=++studioRunVersion;window.dispatchEvent(new CustomEvent('atlas-studio-cancel'));
@@ -113,11 +113,11 @@ async function applyStudioCommands(commands,threadId=data.active){
   if(threadId!==data.active||version!==studioRunVersion)return;
   if(c.type==='photos'){
    const targets=c.screenIds?.length?c.screenIds:presentationTargets('',currentStudioState());
-   if(c.action==='fill'){await fillStudioScreens(latestStudioMedia(),targets);continue}
+   if(c.action==='fill'){await fillStudioScreens(latestStudioMedia(),targets,c.index||0);continue}
    if(c.action==='show'&&targets.length>1){await fillStudioScreens(latestStudioMedia(),targets);continue}
    const items=studioSlides?.items||active().msgs.flatMap(m=>m.webImages||[]).slice(-6);
    if(c.action==='pause'){clearInterval(slideTimer);slideTimer=null;continue}
-   if(!items.length&&c.action==='show'&&latestStudioMedia().images?.length){await fillStudioScreens(latestStudioMedia(),targets);continue}
+   if(c.action==='show'&&(latestStudioMedia().images?.length||c.index!==undefined)){await fillStudioScreens(latestStudioMedia(),targets);continue}
    if(!items.length){if(c.action==='remove'){await sceneCommand({type:'screen',clear:true,visible:false});continue}throw Error('There are no photos in this conversation yet.')}
    const current=studioSlides?((studioSlides.index+items.length-1)%items.length):0;
    if(c.action==='remove'){
@@ -149,7 +149,7 @@ async function loadStudioPhoto(item){
  }catch{const j=await api('/atlas/api/web-image',{url:item.url},20000);if(!/^data:image\/(jpeg|png|webp);base64,/.test(j.image||''))throw Error('Photo unavailable');return await decodeStudioPhoto(j.image)}
 }
 async function startStudioSlideshow(items,start=0,screenId){
- stopStudioSlides();
+ ++mediaRunVersion;stopStudioSlides();
  const photos=items.filter(i=>/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(i.url||'')).slice(0,6);
  if(!photos.length)return;
  const presentation={screenId};window.dispatchEvent(new CustomEvent('atlas-presentation-start',{detail:presentation}));
@@ -174,7 +174,7 @@ async function startStudioSlideshow(items,start=0,screenId){
  await next();
 }
 window.addEventListener('pagehide',stopStudioSlides);
-window.addEventListener('atlas-screen-visibility',e=>{if(e.detail?.visible===false&&(!studioSlides?.screenId||studioSlides.screenId===e.detail.screenId))stopStudioSlides()});
+window.addEventListener('atlas-screen-visibility',e=>{if(e.detail?.visible===false){const id=e.detail.screenId;screenMediaVersion.set(id,(screenMediaVersion.get(id)||0)+1);if(!studioSlides?.screenId||studioSlides.screenId===id)stopStudioSlides()}});
 
 function latestStudioMedia(){
  return [...active().msgs].reverse().find(m=>m.images?.length||m.webImages?.length)||{images:[],webImages:[]};
@@ -186,24 +186,28 @@ async function showStudioFrame(src,screenId,title='Picture'){
  return detail.promise?Boolean(await detail.promise):false;
 }
 function studioImage(src,screenId){
- stopStudioSlides();void showStudioFrame(src,screenId);
+ ++mediaRunVersion;stopStudioSlides();void showStudioFrame(src,screenId);
 }
-async function fillStudioScreens(message,targets=presentationTargets('',currentStudioState())){
+async function fillStudioScreens(message,targets=presentationTargets('',currentStudioState()),start=0){
  stopStudioSlides();const version=++mediaRunVersion,thread=data.active;
  const ids=[...new Set(targets)].filter(id=>currentStudioState().screens?.some(s=>s.id===id));
  const sources=message.images?.length?message.images.map(src=>({src,title:'Picture'})):(message.webImages||[]).map(item=>({item,title:item.title}));
  if(!sources.length)throw Error('There are no pictures in this conversation yet.');
  if(!ids.length){await showStudioFrame(sources[0].src||await loadStudioPhoto(sources[0].item));return}
- const cache=new Map();let next=0,success=0;
+ const cache=new Map(),targetVersions=new Map(ids.map(id=>[id,screenMediaVersion.get(id)||0]));let next=0,success=0;
  async function worker(){
   while(next<ids.length){
-   const index=next++,id=ids[index],source=sources[index%sources.length];if(version!==mediaRunVersion||thread!==data.active)return;
-   try{
-    if(!cache.has(source))cache.set(source,source.src?Promise.resolve(source.src):loadStudioPhoto(source.item));
-    const src=await cache.get(source);
-    if(version!==mediaRunVersion||thread!==data.active)return;
-    if(currentStudioState().screens?.some(s=>s.id===id)&&await showStudioFrame(src,id,source.title))success++;
-   }catch{}
+   const index=next++,id=ids[index];if(version!==mediaRunVersion||thread!==data.active)return;
+   for(let attempt=0;attempt<sources.length;attempt++){
+    const source=sources[(index+start+attempt)%sources.length];
+    try{
+     if(!cache.has(source))cache.set(source,source.src?Promise.resolve(source.src):loadStudioPhoto(source.item));
+     const src=await cache.get(source);
+     if(version!==mediaRunVersion||thread!==data.active)return;
+     if((screenMediaVersion.get(id)||0)!==targetVersions.get(id)||!currentStudioState().screens?.some(s=>s.id===id))break;
+     if(await showStudioFrame(src,id,source.title)){success++;break}
+    }catch{}
+   }
   }
  }
  await Promise.all(Array.from({length:Math.min(3,ids.length)},worker));
