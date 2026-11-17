@@ -42,7 +42,7 @@ try{
  const initial=await state();assert.ok(initial.avatar?.skeletonReady,'The real animation skeleton must be loaded.');
  await dispatch({type:'avatar',motion:'walk',x:1.8,z:.4,travel:true},false);
  await page.waitForFunction(()=>{window.dispatchEvent(new CustomEvent('atlas-studio-state-request'));return window.currentScene?.avatar?.moving&&window.currentScene.avatar.x>.2},null,{timeout:60000});
- await page.getByRole('button',{name:'Expand studio controls'}).click();
+ await page.locator('#stageActions > summary').click();
  await page.getByRole('button',{name:'Stop',exact:true}).click();
  await page.waitForFunction(()=>{window.dispatchEvent(new CustomEvent('atlas-studio-state-request'));return window.currentScene?.avatar?.moving===false});
  await page.waitForTimeout(500);const stopped=await state();
