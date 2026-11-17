@@ -1,5 +1,5 @@
-import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands,presentationTargets} from './atlas-studio-controls.mjs?v=122';
-import {mergeHistory,normalizeHistory} from './atlas-history.mjs?v=122';
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands,presentationTargets,shouldDeferStudioCommands} from './atlas-studio-controls.mjs?v=123';
+import {mergeHistory,normalizeHistory} from './atlas-history.mjs?v=123';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
@@ -338,7 +338,7 @@ async function connectPairingLink(){
  try{const r=await fetch(server+'/atlas/api/pair/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})}),j=await r.json();if(!r.ok||!j.token)throw Error(j.error||'Pairing failed');ACCESS=j.token;pairResumeId=j.activeThreadId||'';sessionStorage.setItem('atlas-access-token',ACCESS);localStorage.setItem('atlas-access-token',ACCESS);if(tokenField)tokenField.value=ACCESS;syncStatus('Device connected. Loading your history…');return true}catch(e){syncStatus(e.message);open('settings');return false}
 }
 $('atlasPairDevice').onclick=async()=>{
- try{if(!ACCESS)throw Error('Create the link on your already-connected computer.');const code=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');await api('/atlas/api/pair',{code,activeThreadId:data.active});const url=new URL(location.href);url.search='?v=122';url.hash=new URLSearchParams({pair:code,server:BASE}).toString();$('atlasPairLink').value=url.href;$('atlasPairShare').hidden=false;syncStatus('Private one-use link, valid for 10 minutes. Open it on your phone.')}catch(e){syncStatus(e.message)}
+ try{if(!ACCESS)throw Error('Create the link on your already-connected computer.');const code=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');await api('/atlas/api/pair',{code,activeThreadId:data.active});const url=new URL(location.href);url.search='?v=123';url.hash=new URLSearchParams({pair:code,server:BASE}).toString();$('atlasPairLink').value=url.href;$('atlasPairShare').hidden=false;syncStatus('Private one-use link, valid for 10 minutes. Open it on your phone.')}catch(e){syncStatus(e.message)}
 };
 $('atlasPairShare').onclick=async()=>{const url=$('atlasPairLink').value;try{if(navigator.share)await navigator.share({title:'Connect my Atlas device',url});else{await navigator.clipboard.writeText(url);syncStatus('Pairing link copied. Open it on your other device.')}}catch{$('atlasPairLink').focus();$('atlasPairLink').select()}};
 window.addEventListener('online',()=>void syncHistory());
@@ -557,7 +557,7 @@ async function send(){
  if(t.title==='New conversation')t.title=(text||'Attachments').slice(0,52);
  const filenames=files.map(x=>x.name);const history=t.msgs.slice(-35).filter(x=>x.role==='user'||x.role==='atlas').map(x=>({role:x.role==='atlas'?'assistant':'user',text:x.text}));
  push('user',(text||'Analyze these attachments')+(filenames.length?'\n📎 '+filenames.join(', '):''));
- if(localStudio.length&&!files.length&&!(mode==='web-images'&&/\b(?:of|showing|about)\s+\S/i.test(text))){push('atlas','Adjusting the studio.');const id=current;void afterReply(()=>applyStudioCommands(localStudio,id).catch(e=>{if(id===data.active&&!/canceled/i.test(e.message))push('atlas',e.message)}));return}
+ if(localStudio.length&&!files.length&&!shouldDeferStudioCommands(mode,text)){push('atlas','Adjusting the studio.');const id=current;void afterReply(()=>applyStudioCommands(localStudio,id).catch(e=>{if(id===data.active&&!/canceled/i.test(e.message))push('atlas',e.message)}));return}
  const action=mode==='chat'?requestedMotion(text):null;
  if(action&&!files.length&&text.length<90&&!/\b(?:why|how|explain|what|image|picture|photo|create|generate|screen|presentation|center|home)\b/i.test(text)){performMotion(action);return}
  const destination=/\b(?:walk|go|move)\b.{0,35}\b(?:screen|presentation)\b/i.test(text)?'walkToScreen':/\b(?:return|go back|walk back)\b.{0,35}\b(?:center|home|start)\b/i.test(text)?'walkHome':null;
@@ -583,7 +583,7 @@ async function send(){
   response=await api('/atlas/api/'+mode,payload,mode==='image'?210000:150000);
   if(mode==='image'){if(!response.images?.length)throw Error('No image was returned. Your prompt is saved so you can retry.');for(const src of response.images)await decodeStudioPhoto(src)}
   const studioReply=extractStudioCommands(response.text||'');
-  const sceneActions=normalizeStudioCommands(response.studio||studioReply.studio);
+  const sceneActions=normalizeStudioCommands(shouldDeferStudioCommands(mode,text)&&localStudio.length?localStudio:response.studio||studioReply.studio);
   const cleaned=cleanReply(studioReply.text||'Done. Consider the dramatic entrance complete.');
   const txt=cleaned.text||'Done.';
   if(!response.actions?.length)response.actions=cleaned.actions;

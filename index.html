@@ -230,11 +230,11 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
 <p class="hint">Atlas's real motion clips control his limbs. The old manual joint sliders have been removed so they cannot interfere with natural animation.</p><div class="section">Model</div><label id="uploadModelBtn" class="btn wide">Replace Atlas body (optional)<input id="modelUpload" type="file" accept=".glb,model/gltf-binary"></label><p class="hint">The complete original Atlas model now loads automatically from the hosted library, even on a new device.</p><button id="repairAvatar" class="btn wide" style="margin:10px 0;text-align:center">↺ Reset Atlas body and animations</button>
 <p class="hint" id="modelDetails">Original full-body human model • securely hosted and cached</p></aside></div>
-<script type="module" src="atlas-app-v8.js?v=122"></script>
+<script type="module" src="atlas-app-v8.js?v=123"></script>
 <script type="module">
-import {normalizeStudioCommands,MAX_STUDIO_SCREENS} from './atlas-studio-controls.mjs?v=122';
-import {presentationFit,presentationSize,facingCameraYaw,clearWalkingLane,resizeScreen,screenApproach} from './atlas-presentation.mjs?v=122';
-import {clampPoint,stepTravel,stepGravity,smoothTurn} from './atlas-motion.mjs?v=122';
+import {normalizeStudioCommands,MAX_STUDIO_SCREENS} from './atlas-studio-controls.mjs?v=123';
+import {presentationFit,presentationSize,facingCameraYaw,clearWalkingLane,resizeScreen,screenApproach} from './atlas-presentation.mjs?v=123';
+import {clampPoint,stepTravel,stepGravity,smoothTurn} from './atlas-motion.mjs?v=123';
 import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 function createAtlasRenderer(){
  try{return new THREE.WebGLRenderer({canvas:document.getElementById('canvas'),antialias:true,alpha:true})}

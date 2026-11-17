@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {screenHarness} from './helpers/studio-screen-harness.mjs';
 import {stepTravel,smoothTurn,clampPoint} from '../atlas-motion.mjs';
-import {normalizeStudioCommands,parseStudioRequest,presentationTargets,MAX_STUDIO_STEPS} from '../atlas-studio-controls.mjs';
+import {normalizeStudioCommands,parseStudioRequest,presentationTargets,MAX_STUDIO_STEPS,shouldDeferStudioCommands} from '../atlas-studio-controls.mjs';
 const source=fs.readFileSync(new URL('../atlas-app-v8.js',import.meta.url),'utf8');
 const screens=Array.from({length:6},(_,i)=>({id:'screen-'+(i+1),visible:true}));
 const state={available:true,activeScreenId:'screen-3',screens,photos:{count:6}};
@@ -138,4 +138,13 @@ test('a frozen movement times out safely, while cancellation stops a pending mov
   assert.equal(results.at(-1).ok,false);assert.match(results.at(-1).error,/stopped|canceled/i);
   assert.equal(context.travelPlan,null);assert.deepEqual({...api.active().pos},before);
  }
+});
+
+test('new photo and generation tasks finish before their requested follow-up actions',()=>{
+ for(const mode of ['web-images','image']){
+  const text=mode==='web-images'?'find pictures of Cybertrucks in each then point to each':'create a picture of a cow then wave then point to each';
+  const actions=parseStudioRequest(text,state);assert.ok(actions.length);assert.equal(shouldDeferStudioCommands(mode,text),true);assert.ok(actions.some(c=>c.motion==='point'));
+ }
+ assert.equal(shouldDeferStudioCommands('chat','wave then dance'),false);
+ assert.equal(shouldDeferStudioCommands('web-images','show those pictures on the screen'),false);
 });
