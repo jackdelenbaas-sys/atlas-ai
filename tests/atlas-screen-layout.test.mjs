@@ -71,3 +71,20 @@ test('slideshow aspect changes keep the chosen display envelope without cumulati
  assert.equal(s.envelope.width,envelope.width);assert.equal(s.envelope.height,envelope.height);
  assert.ok(Math.abs(s.base.width*s.root.scale.x-envelope.width)<1e-9);
 });
+
+test('drag adjustments shift the screen without teleporting Atlas or changing camera angles',()=>{
+ const {api,context}=screenHarness(),s=api.active();
+ context.model={position:{x:.2,z:0}};context.yaw=37;context.pitch=-12;s.root.visible=true;Object.assign(s.pos,{x:.2,y:1.2,z:0});
+ api.arrangeStudioPresentation(false,s);
+ assert.equal(context.model.position.x,.2);assert.equal(context.model.position.z,0);
+ assert.equal(context.yaw,37);assert.equal(context.pitch,-12);assert.ok(Math.abs(s.pos.x-.2)>.8);
+});
+test('automatic clearance starts gait travel and leaves body translation to the movement engine',async()=>{
+ const {api,context}=screenHarness(),s=api.active(),planned=[];
+ context.model={position:{x:2.5,z:0}};s.root.visible=true;Object.assign(s.pos,{x:2.6,y:1.2,z:0});
+ context.travelRequest=0;context.showRun=null;context.ensureAction=async()=>{};
+ context.planTravel=(x,z)=>{planned.push({x,z});context.travelPlan={toX:x,toZ:z}};context.playMixamo=()=>{};
+ await api.walkClearOfScreens();
+ assert.equal(planned.length,1);assert.ok(planned[0].x<2.5);assert.equal(context.travelPlan.layout,true);
+ assert.equal(context.model.position.x,2.5);assert.equal(context.model.position.z,0);
+});

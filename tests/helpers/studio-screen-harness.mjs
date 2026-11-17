@@ -25,6 +25,6 @@ export function screenHarness(){
   yaw:0,pitch:0,center:new V(),distance:4,auto:false,sliders(){},updateCam(){},orientScreen(){},emitStudioState(){},setTimeout(){},phonePointers:new Map(),drag:false,travelPlan:null,presentationCameraTween:null,studioObjects:{visible:true},spotlight:{},rim:{}
  };
  const api=vm.runInNewContext(html.slice(start,end)+
- ';({makeStudioScreen,selectStudioScreen,removeStudioScreen,presentStudioImage,setScreenVisibility,drawPresentation,all:()=>[...studioScreens.values()],active:()=>activeScreen})',context);
+ ';({makeStudioScreen,selectStudioScreen,removeStudioScreen,presentStudioImage,setScreenVisibility,drawPresentation,arrangeStudioPresentation,walkClearOfScreens,all:()=>[...studioScreens.values()],active:()=>activeScreen})',context);
  return {api,images,window,context};
 }
