@@ -629,7 +629,7 @@ function setScreenVisibility(visible,s=activeScreen){s.hidden=!visible;if(!visib
 $('screenToggle').onclick=()=>setScreenVisibility(!activeScreen.root.visible);
 $('roomToggle').onclick=()=>{studioObjects.visible=!studioObjects.visible;spotlight.visible=studioObjects.visible;rim.visible=studioObjects.visible};
 function orientScreen(){
- for(const s of studioScreens.values())if(s.root.visible&&s.billboard){
+ for(const s of studioScreens.values())if(s.root.visible&&s.billboard&&!(draggingScreen&&screenDrag?.screen===s)){
   const dx=camera.position.x-s.root.position.x,dz=camera.position.z-s.root.position.z;s.root.rotation.y=Math.atan2(dx,dz);
  }
 }
@@ -651,6 +651,7 @@ function rayFromEvent(e){
  camera.updateMatrixWorld(true);screenRay.setFromCamera(pointerNDC,camera);
 }
 canvas.addEventListener('pointerdown',e=>{
+ if(draggingScreen){e.preventDefault();e.stopImmediatePropagation();return}
  if(e.button!==0)return;
  rayFromEvent(e);
  const visible=[...studioScreens.values()].filter(s=>s.root.visible);for(const s of visible)s.root.updateMatrixWorld(true);
