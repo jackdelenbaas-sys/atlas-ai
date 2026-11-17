@@ -36,3 +36,16 @@ export function resizeScreen(width,height,dx,dy,corner={x:1,y:-1}){
  const nextHeight=nextWidth/ratio;
  return {width:nextWidth,height:nextHeight,offsetX:corner.x*(nextWidth-width)/2,offsetY:corner.y*(nextHeight-height)/2};
 }
+
+export function screenApproach(avatar,target,screens,right,bounds,front=false){
+ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+ const rlen=Math.hypot(right.x,right.z)||1,rx=right.x/rlen,rz=right.z/rlen;
+ const center={x:target.x+(target.normalX||0)*.65,z:target.z+(target.normalZ||0)*.65};
+ const bounded=v=>({x:clamp(v.x,bounds.minX,bounds.maxX),z:clamp(v.z,bounds.minZ,bounds.maxZ)});
+ if(front)return bounded(center);
+ const offset=target.width/2+.72;
+ const clear=v=>screens.every(s=>s.visible===false||s.y-s.height/2>=1.95||s.y+s.height/2<=.05||Math.abs((v.x-s.x)*rx+(v.z-s.z)*rz)>s.width/2+.62);
+ const candidates=[-1,1].map(sign=>bounded({x:center.x+rx*offset*sign,z:center.z+rz*offset*sign})).filter(clear);
+ candidates.sort((a,b)=>Math.hypot(a.x-avatar.x,a.z-avatar.z)-Math.hypot(b.x-avatar.x,b.z-avatar.z));
+ return candidates[0]||clearWalkingLane(avatar,screens,right,bounds);
+}

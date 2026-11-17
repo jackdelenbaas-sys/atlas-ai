@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenHarness} from './helpers/studio-screen-harness.mjs';
-import {clearWalkingLane,resizeScreen,presentationSize} from '../atlas-presentation.mjs';
+import {clearWalkingLane,resizeScreen,screenApproach,presentationSize} from '../atlas-presentation.mjs';
 import {normalizeStudioCommands,parseStudioRequest} from '../atlas-studio-controls.mjs';
 const bounds={minX:-3.71,maxX:3.71,minZ:-3.72,maxZ:1.93};
 test('walk toward the larger clear side, including when Atlas stands at either wall',()=>{
@@ -107,4 +107,11 @@ test('replacing an image retains the exact screen position and dimensions',async
  const before={...s.pos},width=s.base.width*s.root.scale.x,height=s.base.height*s.root.scale.y;
  for(let i=0;i<2;i++){const p=api.presentStudioImage('data:image/jpeg;base64,AAAA',true,s);images[i].width=i?500:1600;images[i].height=i?1600:900;images[i].resolve();await p}
  assert.deepEqual({...s.pos},before);assert.equal(s.base.width*s.root.scale.x,width);assert.equal(s.base.height*s.root.scale.y,height);
+});
+
+test('screen presentations select a clear approach and stay put when every lane is occupied',()=>{
+ const target={x:1,y:1,z:0,width:1.5,height:1.2,normalX:0,normalZ:1},avatar={x:0,z:0};
+ const approach=screenApproach(avatar,target,[target],{x:1,z:0},bounds);assert.ok(approach);assert.ok(Math.abs(approach.x-target.x)>1.5/2+.62);
+ const crowded=[{x:0,z:0,y:1,width:20,height:2}];assert.equal(screenApproach(avatar,target,crowded,{x:1,z:0},bounds),null);
+ const front=screenApproach(avatar,target,crowded,{x:1,z:0},bounds,true);assert.equal(front.x,1);assert.equal(front.z,.65);
 });

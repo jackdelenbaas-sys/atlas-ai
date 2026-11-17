@@ -233,7 +233,7 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 <script type="module" src="atlas-app-v8.js?v=122"></script>
 <script type="module">
 import {normalizeStudioCommands,MAX_STUDIO_SCREENS} from './atlas-studio-controls.mjs?v=122';
-import {presentationFit,presentationSize,facingCameraYaw,clearWalkingLane,resizeScreen} from './atlas-presentation.mjs?v=122';
+import {presentationFit,presentationSize,facingCameraYaw,clearWalkingLane,resizeScreen,screenApproach} from './atlas-presentation.mjs?v=122';
 import {clampPoint,stepTravel,stepGravity,smoothTurn} from './atlas-motion.mjs?v=122';
 import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 function createAtlasRenderer(){
@@ -1414,10 +1414,7 @@ window.addEventListener('atlas-studio-control',async e=>{
     let destination=null,screen=c.targetScreen?studioScreens.get(c.targetScreen):null;
     if(c.targetScreen&&(!screen||!screen.root.visible))throw Error('That screen is not showing. Put a picture there first.');
     if(screen){
-     const r=cameraRight(),normal=new THREE.Vector3(Math.sin(screen.root.rotation.y),0,Math.cos(screen.root.rotation.y));
-     const offset=c.placement==='front'?0:(screen.base.width*screen.root.scale.x/2+.72);
-     const candidates=[-1,1].map(sign=>clampToRoom(screen.pos.x+normal.x*.65+r.x*offset*sign,screen.pos.z+normal.z*.65+r.z*offset*sign));
-     destination=candidates.sort((a,b)=>Math.hypot(a.x-model.position.x,a.z-model.position.z)-Math.hypot(b.x-model.position.x,b.z-model.position.z))[0];
+     destination=screenApproach(model.position,{...screen.pos,width:screen.base.width*screen.root.scale.x,normalX:Math.sin(screen.root.rotation.y),normalZ:Math.cos(screen.root.rotation.y)},screenLayoutItems(),cameraRight(),ROOM_LIMITS,c.placement==='front');
      allowAvatarOverlap=c.placement==='front';faceCameraRequested=false;avatarFacingTarget=null;
     }else if(c.x!==undefined||c.z!==undefined)destination=clampToRoom(c.x??model.position.x,c.z??model.position.z);
     if(c.rotation!==undefined){faceCameraRequested=false;avatarFacingTarget=c.rotation*Math.PI/180;}
