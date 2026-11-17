@@ -1328,7 +1328,7 @@ window.addEventListener('atlas-action',e=>{
 
 function emitStudioState(){
  const screens=[...studioScreens.values()].map(s=>({id:s.id,visible:s.root.visible,content:s.content,title:s.title,x:s.pos.x,y:s.pos.y,z:s.pos.z,width:s.root.scale.x*s.base.width,height:s.root.scale.y*s.base.height}));
- const detail={available:true,allowAvatarOverlap,sequenceActive:scriptedActionActive,activeScreenId:activeScreen.id,screens,screen:{visible:activeScreen.root.visible,content:activeScreen.content,x:activeScreen.pos.x,y:activeScreen.pos.y,z:activeScreen.pos.z,width:activeScreen.root.scale.x*activeScreen.base.width,height:activeScreen.root.scale.y*activeScreen.base.height},camera:{yaw,pitch,distance,x:center.x,y:center.y,z:center.z},avatar:model?{x:model.position.x,z:model.position.z,rotation:model.rotation.y*180/Math.PI}:null,roomVisible:studioObjects.visible};
+ const detail={available:true,allowAvatarOverlap,sequenceActive:scriptedActionActive,activeScreenId:activeScreen.id,screens,screen:{visible:activeScreen.root.visible,content:activeScreen.content,x:activeScreen.pos.x,y:activeScreen.pos.y,z:activeScreen.pos.z,width:activeScreen.root.scale.x*activeScreen.base.width,height:activeScreen.root.scale.y*activeScreen.base.height},camera:{yaw,pitch,distance,x:center.x,y:center.y,z:center.z},avatar:model?{x:model.position.x,z:model.position.z,moving:Boolean(travelPlan),skeletonReady:Boolean(mixamoMixer),motion:mixamoCurrent?.getClip()?.name||'',rotation:model.rotation.y*180/Math.PI}:null,roomVisible:studioObjects.visible};
  window.dispatchEvent(new CustomEvent('atlas-studio-state',{detail}));return detail;
 }
 window.addEventListener('atlas-studio-state-request',emitStudioState);
