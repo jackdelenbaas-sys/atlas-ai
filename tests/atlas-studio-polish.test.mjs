@@ -107,7 +107,7 @@ function sceneHarness({blocked=false,cancel=false}={}){
   if(!blocked){
    const p=context.travelPlan,m=context.model;
    if(p){const next=stepTravel(p,m.position.x,m.position.z,m.rotation.y,.04);Object.assign(m.position,{x:next.x,z:next.z});m.rotation.y=next.yaw;p.velocity=next.speed;p.turnVelocity=next.turnVelocity;if(next.done)context.travelPlan=null}
-   else{const target=vm.runInContext('avatarFacingTarget',context);if(target!==null)m.rotation.y=smoothTurn(m.rotation.y,target,vm.runInContext('avatarTurnVelocity',context),.04).yaw}
+   else{const target=vm.runInContext('avatarFacingTarget',context);if(target!==null){const turn=smoothTurn(m.rotation.y,target,vm.runInContext('avatarTurnVelocity',context),.04);m.rotation.y=turn.yaw;context.tickTurnVelocity=turn.velocity;vm.runInContext('avatarTurnVelocity=tickTurnVelocity',context)}}
   }
   callback();
  });
