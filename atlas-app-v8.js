@@ -1,5 +1,5 @@
-import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands,presentationTargets,shouldDeferStudioCommands,studioConversation,explicitPhotoSearch,photoSearchFollowup,studioRecallRequest,studioRecallReply,studioActionSummary,photoSubject,resolvePhotoSubject,stopRequested,movementRequested,authorizeStudioCommands} from './atlas-studio-controls.mjs?v=125';
-import {mergeHistory,normalizeHistory} from './atlas-history.mjs?v=125';
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands,presentationTargets,shouldDeferStudioCommands,studioConversation,explicitPhotoSearch,photoSearchFollowup,studioRecallRequest,studioRecallReply,studioActionSummary,photoSubject,resolvePhotoSubject,stopRequested,movementRequested,authorizeStudioCommands} from './atlas-studio-controls.mjs?v=126';
+import {mergeHistory,normalizeHistory} from './atlas-history.mjs?v=126';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
@@ -367,7 +367,7 @@ async function connectPairingLink(){
  try{const r=await fetch(server+'/atlas/api/pair/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})}),j=await r.json();if(!r.ok||!j.token)throw Error(j.error||'Pairing failed');ACCESS=j.token;pairResumeId=j.activeThreadId||'';sessionStorage.setItem('atlas-access-token',ACCESS);localStorage.setItem('atlas-access-token',ACCESS);if(tokenField)tokenField.value=ACCESS;syncStatus('Device connected. Loading your history…');return true}catch(e){syncStatus(e.message);open('settings');return false}
 }
 $('atlasPairDevice').onclick=async()=>{
- try{if(!ACCESS)throw Error('Create the link on your already-connected computer.');const code=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');await api('/atlas/api/pair',{code,activeThreadId:data.active});const url=new URL(location.href);url.search='?v=125';url.hash=new URLSearchParams({pair:code,server:BASE}).toString();$('atlasPairLink').value=url.href;$('atlasPairShare').hidden=false;syncStatus('Private one-use link, valid for 10 minutes. Open it on your phone.')}catch(e){syncStatus(e.message)}
+ try{if(!ACCESS)throw Error('Create the link on your already-connected computer.');const code=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');await api('/atlas/api/pair',{code,activeThreadId:data.active});const url=new URL(location.href);url.search='?v=126';url.hash=new URLSearchParams({pair:code,server:BASE}).toString();$('atlasPairLink').value=url.href;$('atlasPairShare').hidden=false;syncStatus('Private one-use link, valid for 10 minutes. Open it on your phone.')}catch(e){syncStatus(e.message)}
 };
 $('atlasPairShare').onclick=async()=>{const url=$('atlasPairLink').value;try{if(navigator.share)await navigator.share({title:'Connect my Atlas device',url});else{await navigator.clipboard.writeText(url);syncStatus('Pairing link copied. Open it on your other device.')}}catch{$('atlasPairLink').focus();$('atlasPairLink').select()}};
 window.addEventListener('online',()=>void syncHistory());
