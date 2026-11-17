@@ -49,6 +49,7 @@ try{
  assert.ok(!/walk|run/i.test(stopped.avatar.motion||''),'Stop must switch away from the walking clip.');
  await dispatch({type:'screen',visible:true,x:stopped.avatar.x,y:1.25,z:stopped.avatar.z,width:2.6,height:1.4});
  await page.evaluate(src=>{window.dispatchEvent(new CustomEvent('atlas-presentation-start'));window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src,reframe:true,title:'No pacing test'}}))},png);
+ await page.waitForFunction(()=>{window.dispatchEvent(new CustomEvent('atlas-studio-state-request'));return window.currentScene?.screen?.visible&&window.currentScene.screen.content?.kind==='image'});
  for(let i=0;i<6;i++){
   await page.evaluate(src=>window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src,reframe:false,title:'Next slide'}})),png);
   await page.waitForTimeout(180);
@@ -56,6 +57,7 @@ try{
  await dispatch({type:'screen',width:3,height:1.6});
  await page.waitForTimeout(2200);
  const afterPictures=await state();
+ assert.equal(afterPictures.screen.content.kind,'image');
  assert.equal(afterPictures.avatar.moving,false);assert.ok(!/walk|run/i.test(afterPictures.avatar.motion||''));
  assert.ok(Math.hypot(afterPictures.avatar.x-stopped.avatar.x,afterPictures.avatar.z-stopped.avatar.z)<.05,'Screen/image changes must not translate the real avatar.');
  await dispatch({type:'avatar',motion:'point',targetScreen:afterPictures.activeScreenId,travel:false,duration:.4});
