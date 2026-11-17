@@ -129,6 +129,8 @@ html,body{height:100%;overflow:hidden}
  #app{--mobile-split:27%}
  #app .right .voicebar{display:none}
 }
+
+.studio-dock select{background:#0c1a2b;color:#bdddf4;border:1px solid #9ccfff40;border-radius:18px;padding:7px 10px;max-width:130px;font:inherit;font-size:11px}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <style>
@@ -184,8 +186,8 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
  #dividerHandle:before{width:2px!important;height:100%!important}#dividerHandle:after{content:'⋮'!important;padding:10px 3px!important}
 }
 </style></head><body><div id="app">
-<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">10.18 STUDIO</span></header><div id="feed" class="feed"></div></div>
-<div class="right"><div class="stage"><canvas id="canvas"></canvas></div><details id="stageActions" class="studio-dock"><summary aria-label="Expand studio controls">Studio controls <span aria-hidden="true">⌄</span></summary><div class="studio-panel" aria-label="Atlas studio controls"><button id="studioUpload" title="Upload a picture">＋ Picture</button><button id="studioNormal" title="Restore the normal studio layout">↺ Normal view</button><button id="studioPresent" title="Show the latest image on the studio screen">▣ Screen</button><button data-motion="wave">Wave</button><button data-motion="walk">Walk</button><button data-motion="dance">Dance</button><button data-motion="idle">Stop</button></div></details><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div id="atlasFiles" class="atlas-files"></div><div class="inputglass"><button id="atlasAttach" class="circle" title="Upload an image or text file" aria-label="Attach files">＋</button><input id="input" autocomplete="off" placeholder="Ask anything, upload a photo, or create an image…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">ATLAS AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
+<div id="dividerHandle" title="Drag to resize chat and avatar" role="separator" aria-label="Resize chat and avatar" aria-orientation="vertical" tabindex="0"></div><div class="left"><header><button class="icon" id="historyBtn" title="Conversations" aria-label="Open conversations">☰</button><span class="brandmark">◈</span><div><div class="logo">ATLAS</div><div class="sub">PERSONAL INTELLIGENCE</div></div><span class="badge" style="margin-left:auto">10.19 STUDIO</span></header><div id="feed" class="feed"></div></div>
+<div class="right"><div class="stage"><canvas id="canvas"></canvas></div><details id="stageActions" class="studio-dock"><summary aria-label="Expand studio controls">Studio controls <span aria-hidden="true">⌄</span></summary><div class="studio-panel" aria-label="Atlas studio controls"><button id="studioUpload" title="Upload a picture">＋ Picture</button><button id="studioAddScreen" title="Add another presentation screen">＋ Screen</button><select id="studioScreenSelect" aria-label="Selected presentation screen"></select><button id="studioCloseScreen" title="Close selected screen">Close screen</button><button id="studioNormal" title="Restore the normal studio layout">↺ Normal view</button><button id="studioPresent" title="Show the latest image on the studio screen">▣ Screen</button><button data-motion="wave">Wave</button><button data-motion="walk">Walk</button><button data-motion="dance">Dance</button><button data-motion="idle">Stop</button></div></details><div class="status"><span id="modelStatus" class="badge">Loading human avatar…</span></div><button class="icon" id="settingsBtn" title="Avatar settings" style="position:absolute;right:19px;top:18px;z-index:5" aria-label="Open avatar settings">⚙</button><div class="controls"><div id="atlasFiles" class="atlas-files"></div><div class="inputglass"><button id="atlasAttach" class="circle" title="Upload an image or text file" aria-label="Attach files">＋</button><input id="input" autocomplete="off" placeholder="Ask anything, upload a photo, or create an image…"><button id="centerAtlas" class="circle center-atlas" type="button" aria-label="Return camera and Atlas to center" title="Center Atlas">⌖</button><button id="send" class="circle send" aria-label="Send message">➤</button></div><div class="voicebar"><small id="aiModeLabel">ATLAS AI · CONNECTING…</small><button id="mic" class="circle" title="Microphone coming later">♩</button><button id="speaker" class="circle" title="Voice output coming later">◖))</button></div></div></div>
 <div id="veil" class="veil"></div><aside class="sheet leftsheet" id="history"><div class="sheet-title"><h2>Conversations</h2><button class="icon" data-close>×</button></div><button class="btn wide" id="newChat">＋ New conversation</button><div class="section">Saved conversations</div><input id="atlasHistorySearch" class="btn wide" placeholder="Search conversations" aria-label="Search conversations"><p id="atlasSyncStatus" class="hint">History saved on this device.</p><div id="threads"></div><p class="hint">Your chats stay available offline and sync across your connected devices.</p></aside>
 <aside class="sheet rightsheet" id="settings"><div class="sheet-title"><h2>Atlas Person Settings</h2><button class="icon" data-close>×</button></div><div class="hint">Drag Atlas to orbit freely in every direction. Scroll or pinch to zoom. All controls affect only the human avatar.</div>
 <div class="section">Atlas Cloud AI</div>
@@ -228,10 +230,10 @@ body.atlas-dropping #app:after{content:'Drop your image here';position:absolute;
 <button id="reset" class="btn wide" style="margin-top:20px">↺ Center camera on Atlas</button>
 <p class="hint">Atlas's real motion clips control his limbs. The old manual joint sliders have been removed so they cannot interfere with natural animation.</p><div class="section">Model</div><label id="uploadModelBtn" class="btn wide">Replace Atlas body (optional)<input id="modelUpload" type="file" accept=".glb,model/gltf-binary"></label><p class="hint">The complete original Atlas model now loads automatically from the hosted library, even on a new device.</p><button id="repairAvatar" class="btn wide" style="margin:10px 0;text-align:center">↺ Reset Atlas body and animations</button>
 <p class="hint" id="modelDetails">Original full-body human model • securely hosted and cached</p></aside></div>
-<script type="module" src="atlas-app-v8.js?v=120"></script>
+<script type="module" src="atlas-app-v8.js?v=121"></script>
 <script type="module">
-import {normalizeStudioCommands} from './atlas-studio-controls.mjs?v=120';
-import {presentationFit,presentationSize,facingCameraYaw} from './atlas-presentation.mjs?v=120';
+import {normalizeStudioCommands} from './atlas-studio-controls.mjs?v=121';
+import {presentationFit,presentationSize,facingCameraYaw,clearWalkingLane,resizeScreen} from './atlas-presentation.mjs?v=121';
 import {clampPoint,stepTravel,stepGravity} from './atlas-motion.mjs?v=101';
 import * as THREE from 'three';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 function createAtlasRenderer(){
@@ -249,7 +251,7 @@ function fit(){
   if(w<2||h<2||w===renderW&&h===renderH)return;
   renderW=w;renderH=h;
   renderer.setSize(w,h,false);
-  camera.aspect=w/h;camera.updateProjectionMatrix();if(screenRoot.visible)fitStudioPresentation();else fitAtlasView();
+  camera.aspect=w/h;camera.updateProjectionMatrix();if([...studioScreens.values()].some(s=>s.root.visible))fitStudioPresentation();else fitAtlasView();
  });
 }
 new ResizeObserver(fit).observe(canvas);fit();
@@ -458,50 +460,112 @@ studio.add(footShadow);
 const spotlight=new THREE.SpotLight(0xd4e9ff,22,12,.87,.49,.6);
 spotlight.position.set(-2.7,3.5,2.6);spotlight.target.position.set(0,1.1,0);studio.add(spotlight,spotlight.target);
 const rim=new THREE.PointLight(0x6d95f7,3.4,7);rim.position.set(2.1,2.6,-2);studio.add(rim);
-const screenRoot=new THREE.Group();studio.add(screenRoot);const screenBase={width:1.5,height:1.06};
-const frame=new THREE.Mesh(new THREE.BoxGeometry(1.50,1.06,.045),mat(0x162a44,0x24649a,.3));
-frame.material.depthTest=true;frame.material.depthWrite=true;screenRoot.add(frame);
-const screenSurface=document.createElement('canvas');screenSurface.width=1024;screenSurface.height=680;
-const sc=screenSurface.getContext('2d'),screenTex=new THREE.CanvasTexture(screenSurface);
-screenTex.colorSpace=THREE.SRGBColorSpace;
-const panel=new THREE.Mesh(new THREE.PlaneGeometry(1.476,1.036),new THREE.MeshBasicMaterial({map:screenTex,side:THREE.DoubleSide,depthTest:true,depthWrite:true}));
-panel.position.z=.046;screenRoot.add(panel);
-function drawPresentation(image){
- if(image){const size=presentationSize(image.naturalWidth/image.naturalHeight||image.width/image.height);Object.assign(screenBase,size);const nextHeight=Math.round(1024*size.height/size.width);if(screenSurface.height!==nextHeight)screenTex.dispose();screenSurface.width=1024;screenSurface.height=nextHeight;frame.scale.set(size.width/1.5,size.height/1.06,1);panel.scale.set((size.width-.024)/1.476,(size.height-.024)/1.036,1)}
- sc.fillStyle='#091628';sc.fillRect(0,0,screenSurface.width,screenSurface.height);
- if(image){
-  const scale=Math.min(screenSurface.width/image.width,screenSurface.height/image.height),w=image.width*scale,h=image.height*scale;
-  sc.drawImage(image,(screenSurface.width-w)/2,(screenSurface.height-h)/2,w,h);
- }else{
-  const grad=sc.createLinearGradient(0,0,1024,680);
-  grad.addColorStop(0,'#123865');grad.addColorStop(1,'#081323');
-  sc.fillStyle=grad;sc.fillRect(0,0,1024,680);
-  sc.fillStyle='#8acaff';sc.font='bold 37px sans-serif';sc.fillText('ATLAS STUDIO',56,86);
-  sc.fillStyle='#f4faff';sc.font='bold 68px sans-serif';sc.fillText('WELCOME',56,224);
-  sc.fillStyle='#b0cfe6';sc.font='31px sans-serif';sc.fillText('Your interactive presentation room',56,283);
-  for(let i=0;i<5;i++){
-   sc.fillStyle=['#22639c','#3d86c7','#9acbfc'][i%3];
-   sc.fillRect(95+i*173,564-(i%3)*40,84,80+(i%3)*40);
-  }
+
+// Each screen owns its texture, pending decode and visibility latch.
+const studioScreens=new Map();let screenCounter=0,activeScreen,presentationScreenId=null;
+let faceCameraRequested=false,studioControlVersion=0,layoutWalkPending=false,layoutWalkGeneration=0;
+const screenGeometry=new THREE.BoxGeometry(1.5,1.06,.045),panelGeometry=new THREE.PlaneGeometry(1.476,1.036);
+const handleGeometry=new THREE.PlaneGeometry(.095,.095);
+function makeStudioScreen(){
+ if(studioScreens.size>=4){$('showStatus').textContent='Four screens are open. Close one to add another.';return null}
+ const id='screen-'+(++screenCounter),root=new THREE.Group();studio.add(root);
+ const surface=document.createElement('canvas');surface.width=1024;surface.height=680;
+ const texture=new THREE.CanvasTexture(surface);texture.colorSpace=THREE.SRGBColorSpace;
+ const frame=new THREE.Mesh(screenGeometry,mat(0x162a44,0x24649a,.3));root.add(frame);
+ const panel=new THREE.Mesh(panelGeometry,new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,depthTest:true,depthWrite:true}));panel.position.z=.046;root.add(panel);
+ const s={id,root,frame,panel,surface,texture,context:surface.getContext('2d'),base:{width:1.5,height:1.06},pos:{x:1.25,y:1.4,z:-.3},billboard:true,hidden:false,version:0,content:{kind:'empty'},envelope:null,handles:[]};
+ for(const x of [-1,1])for(const y of [-1,1]){
+  const handle=new THREE.Mesh(handleGeometry,new THREE.MeshBasicMaterial({color:0xafdfff,side:THREE.DoubleSide,depthTest:false,transparent:true,opacity:.92}));
+  handle.renderOrder=4;handle.userData.corner={x,y};root.add(handle);s.handles.push(handle);
  }
- screenTex.needsUpdate=true;
+ panel.userData.screenId=id;root.visible=false;studioScreens.set(id,s);drawPresentation(null,s);applyScreenPosition(s,true);selectStudioScreen(s);return s;
 }
-drawPresentation();
-const screenPos={x:1.85,y:1.63,z:-2.2};
-function applyScreenPosition(){
- screenRoot.position.set(screenPos.x,screenPos.y,screenPos.z);
- for(const [id,k] of [['screenX','x'],['screenY','y'],['screenZ','z']])$(id).value=screenPos[k];
+function updateScreenHandles(s){
+ for(const h of s.handles){h.position.set(h.userData.corner.x*s.base.width/2,h.userData.corner.y*s.base.height/2,.075);h.visible=s===activeScreen}
 }
-applyScreenPosition();screenRoot.visible=false;
-let presentationHiddenByUser=false,faceCameraRequested=false;
-let presentationVersion=0,screenBillboard=true,studioControlVersion=0,screenContent={kind:"empty"};
+function selectStudioScreen(s){
+ if(!s||!studioScreens.has(s.id))return;activeScreen=s;
+ for(const item of studioScreens.values())updateScreenHandles(item);
+ const select=$('studioScreenSelect');if(select){select.replaceChildren();for(const item of studioScreens.values()){const option=document.createElement('option');option.value=item.id;option.textContent='Screen '+item.id.split('-')[1];select.append(option)}select.value=s.id}
+ for(const [id,k] of [['screenX','x'],['screenY','y'],['screenZ','z']])$(id).value=s.pos[k];
+}
+function drawPresentation(image,s=activeScreen){
+ if(image){
+  const envelope=s.envelope;
+  const size=presentationSize(image.naturalWidth/image.naturalHeight||image.width/image.height);size.width=Math.max(.6,size.width);size.height=Math.max(.4,size.height);Object.assign(s.base,size);
+  // Retain the user's chosen display envelope when slideshow aspect ratios change.
+  if(envelope){const fit=Math.min(envelope.width/size.width,envelope.height/size.height);s.root.scale.set(fit,fit,1)}
+  else{s.envelope={width:size.width,height:size.height};s.root.scale.set(1,1,1)}
+  const nextHeight=Math.round(1024*size.height/size.width);
+  if(s.surface.height!==nextHeight){s.texture.dispose();s.surface.height=nextHeight}
+  s.frame.scale.set(size.width/1.5,size.height/1.06,1);s.panel.scale.set((size.width-.024)/1.476,(size.height-.024)/1.036,1);
+ }
+ const ctx=s.context,w=s.surface.width,h=s.surface.height;
+ ctx.fillStyle='#091628';ctx.fillRect(0,0,w,h);
+ if(image){const fit=Math.min(w/image.width,h/image.height),iw=image.width*fit,ih=image.height*fit;ctx.drawImage(image,(w-iw)/2,(h-ih)/2,iw,ih)}
+ else{ctx.fillStyle='#a8d6f7';ctx.font='32px sans-serif';ctx.fillText('ATLAS STUDIO',50,90);ctx.font='25px sans-serif';ctx.fillText('Ask for a picture, or upload one.',50,150)}
+ s.texture.needsUpdate=true;updateScreenHandles(s);
+}
+function applyScreenPosition(s=activeScreen,immediate=false){
+ if(immediate)s.root.position.set(s.pos.x,s.pos.y,s.pos.z);
+ if(s===activeScreen)for(const [id,k] of [['screenX','x'],['screenY','y'],['screenZ','z']])$(id).value=s.pos[k];
+}
+makeStudioScreen();
+function cameraRight(){const r=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0);r.y=0;if(r.lengthSq()<.001)r.set(1,0,0);return r.normalize()}
+function screenLayoutItems(){
+ const right=cameraRight();
+ return [...studioScreens.values()].filter(s=>s.root.visible).map(s=>{
+  const horizontal=new THREE.Vector3(Math.cos(s.root.rotation.y),0,-Math.sin(s.root.rotation.y));
+  return {id:s.id,x:s.pos.x,y:s.pos.y,z:s.pos.z,width:s.base.width*s.root.scale.x*Math.abs(horizontal.dot(right))+.06,height:s.base.height*s.root.scale.y,visible:true};
+ });
+}
+function screenOverlapsAtlas(s){
+ if(!model||!s.root.visible)return false;const r=cameraRight(),w=s.base.width*s.root.scale.x;
+ const horizontal=new THREE.Vector3(Math.cos(s.root.rotation.y),0,-Math.sin(s.root.rotation.y));
+ return s.pos.y-s.base.height*s.root.scale.y/2<1.95&&s.pos.y+s.base.height*s.root.scale.y/2>.05&&Math.abs((s.pos.x-model.position.x)*r.x+(s.pos.z-model.position.z)*r.z)<w*Math.abs(horizontal.dot(r))/2+.60;
+}
+function moveScreenClear(s=activeScreen){
+ if(!screenOverlapsAtlas(s))return;
+ const r=cameraRight(),width=s.base.width*s.root.scale.x,origin={...s.pos};
+ const options=[];
+ for(const sign of [-1,1]){
+  const offset=(model.position.x-origin.x)*r.x+(model.position.z-origin.z)*r.z+sign*(width/2+.73);
+  const x=origin.x+r.x*offset,z=origin.z+r.z*offset;
+  if(x<-3.1||x>3.1||z<-3.2||z>1.5)continue;
+  const collides=[...studioScreens.values()].some(other=>other!==s&&other.root.visible&&Math.abs((x-other.pos.x)*r.x+(z-other.pos.z)*r.z)<(width+other.base.width*other.root.scale.x)/2+.08);
+  options.push({x,z,offset,collides,space:sign>0?3.71-(x*r.x+z*r.z):3.71+(x*r.x+z*r.z)});
+ }
+ options.sort((a,b)=>Number(a.collides)-Number(b.collides)||b.space-a.space||Math.abs(a.offset)-Math.abs(b.offset));
+ if(options.length){s.pos.x=options[0].x;s.pos.z=options[0].z;applyScreenPosition(s)}
+ // If the room has no side lane, lift the screen above the body instead.
+ else{s.pos.y=Math.min(3.5,2.08+s.base.height*s.root.scale.y/2);applyScreenPosition(s)}
+}
+async function walkClearOfScreens(){
+ if(!model)return;
+ const target=clearWalkingLane(model.position,screenLayoutItems(),cameraRight(),ROOM_LIMITS);
+ if(!target){for(const s of studioScreens.values())moveScreenClear(s);return}
+ const generation=++layoutWalkGeneration,request=++travelRequest;layoutWalkPending=true;
+ showRun=null;travelPlan=null;
+ try{await ensureAction('walk');if(generation!==layoutWalkGeneration||request!==travelRequest)return;
+  planTravel(target.x,target.z);if(travelPlan){travelPlan.layout=true;gesture='';playMixamo('walk',false,.5)}
+ }catch{for(const s of studioScreens.values())moveScreenClear(s)}
+ finally{if(generation===layoutWalkGeneration)layoutWalkPending=false}
+}
 function fitStudioPresentation(){
- if(!screenRoot.visible)return;
- const w=screenBase.width*screenRoot.scale.x,h=screenBase.height*screenRoot.scale.y;
- const min={x:screenPos.x-w/2,y:screenPos.y-h/2,z:screenPos.z-.06},max={x:screenPos.x+w/2,y:screenPos.y+h/2,z:screenPos.z+.06};
- if(model){min.x=Math.min(min.x,model.position.x-.4);max.x=Math.max(max.x,model.position.x+.4);min.y=Math.min(min.y,0);max.y=Math.max(max.y,1.9);min.z=Math.min(min.z,model.position.z-.2);max.z=Math.max(max.z,model.position.z+.2)}
+ const visible=[...studioScreens.values()].filter(s=>s.root.visible);if(!visible.length)return;
+ // Work in the current camera's orientation. Resizing never forces a front view.
+ const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch*Math.PI/180,yaw*Math.PI/180,0,'YXZ')),inverse=q.clone().invert();
+ const points=[];
+ for(const s of visible){
+  s.root.updateMatrixWorld(true);
+  for(const x of [-.5,.5])for(const y of [-.5,.5])points.push(new THREE.Vector3(x*s.base.width,y*s.base.height,.05).applyMatrix4(s.root.matrixWorld).applyQuaternion(inverse));
+ }
+ if(model)for(const x of [-.43,.43])for(const y of [0,1.95])for(const z of [-.25,.25])points.push(new THREE.Vector3(model.position.x+x,y,model.position.z+z).applyQuaternion(inverse));
+ const walkingTarget=travelPlan?{x:travelPlan.toX,z:travelPlan.toZ}:layoutWalkPending&&model?clearWalkingLane(model.position,screenLayoutItems(),cameraRight(),ROOM_LIMITS):null;
+ if(walkingTarget)for(const x of [-.43,.43])for(const y of [0,1.95])points.push(new THREE.Vector3(walkingTarget.x+x,y,walkingTarget.z).applyQuaternion(inverse));
+ const bounds=new THREE.Box3().setFromPoints(points),fit=presentationFit(bounds,camera.aspect,camera.fov);
  const fromPosition=camera.position.clone(),fromQuaternion=camera.quaternion.clone();
- const fit=presentationFit({min,max},camera.aspect,camera.fov);center.set(fit.x,fit.y,fit.z);distance=fit.distance;yaw=0;pitch=0;auto=false;$('auto').checked=false;sliders();updateCam();
+ center.set(fit.x,fit.y,fit.z).applyQuaternion(q);distance=Math.min(12,fit.distance);auto=false;$('auto').checked=false;sliders();updateCam();
  if(fromPosition.distanceTo(camera.position)>.01){presentationCameraTween={at:performance.now(),fromPosition,fromQuaternion,toPosition:camera.position.clone(),toQuaternion:camera.quaternion.clone()};camera.position.copy(fromPosition);camera.quaternion.copy(fromQuaternion)}
 }
 function fitAtlasView(){
@@ -509,80 +573,122 @@ function fitAtlasView(){
  const fit=presentationFit({min:{x:x-.45,y:0,z:z-.2},max:{x:x+.45,y:1.9,z:z+.2}},camera.aspect,camera.fov);
  center.set(fit.x,fit.y,fit.z);distance=fit.distance;yaw=0;pitch=0;sliders();updateCam();
 }
-window.addEventListener('orientationchange',()=>{phonePointers.clear();drag=false;setTimeout(()=>{if(screenRoot.visible)fitStudioPresentation();else fitAtlasView()},180)});
-function arrangeStudioPresentation(reposition=true){
- const w=screenBase.width*screenRoot.scale.x;
- // Anchor the screen beside Atlas instead of overlapping his body.
- if(reposition)Object.assign(screenPos,{x:.55,y:1.25,z:-.15});
- if(model&&(reposition||Math.abs(model.position.x-screenPos.x)<w/2+.45)){model.position.x=Math.max(-2.4,screenPos.x-w/2-.65);model.position.z=.05}
- applyScreenPosition();fitStudioPresentation();
+window.addEventListener('orientationchange',()=>{phonePointers.clear();drag=false;setTimeout(()=>{if([...studioScreens.values()].some(s=>s.root.visible))fitStudioPresentation();else fitAtlasView()},180)});
+function arrangeStudioPresentation(reposition=true,s=activeScreen){
+ if(reposition){
+  // Initial placement is relative to the viewing direction, not always world-left.
+  const r=cameraRight(),side=(model?.position.x||0)>0?-1:1;
+  Object.assign(s.pos,{x:THREE.MathUtils.clamp((model?.position.x||0)+r.x*side*.8,-2.6,2.6),y:1.3,z:THREE.MathUtils.clamp((model?.position.z||0)+r.z*side*.8-.25,-2.6,1.5)});
+  applyScreenPosition(s,true);orientScreen();void walkClearOfScreens();
+  // Do not chase the camera while dragging or while the slideshow advances.
+  fitStudioPresentation();
+ }else{moveScreenClear(s)}
 }
+function cancelLayoutWalk(){++layoutWalkGeneration;layoutWalkPending=false}
 function normalStudioView(){
- ++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;gesture='';
- screenRoot.scale.set(1,1,1);screenBillboard=true;faceCameraRequested=true;
- if(model){model.position.x=0;model.position.z=0;model.rotation.y=0;playMixamo('idle',false,.65)}
- if(screenRoot.visible)arrangeStudioPresentation();else centerAtlasView(false);
+ cancelLayoutWalk();++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;gesture='';faceCameraRequested=true;
+ yaw=0;pitch=0;
+ const visible=[...studioScreens.values()].filter(s=>s.root.visible);
+ for(const [i,s] of visible.entries()){s.root.scale.set(1,1,1);s.envelope={...s.base};s.billboard=true;Object.assign(s.pos,{x:i%2===0?1.2:-1.2,y:1.3+(i>1?1.5:0),z:-.3});applyScreenPosition(s)}
+ if(model){playMixamo('idle',false,.65);if(Math.hypot(model.position.x,model.position.z)>.08)void walkTo(0,0)}
+ if(visible.length){for(const s of visible)moveScreenClear(s);fitStudioPresentation()}else centerAtlasView(false);
 }
 $('studioNormal').onclick=normalStudioView;
-async function presentStudioImage(src,reframe=true){
- if(presentationHiddenByUser)return;
+function removeStudioScreen(s=activeScreen){
+ if(!s)return;s.version++;s.hidden=true;
+ window.dispatchEvent(new CustomEvent('atlas-screen-visibility',{detail:{visible:false,screenId:s.id}}));
+ if(studioScreens.size===1){clearStudioScreen(s);return}
+ studioScreens.delete(s.id);studio.remove(s.root);s.texture.dispose();s.frame.material.dispose();s.panel.material.dispose();for(const h of s.handles)h.material.dispose();
+ if(presentationScreenId===s.id)presentationScreenId=null;
+ selectStudioScreen([...studioScreens.values()].at(-1));emitStudioState();
+}
+function addStudioScreen(){
+ const s=makeStudioScreen();if(!s)return;
+ showScreen(true,s);const i=studioScreens.size-1;
+ Object.assign(s.pos,{x:i%2? -1.5:1.5,y:i>1?2.6:1.35,z:-.4});applyScreenPosition(s,true);orientScreen();moveScreenClear(s);fitStudioPresentation();emitStudioState();return s;
+}
+$('studioAddScreen').onclick=addStudioScreen;$('studioCloseScreen').onclick=()=>removeStudioScreen();
+$('studioScreenSelect').onchange=e=>selectStudioScreen(studioScreens.get(e.target.value));
+async function presentStudioImage(src,reframe=true,s=activeScreen){
+ if(!s||s.hidden||!studioScreens.has(s.id))return;
  if(typeof src!=='string'||!/^data:image\/(jpeg|png|webp);base64,/.test(src))return;
- const version=++presentationVersion,im=new Image();im.src=src;
- try{await im.decode();if(version!==presentationVersion||presentationHiddenByUser)return;drawPresentation(im);screenContent={kind:"image"};showScreen(true);
-  arrangeStudioPresentation(reframe);
-  $('showStatus').textContent='Image displayed. Ask Atlas about it, or tap a movement control.';
- }catch{if(version===presentationVersion){showScreen(false);$('showStatus').textContent='That picture could not be displayed. Try another photo.';window.dispatchEvent(new CustomEvent('atlas-studio-image-error'))}}
+ const version=++s.version,im=new Image();im.src=src;
+ try{await im.decode();if(version!==s.version||s.hidden||!studioScreens.has(s.id))return;
+  drawPresentation(im,s);s.content={kind:'image'};showScreen(true,s);arrangeStudioPresentation(reframe,s);
+  $('showStatus').textContent='Drag a screen to move it. Drag a corner to resize.';
+ }catch{if(version===s.version){showScreen(false,s);$('showStatus').textContent='That picture could not be displayed. Try another photo.';window.dispatchEvent(new CustomEvent('atlas-studio-image-error'))}}
 }
-window.addEventListener('atlas-presentation-start',()=>{presentationHiddenByUser=false});
-window.addEventListener('atlas-studio-image',e=>{void presentStudioImage(e.detail?.src,e.detail?.reframe!==false)});
-
+window.addEventListener('atlas-presentation-start',e=>{const s=studioScreens.get(e.detail?.screenId)||activeScreen;s.hidden=false;presentationScreenId=s.id;if(e.detail)e.detail.screenId=s.id});
+window.addEventListener('atlas-studio-image',e=>{const s=studioScreens.get(e.detail?.screenId||presentationScreenId);if(s)void presentStudioImage(e.detail?.src,e.detail?.reframe!==false,s)});
 for(const [id,k] of [['screenX','x'],['screenY','y'],['screenZ','z']]){
- $(id).oninput=e=>{screenPos[k]=Number(e.target.value);applyScreenPosition()};$(id).onchange=()=>arrangeStudioPresentation(false);
+ $(id).oninput=e=>{activeScreen.pos[k]=Number(e.target.value);applyScreenPosition()};$(id).onchange=()=>arrangeStudioPresentation(false);
 }
-$('resetScreen').onclick=()=>{Object.assign(screenPos,{x:1.85,y:1.63,z:-2.2});applyScreenPosition()};
-function showScreen(visible){screenRoot.visible=Boolean(visible)&&!presentationHiddenByUser}
-function setScreenVisibility(visible){presentationHiddenByUser=!visible;if(!visible)++presentationVersion;showScreen(visible);window.dispatchEvent(new CustomEvent('atlas-screen-visibility',{detail:{visible}}))}
-$('screenToggle').onclick=()=>setScreenVisibility(!screenRoot.visible);
+$('resetScreen').onclick=()=>{Object.assign(activeScreen.pos,{x:1.5,y:1.35,z:-.3});applyScreenPosition();moveScreenClear()};
+function showScreen(visible,s=activeScreen){s.root.visible=Boolean(visible)&&!s.hidden}
+function setScreenVisibility(visible,s=activeScreen){s.hidden=!visible;if(!visible)++s.version;showScreen(visible,s);window.dispatchEvent(new CustomEvent('atlas-screen-visibility',{detail:{visible,screenId:s.id}}))}
+$('screenToggle').onclick=()=>setScreenVisibility(!activeScreen.root.visible);
 $('roomToggle').onclick=()=>{studioObjects.visible=!studioObjects.visible;spotlight.visible=studioObjects.visible;rim.visible=studioObjects.visible};
-// Keep picture facing viewer, without ever vanishing from the back side.
 function orientScreen(){
- if(!screenBillboard)return;
- const dx=camera.position.x-screenRoot.position.x,dz=camera.position.z-screenRoot.position.z;
- screenRoot.rotation.y=Math.atan2(dx,dz);
+ for(const s of studioScreens.values())if(s.root.visible&&s.billboard){
+  const dx=camera.position.x-s.root.position.x,dz=camera.position.z-s.root.position.z;s.root.rotation.y=Math.atan2(dx,dz);
+ }
 }
-// Drag the presentation screen on the avatar canvas. Settings sliders control depth.
+function updateStudioScreens(dt,now){
+ for(const s of studioScreens.values())if(s.root.visible){
+  s.root.position.lerp(new THREE.Vector3(s.pos.x,s.pos.y,s.pos.z),1-Math.exp(-dt*9));
+ }
+ orientScreen();
+ // An orbit changes projected overlap. Slide the screen aside, never reset the camera.
+ if(!draggingScreen&&!drag&&!travelPlan&&!layoutWalkPending&&!presentationCameraTween&&now>nextClearanceCheck){
+  nextClearanceCheck=now+400;for(const s of studioScreens.values())moveScreenClear(s);
+ }
+}
 const screenRay=new THREE.Raycaster(),pointerNDC=new THREE.Vector2(),movePlane=new THREE.Plane();
 const startHit=new THREE.Vector3(),screenStart=new THREE.Vector3();
-let draggingScreen=false,screenDragId=-1;
+let draggingScreen=false,screenDragId=-1,screenDrag=null,nextClearanceCheck=0;
 function rayFromEvent(e){
- const r=canvas.getBoundingClientRect();
- pointerNDC.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);
- screenRay.setFromCamera(pointerNDC,camera);
+ const r=canvas.getBoundingClientRect();pointerNDC.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);
+ camera.updateMatrixWorld(true);screenRay.setFromCamera(pointerNDC,camera);
 }
 canvas.addEventListener('pointerdown',e=>{
- if(!screenRoot.visible||e.button!==0)return;
- rayFromEvent(e);if(screenRay.intersectObject(panel,false).length===0)return;
- draggingScreen=true;screenDragId=e.pointerId;screenStart.copy(screenRoot.position);
- movePlane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()),screenStart);
- screenRay.ray.intersectPlane(movePlane,startHit);
- canvas.setPointerCapture(e.pointerId);e.stopImmediatePropagation();
+ if(e.button!==0)return;
+ rayFromEvent(e);
+ const visible=[...studioScreens.values()].filter(s=>s.root.visible);for(const s of visible)s.root.updateMatrixWorld(true);
+ const handles=screenRay.intersectObjects(visible.flatMap(s=>s.handles.filter(h=>h.visible)),false);
+ const hits=handles.length?handles:screenRay.intersectObjects(visible.map(s=>s.panel),false);if(!hits.length)return;
+ const hit=hits[0],s=visible.find(s=>s.panel===hit.object||s.handles.includes(hit.object));if(!s)return;
+ selectStudioScreen(s);drag=false;phonePointers.clear();presentationCameraTween=null;
+ draggingScreen=true;screenDragId=e.pointerId;screenStart.copy(s.root.position);Object.assign(s.pos,s.root.position);
+ const normal=new THREE.Vector3(0,0,1).applyQuaternion(s.root.quaternion);
+ movePlane.setFromNormalAndCoplanarPoint(normal,screenStart);
+ if(!screenRay.ray.intersectPlane(movePlane,startHit)){draggingScreen=false;return}
+ screenDrag={screen:s,corner:hit.object.userData.corner||null,width:s.base.width*s.root.scale.x,height:s.base.height*s.root.scale.y,right:new THREE.Vector3(1,0,0).applyQuaternion(s.root.quaternion),up:new THREE.Vector3(0,1,0)};
+ canvas.setPointerCapture(e.pointerId);canvas.style.cursor=screenDrag.corner?'nwse-resize':'grabbing';e.preventDefault();e.stopImmediatePropagation();
 },true);
 canvas.addEventListener('pointermove',e=>{
  if(!draggingScreen||e.pointerId!==screenDragId)return;
- rayFromEvent(e);const hit=new THREE.Vector3();
+ rayFromEvent(e);const hit=new THREE.Vector3(),d=screenDrag,s=d.screen;
  if(screenRay.ray.intersectPlane(movePlane,hit)){
-  screenPos.x=THREE.MathUtils.clamp(screenStart.x+hit.x-startHit.x,-2.6,2.6);
-  screenPos.y=THREE.MathUtils.clamp(screenStart.y+hit.y-startHit.y,.75,2.7);
-  applyScreenPosition();
+  const delta=hit.sub(startHit);
+  if(d.corner){
+   const size=resizeScreen(d.width,d.height,delta.dot(d.right),delta.y,d.corner);
+   s.root.scale.set(size.width/s.base.width,size.height/s.base.height,1);s.envelope={width:size.width,height:size.height};
+   s.pos.x=screenStart.x+d.right.x*size.offsetX;s.pos.z=screenStart.z+d.right.z*size.offsetX;s.pos.y=screenStart.y+size.offsetY;
+  }else{s.pos.x=THREE.MathUtils.clamp(screenStart.x+delta.x,-3.1,3.1);s.pos.y=THREE.MathUtils.clamp(screenStart.y+delta.y,.5,3.5);s.pos.z=THREE.MathUtils.clamp(screenStart.z+delta.z,-3.2,1.5)}
+  applyScreenPosition(s,true);
  }
- e.stopImmediatePropagation();
+ e.preventDefault();e.stopImmediatePropagation();
 },true);
-for(const ev of ['pointerup','pointercancel'])canvas.addEventListener(ev,e=>{
- if(draggingScreen&&e.pointerId===screenDragId){draggingScreen=false;arrangeStudioPresentation(false);e.stopImmediatePropagation()}
-},true);
+function finishScreenDrag(e){
+ if(!draggingScreen||e.pointerId!==screenDragId)return;
+ const s=screenDrag.screen;draggingScreen=false;screenDrag=null;canvas.style.cursor='';drag=false;phonePointers.clear();
+ if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);
+ moveScreenClear(s);emitStudioState();e.stopImmediatePropagation();
+}
+for(const ev of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(ev,finishScreenDrag,true);
 let studioTargetX=0,studioTargetZ=0;
 async function walkTo(x,z=0){
- showRun=null;travelPlan=null;const request=++travelRequest;$('showStatus').textContent='Atlas is preparing to walk…';
+ cancelLayoutWalk();showRun=null;travelPlan=null;const request=++travelRequest;$('showStatus').textContent='Atlas is preparing to walk…';
  try{
   await ensureAction('walk');
   if(request!==travelRequest)return;
@@ -595,7 +701,7 @@ async function walkTo(x,z=0){
 }
 $('walkToScreen').onclick=()=>{
  showScreen(true);
- walkTo(screenPos.x>0?Math.max(0,screenPos.x-.72):Math.min(0,screenPos.x+.72),screenPos.z+.55);
+ walkTo(activeScreen.pos.x>0?Math.max(0,activeScreen.pos.x-.72):Math.min(0,activeScreen.pos.x+.72),activeScreen.pos.z+.55);
 };
 $('walkHome').onclick=()=>{faceCameraRequested=true;void walkTo(0,0)};
 $('walkToWall').onclick=()=>walkTo(model?.position.x||0,ROOM_LIMITS.minZ);
@@ -1188,6 +1294,9 @@ window.addEventListener('atlas-action',e=>{
    return;
  }
  if(!model)return;
+ // Response gestures must not cancel an automatic walk out of a screen's way.
+ if((layoutWalkPending||travelPlan?.layout)&&['sequence','think','listen','respond'].includes(kind))return;
+ if(kind==='motion')cancelLayoutWalk();
  if(kind==='sequence'){
   ++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;
   const actions=(e.detail?.action||[]).filter(x=>Object.hasOwn(ACTION_LIBRARY,x)).slice(0,4);
@@ -1235,39 +1344,44 @@ window.addEventListener('atlas-action',e=>{
 });
 
 function emitStudioState(){
- const detail={available:true,screen:{visible:screenRoot.visible,content:screenContent,x:screenPos.x,y:screenPos.y,z:screenPos.z,width:screenRoot.scale.x*screenBase.width,height:screenRoot.scale.y*screenBase.height},camera:{yaw,pitch,distance,x:center.x,y:center.y,z:center.z},avatar:model?{x:model.position.x,z:model.position.z,rotation:model.rotation.y*180/Math.PI}:null,roomVisible:studioObjects.visible};
+ const screens=[...studioScreens.values()].map(s=>({id:s.id,visible:s.root.visible,content:s.content,x:s.pos.x,y:s.pos.y,z:s.pos.z,width:s.root.scale.x*s.base.width,height:s.root.scale.y*s.base.height}));
+ const detail={available:true,activeScreenId:activeScreen.id,screens,screen:{visible:activeScreen.root.visible,content:activeScreen.content,x:activeScreen.pos.x,y:activeScreen.pos.y,z:activeScreen.pos.z,width:activeScreen.root.scale.x*activeScreen.base.width,height:activeScreen.root.scale.y*activeScreen.base.height},camera:{yaw,pitch,distance,x:center.x,y:center.y,z:center.z},avatar:model?{x:model.position.x,z:model.position.z,rotation:model.rotation.y*180/Math.PI}:null,roomVisible:studioObjects.visible};
  window.dispatchEvent(new CustomEvent('atlas-studio-state',{detail}));return detail;
 }
 window.addEventListener('atlas-studio-state-request',emitStudioState);
-function clearStudioScreen(){screenContent={kind:'empty'};++presentationVersion;sc.fillStyle='#091628';sc.fillRect(0,0,screenSurface.width,screenSurface.height);screenTex.needsUpdate=true;showScreen(false)}
+function clearStudioScreen(s=activeScreen){s.content={kind:'empty'};s.envelope=null;++s.version;s.context.fillStyle='#091628';s.context.fillRect(0,0,s.surface.width,s.surface.height);s.texture.needsUpdate=true;showScreen(false,s)}
 window.addEventListener('atlas-studio-control',async e=>{
  const {requestId}=e.detail||{},command=normalizeStudioCommands([e.detail?.command])[0];
  const version=++studioControlVersion;
  try{
   if(!command)throw Error('Unsupported studio command.');const c=command;
+  if(c.type==='screen'&&c.action==='add'){if(!addStudioScreen())throw Error('Close a screen before adding another.');}
+  if(c.type==='screen'&&c.id){const selected=studioScreens.get(c.id);if(!selected)throw Error('That screen is closed.');selectStudioScreen(selected)}
   if(c.type==='normal'){normalStudioView()}else if(c.type==='reset'){
-   presentationHiddenByUser=false;faceCameraRequested=true;
+   cancelLayoutWalk();for(const s of [...studioScreens.values()]){s.hidden=true;s.version++;s.root.visible=false;if(s!==activeScreen){studio.remove(s.root);studioScreens.delete(s.id);s.texture.dispose();s.frame.material.dispose();s.panel.material.dispose();for(const handle of s.handles)handle.material.dispose()}}selectStudioScreen(activeScreen);presentationScreenId=null;activeScreen.hidden=false;faceCameraRequested=true;
    ++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;gesture='';speechActive=false;speechMouthLevel=0;
-   clearStudioScreen();screenRoot.scale.set(1,1,1);screenBillboard=true;Object.assign(screenPos,{x:1.85,y:1.63,z:-2.2});applyScreenPosition();
+   clearStudioScreen();activeScreen.root.scale.set(1,1,1);activeScreen.envelope=null;activeScreen.billboard=true;Object.assign(activeScreen.pos,{x:1.85,y:1.63,z:-2.2});applyScreenPosition();
    if(model){model.position.x=0;model.position.z=0;model.rotation.y=0;playMixamo('idle',true)}
    centerAtlasView(false);
   }else if(c.type==='screen'){
+   if(c.action==='remove'){removeStudioScreen();emitStudioState();window.dispatchEvent(new CustomEvent('atlas-studio-result',{detail:{requestId,ok:true}}));return}
    if(c.clear)clearStudioScreen();
-   for(const k of ['x','y','z'])if(c[k]!==undefined)screenPos[k]=c[k];applyScreenPosition();
-   if(c.width!==undefined)screenRoot.scale.x=c.width/screenBase.width;if(c.height!==undefined)screenRoot.scale.y=c.height/screenBase.height;
-   if(c.billboard!==undefined)screenBillboard=c.billboard;
-   if(c.rotation!==undefined){screenBillboard=false;screenRoot.rotation.y=c.rotation*Math.PI/180}
+   for(const k of ['x','y','z'])if(c[k]!==undefined)activeScreen.pos[k]=c[k];applyScreenPosition();
+   if(c.width!==undefined)activeScreen.root.scale.x=c.width/activeScreen.base.width;if(c.height!==undefined)activeScreen.root.scale.y=c.height/activeScreen.base.height;
+   if(c.width!==undefined||c.height!==undefined)activeScreen.envelope={width:activeScreen.base.width*activeScreen.root.scale.x,height:activeScreen.base.height*activeScreen.root.scale.y};
+   if(c.billboard!==undefined)activeScreen.billboard=c.billboard;
+   if(c.rotation!==undefined){activeScreen.billboard=false;activeScreen.root.rotation.y=c.rotation*Math.PI/180}
    if(c.text!==undefined){
-    screenContent={kind:'text',text:c.text};++presentationVersion;sc.fillStyle='#091628';sc.fillRect(0,0,screenSurface.width,screenSurface.height);sc.fillStyle='#f0f6ff';sc.font='36px sans-serif';
-    const words=c.text.split(/\s+/);let line='',y=65;for(const word of words){if(sc.measureText(line+' '+word).width>920){sc.fillText(line,45,y);y+=52;line=word}else line+=(line?' ':'')+word;if(y>620)break}if(y<=620)sc.fillText(line,45,y);screenTex.needsUpdate=true;if(c.visible===undefined)showScreen(true);
+    activeScreen.content={kind:'text',text:c.text};++activeScreen.version;activeScreen.context.fillStyle='#091628';activeScreen.context.fillRect(0,0,activeScreen.surface.width,activeScreen.surface.height);activeScreen.context.fillStyle='#f0f6ff';activeScreen.context.font='36px sans-serif';
+    const words=c.text.split(/\s+/);let line='',y=65;for(const word of words){if(activeScreen.context.measureText(line+' '+word).width>920){activeScreen.context.fillText(line,45,y);y+=52;line=word}else line+=(line?' ':'')+word;if(y>620)break}if(y<=620)activeScreen.context.fillText(line,45,y);activeScreen.texture.needsUpdate=true;if(c.visible===undefined)showScreen(true);
    }
    if(c.visible!==undefined)setScreenVisibility(c.visible);
-   if(screenRoot.visible){if(c.width!==undefined||c.height!==undefined)arrangeStudioPresentation();else fitStudioPresentation()}
+   if(activeScreen.root.visible)arrangeStudioPresentation(false)
   }else if(c.type==='camera'){
    const x=model?.position.x||0,z=model?.position.z||0;
    if(c.preset==='head'){center.set(x,1.65,z);yaw=0;pitch=0;distance=1.35}
    else if(c.preset==='body'){center.set(x,1,z);yaw=0;pitch=0;distance=3.8}
-   else if(c.preset==='screen'){center.copy(screenRoot.position);yaw=0;pitch=0;distance=2.8}
+   else if(c.preset==='screen'){center.copy(activeScreen.root.position);yaw=0;pitch=0;distance=2.8}
    else if(c.preset==='studio'){center.set(.35,1.25,-.3);yaw=0;pitch=0;distance=6}
    else if(c.preset==='left'||c.preset==='right'){center.set(x,1.15,z);yaw=c.preset==='left'?-35:35;pitch=0;distance=3.8}
    else if(c.preset==='reset')centerAtlasView(false);
@@ -1275,7 +1389,7 @@ window.addEventListener('atlas-studio-control',async e=>{
    for(const k of ['x','y','z'])if(c[k]!==undefined)center[k]=c[k];auto=false;$('auto').checked=false;sliders();updateCam();
   }else if(c.type==='avatar'){
    if(!model)throw Error('Atlas is still loading. Try the movement again shortly.');
-   ++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;const motion=c.motion||(c.x!==undefined||c.z!==undefined?'walk':'idle');
+   cancelLayoutWalk();++chatActionVersion;++travelRequest;showRun=null;travelPlan=null;const motion=c.motion||(c.x!==undefined||c.z!==undefined?'walk':'idle');
    await ensureAction(motion);if(version!==studioControlVersion)throw new Error("Studio action canceled by a newer command.");
    if(c.rotation!==undefined){faceCameraRequested=false;model.rotation.y=c.rotation*Math.PI/180;}
    if(c.x!==undefined||c.z!==undefined)planTravel(c.x??model.position.x,c.z??model.position.z,null,motion==='back'?'back':'walk');
@@ -1397,7 +1511,7 @@ function animate(){
  if(presentationCameraTween){const t=presentationCameraTween,k=Math.min(1,(now-t.at)/550),ease=k*k*(3-2*k);camera.position.lerpVectors(t.fromPosition,t.toPosition,ease);camera.quaternion.slerpQuaternions(t.fromQuaternion,t.toQuaternion,ease);if(k===1)presentationCameraTween=null}
  updateShow(now);
  void naturalGesture(now);
- orientScreen();
+ updateStudioScreens(dt,now);
  backWall.visible=camera.position.z>-4.30;leftWall.visible=camera.position.x>-4.30;rightWall.visible=camera.position.x<4.30;
  roomFloor.visible=floorGrid.visible=camera.position.y>=.02;
  if(model){

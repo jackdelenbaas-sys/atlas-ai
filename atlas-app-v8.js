@@ -1,5 +1,5 @@
-import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=120';
-import {mergeHistory,normalizeHistory} from './atlas-history.mjs?v=120';
+import {normalizeStudioCommands,parseStudioRequest,extractStudioCommands} from './atlas-studio-controls.mjs?v=121';
+import {mergeHistory,normalizeHistory} from './atlas-history.mjs?v=121';
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 let BASE=localStorage.getItem('atlas-hosted-url')||'https://atlas-ai.jack-d-elenbaas.workers.dev';
@@ -144,8 +144,8 @@ async function startStudioSlideshow(items,start=0){
  stopStudioSlides();
  const photos=items.filter(i=>/^https:\/\/(?:upload|thumb)\.wikimedia\.org\//.test(i.url||'')).slice(0,6);
  if(!photos.length)return;
- window.dispatchEvent(new CustomEvent('atlas-presentation-start'));
- const version=slideVersion,state={items:photos,index:start%photos.length,busy:false,cache:new Map(),failed:new Set(),shown:0};studioSlides=state;
+ const presentation={};window.dispatchEvent(new CustomEvent('atlas-presentation-start',{detail:presentation}));
+ const version=slideVersion,state={screenId:presentation.screenId,items:photos,index:start%photos.length,busy:false,cache:new Map(),failed:new Set(),shown:0};studioSlides=state;
  const credits=$('photoCredits');if(credits){credits.replaceChildren();for(const item of photos){const p=document.createElement('p');p.textContent=(item.author||item.title||'Photo')+' · '+(item.license||'See source license')+' ';if(/^https:\/\/(?:commons\.wikimedia\.org|en\.wikipedia\.org)\//.test(item.source||'')){const a=document.createElement('a');a.href=item.source;a.textContent='Original';a.target='_blank';a.rel='noopener noreferrer';p.append(a)}credits.append(p)}}
  async function next(){
   if(state.busy||document.hidden||version!==slideVersion)return;state.busy=true;
@@ -156,7 +156,7 @@ async function startStudioSlideshow(items,start=0){
     try{
      let src=state.cache.get(item.url);if(!src){src=await loadStudioPhoto(item);state.cache.set(item.url,src)}
      if(version!==slideVersion)return;
-     window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src,reframe:state.shown++===0,title:item.title}}));return;
+     window.dispatchEvent(new CustomEvent('atlas-studio-image',{detail:{src,screenId:state.screenId,reframe:state.shown++===0,title:item.title}}));return;
     }catch{state.failed.add(item.url)}
    }
    if(version===slideVersion){clearInterval(slideTimer);slideTimer=null;setStatus('ATLAS · PHOTOS COULD NOT LOAD — TRY FINDING PHOTOS AGAIN')}
@@ -166,7 +166,7 @@ async function startStudioSlideshow(items,start=0){
  await next();
 }
 window.addEventListener('pagehide',stopStudioSlides);
-window.addEventListener('atlas-screen-visibility',e=>{if(e.detail?.visible===false)stopStudioSlides()});
+window.addEventListener('atlas-screen-visibility',e=>{if(e.detail?.visible===false&&(!studioSlides?.screenId||studioSlides.screenId===e.detail.screenId))stopStudioSlides()});
 function studioImage(src){
  stopStudioSlides();
  if(!/^data:image\/(jpeg|png|webp);base64,/.test(src||''))return;
@@ -295,7 +295,7 @@ async function connectPairingLink(){
  try{const r=await fetch(server+'/atlas/api/pair/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})}),j=await r.json();if(!r.ok||!j.token)throw Error(j.error||'Pairing failed');ACCESS=j.token;pairResumeId=j.activeThreadId||'';sessionStorage.setItem('atlas-access-token',ACCESS);localStorage.setItem('atlas-access-token',ACCESS);if(tokenField)tokenField.value=ACCESS;syncStatus('Device connected. Loading your history…');return true}catch(e){syncStatus(e.message);open('settings');return false}
 }
 $('atlasPairDevice').onclick=async()=>{
- try{if(!ACCESS)throw Error('Create the link on your already-connected computer.');const code=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');await api('/atlas/api/pair',{code,activeThreadId:data.active});const url=new URL(location.href);url.search='?v=120';url.hash=new URLSearchParams({pair:code,server:BASE}).toString();$('atlasPairLink').value=url.href;$('atlasPairShare').hidden=false;syncStatus('Private one-use link, valid for 10 minutes. Open it on your phone.')}catch(e){syncStatus(e.message)}
+ try{if(!ACCESS)throw Error('Create the link on your already-connected computer.');const code=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');await api('/atlas/api/pair',{code,activeThreadId:data.active});const url=new URL(location.href);url.search='?v=121';url.hash=new URLSearchParams({pair:code,server:BASE}).toString();$('atlasPairLink').value=url.href;$('atlasPairShare').hidden=false;syncStatus('Private one-use link, valid for 10 minutes. Open it on your phone.')}catch(e){syncStatus(e.message)}
 };
 $('atlasPairShare').onclick=async()=>{const url=$('atlasPairLink').value;try{if(navigator.share)await navigator.share({title:'Connect my Atlas device',url});else{await navigator.clipboard.writeText(url);syncStatus('Pairing link copied. Open it on your other device.')}}catch{$('atlasPairLink').focus();$('atlasPairLink').select()}};
 window.addEventListener('online',()=>void syncHistory());

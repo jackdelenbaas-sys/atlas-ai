@@ -1,7 +1,7 @@
 name: Mobile layouts and private history
 on:
   push:
-    branches: [main, atlas-mobile-sync-120]
+    branches: [main, atlas-mobile-sync-120, atlas-studio-screens-121]
   workflow_dispatch:
 permissions:
   contents: read
